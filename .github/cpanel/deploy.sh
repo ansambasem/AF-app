@@ -21,6 +21,18 @@ rsync -a --delete \
 # storage/ keeps its uploads and logs; only add folders that are missing.
 rsync -a --ignore-existing "$REPO"/storage/ "$APP"/storage/
 
+# cPanel keeps document roots under public_html, so the subdomain's document root
+# (public_html/powercollect/public) is a symlink to the app's public/ folder; the rest
+# of the app (.env, vendor, storage) stays outside public_html.
+WEBROOT="$(dirname "$(dirname "$REPO")")/public_html/powercollect/public"
+if [ -d "$WEBROOT" ] && [ ! -L "$WEBROOT" ] && [ -z "$(ls -A "$WEBROOT")" ]; then
+    rmdir "$WEBROOT"
+fi
+if [ ! -e "$WEBROOT" ]; then
+    mkdir -p "$(dirname "$WEBROOT")"
+    ln -s "$APP/public" "$WEBROOT"
+fi
+
 cd "$APP"
 if [ ! -f .env ]; then
     echo "No .env in $APP yet: files copied, Laravel commands skipped."
