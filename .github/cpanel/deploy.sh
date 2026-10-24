@@ -21,17 +21,16 @@ rsync -a --delete \
 # storage/ keeps its uploads and logs; only add folders that are missing.
 rsync -a --ignore-existing "$REPO"/storage/ "$APP"/storage/
 
-# cPanel keeps document roots under public_html, so the subdomain's document root
-# (public_html/powercollect/public) is a symlink to the app's public/ folder; the rest
-# of the app (.env, vendor, storage) stays outside public_html.
+# cPanel keeps document roots under public_html and Apache here refuses a symlinked
+# document root, so the subdomain's document root (public_html/powercollect/public) is a
+# copy of public/ whose index.php loads the app from $APP. .env, vendor and storage stay
+# outside public_html.
 WEBROOT="$(dirname "$(dirname "$REPO")")/public_html/powercollect/public"
-if [ -d "$WEBROOT" ] && [ ! -L "$WEBROOT" ] && [ -z "$(ls -A "$WEBROOT")" ]; then
-    rmdir "$WEBROOT"
-fi
-if [ ! -e "$WEBROOT" ]; then
-    mkdir -p "$(dirname "$WEBROOT")"
-    ln -s "$APP/public" "$WEBROOT"
-fi
+if [ -L "$WEBROOT" ]; then rm "$WEBROOT"; fi
+mkdir -p "$WEBROOT"
+rsync -a --delete --exclude=/storage "$APP"/public/ "$WEBROOT"/
+sed -i "s#__DIR__.'/../#'$APP/#g" "$WEBROOT/index.php"
+[ -e "$WEBROOT/storage" ] || ln -s "$APP/storage/app/public" "$WEBROOT/storage"
 
 cd "$APP"
 if [ ! -f .env ]; then
