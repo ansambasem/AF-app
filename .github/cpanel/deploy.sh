@@ -30,6 +30,17 @@ if [ -L "$WEBROOT" ]; then rm "$WEBROOT"; fi
 mkdir -p "$WEBROOT"
 rsync -a --delete --exclude=/storage "$APP"/public/ "$WEBROOT"/
 sed -i "s#__DIR__.'/../#'$APP/#g" "$WEBROOT/index.php"
+# The PHP version is chosen per document root by an .htaccess handler (MultiPHP);
+# the copy above replaced it, so add it back.
+cat >> "$WEBROOT/.htaccess" <<'HTACCESS'
+
+# php -- BEGIN cPanel-generated handler, do not edit
+# Set the “ea-php83” package as the default “PHP” programming language.
+<IfModule mime_module>
+  AddHandler application/x-httpd-ea-php83 .php .php8 .phtml
+</IfModule>
+# php -- END cPanel-generated handler, do not edit
+HTACCESS
 [ -e "$WEBROOT/storage" ] || ln -s "$APP/storage/app/public" "$WEBROOT/storage"
 
 cd "$APP"
