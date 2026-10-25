@@ -1,0 +1,140 @@
+name: Deploy to cPanel
+
+# Builds the app (Composer + Vite) and commits the result to the cpanel-deploy branch,
+# then asks cPanel (powercollect.abuzaed.ps) to pull that branch and run .cpanel.yml.
+# The server has no SSH or FTP from outside, so everything goes through the cPanel API.
+
+on:
+  push:
+    branches:
+      - claude/confident-archimedes-9rwkuc
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: Run the database seeders once (first install; needs SUPER_ADMIN_PASSWORD in .env)
+        type: boolean
+        default: false
+
+concurrency:
+  group: cpanel-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  DEPLOY_BRANCH: cpanel-deploy
+  CPANEL_HOST: abuzaed.ps
+  CPANEL_USER: abuzaedp
+  CPANEL_REPO: /home/abuzaedp/repositories/powercollect
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, pdo, pdo_mysql
+          coverage: none
+
+      # The seeders use model factories (Faker), so a seeding run keeps the dev packages.
+      - name: Install Composer dependencies
+        working-directory: source
+        run: composer install --prefer-dist --no-interaction --no-progress --optimize-autoloader ${{ inputs.seed && ' ' || '--no-dev' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+
+      - name: Build frontend
+        working-directory: source
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit the build to the deploy branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SEED: ${{ inputs.seed && '1' || '' }}
+        run: |
+          mkdir deploy && cd deploy
+          git init -q
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin "$DEPLOY_BRANCH"; then
+            git checkout -q -b "$DEPLOY_BRANCH" FETCH_HEAD
+          else
+            git checkout -q --orphan "$DEPLOY_BRANCH"
+          fi
+
+          rsync -a --delete \
+            --exclude=/.git --exclude=/node_modules --exclude=/mobile --exclude=/tests \
+            --exclude=/.github --exclude=/.claude --exclude=/.junie --exclude=/.deploy --exclude=/.cpanel.yml \
+            ../source/ ./
+          mkdir -p .deploy
+          cp ../source/.github/cpanel/deploy.sh .deploy/deploy.sh
+          cp ../source/.github/cpanel/cpanel.yml .cpanel.yml
+          [ -f public/.htaccess ] || cp ../source/.github/cpanel/htaccess public/.htaccess
+          if [ -n "$SEED" ]; then touch .deploy/seed-once; fi
+
+          git add -A -f
+          if git diff --cached --quiet; then
+            echo "Nothing changed since the last deploy build."
+          else
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Deploy ${GITHUB_SHA::7}"
+            git push -q origin "HEAD:$DEPLOY_BRANCH"
+          fi
+
+      - name: Pull and deploy on cPanel
+        env:
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: |
+          if [ -z "$CPANEL_API_TOKEN" ]; then
+            echo "::warning::CPANEL_API_TOKEN is not set: the deploy branch was built but cPanel was not updated."
+            exit 0
+          fi
+          api() {
+            curl -sS --fail-with-body --max-time 600 \
+              -H "Authorization: cpanel ${CPANEL_USER}:${CPANEL_API_TOKEN}" \
+              "https://${CPANEL_HOST}:2083/execute/$1" "${@:2}"
+          }
+
+          api VersionControl/update \
+            --data-urlencode "repository_root=${CPANEL_REPO}" \
+            --data-urlencode "branch=${DEPLOY_BRANCH}" > update.json
+          jq '{status, errors}' update.json
+          jq -e '.status == 1' update.json > /dev/null
+
+          api VersionControlDeployment/create \
+            --data-urlencode "repository_root=${CPANEL_REPO}" > deploy.json
+          jq '{status, errors}' deploy.json
+          jq -e '.status == 1' deploy.json > /dev/null
+          deploy_id=$(jq -r '.data.deploy_id' deploy.json)
+
+          # The deployment runs in cPanel's task queue; wait for it to finish.
+          for _ in $(seq 60); do
+            sleep 10
+            api VersionControlDeployment/retrieve > status.json
+            state=$(jq -r --arg id "$deploy_id" \
+              '.data[] | select((.deploy_id|tostring) == $id) | .timestamps
+               | if .succeeded then "succeeded" elif .failed then "failed" else "running" end' status.json)
+            echo "Deployment ${deploy_id}: ${state}"
+            [ "$state" = succeeded ] && exit 0
+            if [ "$state" = failed ]; then
+              jq -r --arg id "$deploy_id" '.data[] | select((.deploy_id|tostring) == $id) | "log: \(.log_path)"' status.json
+              exit 1
+            fi
+          done
+          echo "::error::Deployment ${deploy_id} did not finish in 10 minutes."
+          exit 1
