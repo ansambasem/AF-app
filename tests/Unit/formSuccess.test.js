@@ -83,26 +83,24 @@ beforeEach(() => {
     for (const values of Object.values(state)) values.length = 0;
 });
 
-test('a saved late payment gets a fresh operation token that survives resetting for the next payment', () => {
+test('bank arrival is optional and resets to blank after a successful payment', () => {
     renderToStaticMarkup(createElement(PaymentModal, {
         show: true, onClose() {}, subscription: { id: 1, fullName: 'أحمد' }, balance: '100',
-        paymentMethods: [{ value: 'cash', label: 'نقد' }], transferBanks: [], senderBanks: [],
-        latePayment: true, today: '2026-10-21',
+        paymentMethods: [{ value: 'bank_transfer', label: 'تحويل بنكي' }], transferBanks: [], senderBanks: [],
     }));
     const form = state.forms[0];
-    const originalToken = form.data.late_payment_token;
-    state.confirmations.find((dialog) => dialog.title === 'تأكيد تسجيل الدفعة بتاريخ سابق؟').onConfirm();
+    assert.equal(form.data.bank_received_on, '');
+    assert.equal('late_payment' in form.data, false);
+    form.setData('bank_received_on', '2026-10-23');
+    state.confirmations.find((dialog) => dialog.title === 'تأكيد تسجيل الدفعة؟').onConfirm();
 
     state.requests[0].options.onSuccess({ flash: {} });
 
-    const nextToken = form.data.late_payment_token;
-    assert.ok(nextToken);
-    assert.notEqual(nextToken, originalToken);
     form.resetAndClearErrors();
-    assert.equal(form.data.late_payment_token, nextToken);
+    assert.equal(form.data.bank_received_on, '');
     assert.equal(form.data.amount, '');
-    assert.equal(form.data.paid_on, '');
-    assert.equal(form.data.late_reason, '');
+    assert.equal('paid_on' in form.data, false);
+    assert.equal('late_reason' in form.data, false);
 });
 
 test('saving a currency rate makes the saved rate the reset value without a success callback error', () => {

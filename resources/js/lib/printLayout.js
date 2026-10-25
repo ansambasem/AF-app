@@ -82,13 +82,16 @@ export function fitLayout(saved, fresh) {
     }
 
     const savedColumns = Array.isArray(saved.columns) ? saved.columns : [];
-    const freshKeys = new Set(fresh.columns.map((column) => column.key));
+    const blanks = savedColumns.filter((column) => column?.blank && /^blank:[a-zA-Z0-9_-]{1,80}$/.test(column.key)).slice(0, 10);
+    const freshKeys = new Set([...fresh.columns, ...blanks].map((column) => column.key));
     const kept = savedColumns
         .filter((column) => column && freshKeys.has(column.key))
         .map((column) => {
-            const freshColumn = fresh.columns.find((item) => item.key === column.key);
+            const freshColumn = fresh.columns.find((item) => item.key === column.key) ?? { ...column, extra: true, blank: true };
 
-            return { ...freshColumn, ...present(column), extra: freshColumn.extra };
+            return { ...freshColumn, ...present(column), extra: freshColumn.extra,
+                ...(column.secondaryKey ? { secondaryKey: freshKeys.has(column.secondaryKey) ? column.secondaryKey : '' } : {}),
+            };
         });
     const keptKeys = new Set(kept.map((column) => column.key));
 
@@ -100,7 +103,9 @@ export function fitLayout(saved, fresh) {
         footer: { ...fresh.footer, ...present(saved.footer), signatures: (saved.footer?.signatures ?? fresh.footer.signatures).map((label) => label ?? '') },
         columns: [...kept, ...fresh.columns.filter((column) => !keptKeys.has(column.key))],
         sort: (Array.isArray(saved.sort) ? saved.sort : []).filter((level) => level && freshKeys.has(level.key)).slice(0, 3),
-        group: { ...fresh.group, ...present(saved.group), key: freshKeys.has(saved.group?.key) ? saved.group.key : '' },
+        group: { ...fresh.group, ...present(saved.group), key: freshKeys.has(saved.group?.key) ? saved.group.key : '',
+            ...(saved.group?.then !== undefined ? { then: (Array.isArray(saved.group.then) ? [...new Set(saved.group.then)] : []).filter((key) => freshKeys.has(key) && key !== saved.group.key).slice(0, 2) } : {}),
+        },
     };
 }
 
@@ -143,12 +148,13 @@ export function compareCells(first, second) {
 export function arrangeRows(rows, layout) {
     const levels = (layout.sort ?? []).filter((level) => level.key);
     const groupKey = layout.group?.key ?? '';
+    const groupKeys = groupKey ? [...new Set([groupKey, ...(layout.group?.then ?? [])])].slice(0, 3) : [];
 
     if (levels.length === 0 && groupKey === '') {
         return [{ title: null, rows }];
     }
 
-    const sortLevels = groupKey === '' ? levels : [{ key: groupKey, direction: 'asc' }, ...levels];
+    const sortLevels = [...groupKeys.map((key) => ({ key, direction: 'asc' })), ...levels];
     const sorted = rows
         .filter((row) => row.type === 'row')
         .map((row, index) => ({ row, index }))
@@ -172,13 +178,17 @@ export function arrangeRows(rows, layout) {
     const sections = [];
 
     for (const row of sorted) {
-        const value = String(row.cells[groupKey] ?? '').trim() || '—';
+        const values = groupKeys.map((key) => String(row.cells[key] ?? '').trim() || '—');
+        const value = values.join(' / ');
         const last = sections.at(-1);
 
-        if (last && last.title === value) {
+        if (last && (groupKeys.length > 1 ? JSON.stringify(last.groups.map((group) => group.value)) === JSON.stringify(values) : last.title === value)) {
             last.rows.push(row);
         } else {
-            sections.push({ title: value, rows: [row] });
+            sections.push({ title: value, rows: [row], ...(groupKeys.length > 1 ? {
+                groups: groupKeys.map((key, index) => ({ key, value: values[index] })),
+                breakBefore: !last || last.groups[0].value !== values[0],
+            } : {}) });
         }
     }
 

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:power_collect/api_client.dart';
 import 'package:power_collect/app_identity.dart';
 import 'package:power_collect/payment_page.dart';
+import 'package:power_collect/bank_received_date_field.dart';
 
 class RecordingApi extends ApiClient {
   RecordingApi({this.failFirst = false, this.balanceAfter});
@@ -23,6 +24,7 @@ class RecordingApi extends ApiClient {
       'currency': collection['currency'],
       'amount_in_shekels': collection['currency'] == 'USD' ? '74.00' : null,
       'voucher_number': 'P-77',
+      'bank_received_on': collection['bank_received_on'],
       if (balanceAfter != null) 'balance_after': balanceAfter,
     };
   }
@@ -117,6 +119,13 @@ void main() {
     await tapInList(tester, scrollable,
         find.byKey(const ValueKey('payment-method-bank_transfer')));
     await enterInList(tester, scrollable, 'payment-reference', 'TRANSFER-42');
+    final bankDate =
+        DateUtils.dateOnly(DateTime.now()).subtract(const Duration(days: 1));
+    await reveal(tester, scrollable, find.byType(BankReceivedDateField));
+    tester
+        .widget<BankReceivedDateField>(find.byType(BankReceivedDateField))
+        .onChanged(bankDate);
+    await tester.pumpAndSettle();
     await confirmAndSubmit(tester, scrollable);
     expect(api.requests, isEmpty);
     expect(find.text('اختر البنك أو المحفظة التي حُوّل إليها المبلغ.'),
@@ -139,6 +148,8 @@ void main() {
         api.requests.last, containsPair('bank_name', 'البنك الوطني الإسلامي'));
     expect(api.requests.last, containsPair('sender_name', 'Subscriber'));
     expect(api.requests.last, containsPair('reference_number', 'TRANSFER-42'));
+    expect(api.requests.last,
+        containsPair('bank_received_on', bankReceivedDateValue(bankDate)));
     expect(api.requests.last, containsPair('currency', 'ILS'));
     expect(api.requests.last.containsKey('exchange_rate'), isFalse);
     expect(api.requests.last.containsKey('sender_bank_name'), isFalse);

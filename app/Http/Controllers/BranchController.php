@@ -6,6 +6,7 @@ use App\Enums\PermissionKey;
 use App\Http\Concerns\DeletesRecords;
 use App\Http\Concerns\FiltersDataTable;
 use App\Http\Concerns\ProvidesFormOptions;
+use App\Http\Concerns\ReturnsToDashboard;
 use App\Http\Requests\StoreBranchRequest;
 use App\Http\Requests\UpdateBranchRequest;
 use App\Models\Area;
@@ -20,7 +21,7 @@ use Inertia\Response as InertiaResponse;
 
 class BranchController extends Controller
 {
-    use DeletesRecords, FiltersDataTable, ProvidesFormOptions;
+    use DeletesRecords, FiltersDataTable, ProvidesFormOptions, ReturnsToDashboard;
 
     private const SORTABLE = ['name', 'location', 'phone', 'is_active', 'created_at'];
 
@@ -74,7 +75,7 @@ class BranchController extends Controller
         $branch = Branch::create($request->validated());
         $request->user()->notify(new ActionCompleted('branch-created', $branch->name));
 
-        return redirect()->route('branches.index')->with('status', 'branch-created');
+        return $this->redirectAfterSave($request, 'branches.index', 'branch-created');
     }
 
     /**

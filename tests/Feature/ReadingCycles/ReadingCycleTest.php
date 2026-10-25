@@ -15,6 +15,7 @@ use App\Models\MobileAccessToken;
 use App\Models\PaperSheet;
 use App\Models\ReadingAssignment;
 use App\Models\ReadingCycle;
+use App\Models\ReadingEntrySetting;
 use App\Models\ReadingSubmission;
 use App\Models\Subscription;
 use App\Models\User;
@@ -27,6 +28,9 @@ use Tests\TestCase;
 
 class ReadingCycleTest extends TestCase
 {
+    /** @var array<int, string> */
+    private array $deviceTokens = [];
+
     use RefreshDatabase;
 
     private Branch $branch;
@@ -90,7 +94,7 @@ class ReadingCycleTest extends TestCase
 
     private function mobile(User $reader): static
     {
-        return $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($reader));
+        return $this->withHeader('Authorization', 'Bearer '.($this->deviceTokens[$reader->id] ??= MobileAccessToken::issue($reader)));
     }
 
     public function test_a_cycle_is_prepared_for_a_week_of_the_branch_and_its_reading_day_can_move_later_only(): void
@@ -261,12 +265,18 @@ class ReadingCycleTest extends TestCase
             ->assertJsonPath('results.0.status', 'accepted');
 
         $meterReading = MeterReading::query()->sole();
+        $this->mobile($this->reader('قارئ آخر'))->postJson(route('mobile.reading-assignments.sync'), ['readings' => [$thursday]])
+            ->assertJsonPath('results.0.status', 'rejected')
+            ->assertJsonPath('results.0.issue', 'not_your_assignment')
+            ->assertJsonPath('results.0.meter_reading_id', null);
+
         $this->assertSame(['2026-10-16', 160.5, 60.5, MeterReadingStatus::Pending, $reader->id], [$meterReading->week_start->toDateString(), $meterReading->current_reading, $meterReading->consumption, $meterReading->status, $meterReading->recorded_by]);
         $this->assertSame(2, ReadingSubmission::query()->count());
     }
 
     public function test_a_readings_clock_ahead_of_the_server_or_a_forged_authorisation_is_not_trusted(): void
     {
+        ReadingEntrySetting::factory()->forBranch($this->branch)->create(['assignment_lead_days' => 2]);
         $cycle = $this->cycle();
         $box = $this->boxes(1)->first();
         $reader = $this->reader('أحمد');
@@ -288,6 +298,7 @@ class ReadingCycleTest extends TestCase
 
     public function test_reassigning_a_downloaded_box_needs_confirmation_and_the_old_readers_readings_are_held_for_review(): void
     {
+        ReadingEntrySetting::factory()->forBranch($this->branch)->create(['assignment_lead_days' => 2]);
         $cycle = $this->cycle();
         $box = $this->boxes(1)->first();
         [$ahmad, $sarah] = [$this->reader('أحمد'), $this->reader('سارة')];
@@ -344,6 +355,7 @@ class ReadingCycleTest extends TestCase
     {
         $cycle = $this->cycle();
         $boxes = $this->boxes(3);
+        Subscription::query()->whereIn('meter_box_id', $boxes->pluck('id'))->update(['subscription_phone' => '0599000001']);
         $this->allocate($this->branchAdmin, $cycle, $boxes, 'paper');
 
         $this->actingAs($this->branchAdmin)->post(route('reading-cycles.paper-sheets.store', $cycle), ['box_ids' => $boxes->pluck('id')->all()])
@@ -353,8 +365,8 @@ class ReadingCycleTest extends TestCase
 
         $sheet = PaperSheet::query()->sole();
         $this->actingAs($this->branchAdmin)->get(route('paper-sheets.show', $sheet))
-            ->assertInertia(fn ($page) => $page->component('ReadingCycles/PaperSheet')->has('boxes', 3)->where('boxes.0.subscriptions.0.previousReading', 100));
-        $this->actingAs($this->branchAdmin)->post(route('paper-sheets.printed', $sheet));
+            ->assertInertia(fn ($page) => $page->component('ReadingCycles/PaperSheet')->has('boxes', 3)->where('boxes.0.subscriptions.0.previousReading', 100)->where('boxes.0.subscriptions.0.phone', '0599000001'));
+        $this->actingAs($this->branchAdmin)->postJson(route('paper-sheets.printed', $sheet))->assertOk()->assertJsonPath('printed', true);
         $this->actingAs($this->branchAdmin)->post(route('paper-sheets.printed', $sheet));
 
         $this->assertSame(2, $sheet->fresh()->print_count);

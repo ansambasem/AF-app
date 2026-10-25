@@ -1,3 +1,4 @@
+import { BankReceivedDateField } from '@/Components/BankReceivedDate';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useHttp } from '@inertiajs/react';
 import ConfirmDialog from '@/Components/ConfirmDialog';
@@ -157,6 +158,7 @@ export default function SplitPaymentForm({ transferBanks, senderBanks, bare = fa
         total_amount: '',
         bank_name: '',
         sender_bank_name: '',
+        bank_received_on: '',
         sender_name: '',
         reference_number: '',
         notes: '',
@@ -301,7 +303,7 @@ export default function SplitPaymentForm({ transferBanks, senderBanks, bare = fa
     }
 
     // Whether something is entered that closing the form would lose; the modal asks before throwing it away.
-    const dirty = !recorded && (parts.length !== (initialSubscription ? 1 : 0) || parts.some((part) => part.amount !== '') || data.total_amount !== '' || data.sender_name !== '' || data.reference_number !== '' || data.bank_name !== '');
+    const dirty = !recorded && (parts.length !== (initialSubscription ? 1 : 0) || parts.some((part) => part.amount !== '') || data.total_amount !== '' || data.sender_name !== '' || data.reference_number !== '' || data.bank_name !== '' || data.bank_received_on !== '');
     useEffect(() => {
         onDirtyChange?.(dirty);
     }, [dirty, onDirtyChange]);
@@ -373,6 +375,7 @@ export default function SplitPaymentForm({ transferBanks, senderBanks, bare = fa
                     <BankDropdown banks={senderBanks} id="sender_bank_name" name="sender_bank_name" value={data.sender_bank_name} onChange={(value) => setData('sender_bank_name', value)} />
                     <InputError message={errors.sender_bank_name} className="mt-2" />
                 </div>
+                <BankReceivedDateField value={data.bank_received_on} onChange={(value) => setData('bank_received_on', value)} error={errors.bank_received_on} />
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div>

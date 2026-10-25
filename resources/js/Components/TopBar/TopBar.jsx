@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Link, router, usePage } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
 import ActivityBell from '@/Components/ActivityBell';
-import { HOME_LINK, currentGroup, isActiveLink, topBarItems } from '@/lib/navigation';
+import { shouldPrefetchPage, HOME_LINK, currentGroup, isActiveLink, topBarItems } from '@/lib/navigation';
 import MegaMenu, { megaWidth } from './MegaMenu';
 import AccountMenu from './AccountMenu';
 import { pageWindowOpen } from './shortcuts';
@@ -441,7 +441,7 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
                     }}
                 >
                     <div className="flex min-w-0 items-center">
-                        <Link href={HOME_LINK.href} prefetch className="tn-brand" data-tour="brand" aria-label={`${appName}، ${user?.branchName ?? 'نظام التحصيل الكهربائي'}، الصفحة الرئيسية`}>
+                        <Link href={HOME_LINK.href} prefetch={shouldPrefetchPage(HOME_LINK.href)} className="tn-brand" data-tour="brand" aria-label={`${appName}، ${user?.branchName ?? 'نظام التحصيل الكهربائي'}، الصفحة الرئيسية`}>
                             <img src="/images/logo-af.webp" alt={appName} />
                             <span className="tn-brand-divider" aria-hidden="true" />
                             <span className="tn-brand-text">
@@ -492,7 +492,7 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
                                         key={item.key}
                                         ref={register}
                                         href={item.link.href}
-                                        prefetch
+                                        prefetch={shouldPrefetchPage(item.link.href)}
                                         className="tn-section"
                                         data-item={item.key}
                                         data-lit={litKey === item.key}

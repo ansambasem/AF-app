@@ -20,12 +20,61 @@ export function boardColumns(readers) {
     ];
 }
 
-/** Whether a box matches the search (its number or name) and the chosen sub-area. */
-export function boxMatches(box, search, subAreaId) {
-    const term = String(search ?? '').trim().toLowerCase();
-    const inSubArea = !subAreaId || String(box.subAreaId) === String(subAreaId);
+/** Search Arabic names regardless of vowel marks, hamza forms or digit style. */
+function normalizeSearch(value) {
+    return String(value ?? '').normalize('NFKD').replace(/\p{M}/gu, '').replace(/ـ/g, '').replace(/ى/g, 'ي')
+        .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+        .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).toLowerCase().trim();
+}
 
-    return inSubArea && (!term || `${box.number} ${box.name}`.toLowerCase().includes(term));
+export function readingSearchMatches(value, search) {
+    const haystack = normalizeSearch(value);
+    return normalizeSearch(search).split(/\s+/).filter(Boolean).every((term) => haystack.includes(term));
+}
+
+/** A search result within one or more chosen areas; no chosen areas means all. */
+export function boxMatches(box, search, subAreaIds, boxId = '') {
+    const ids = Array.isArray(subAreaIds) ? subAreaIds : subAreaIds ? [subAreaIds] : [];
+    const inSubArea = ids.length === 0 || ids.map(String).includes(String(box.subAreaId ?? 'none'));
+
+    return inSubArea && (!boxId || String(box.id) === String(boxId)) && readingSearchMatches(`${box.number} ${box.name} ${box.subAreaName ?? 'بدون منطقة 2'}`, search);
+}
+
+/** Box choices follow the selected areas and distribution status. */
+export function distributionBoxOptions(boxes, subAreaIds = [], assignmentFilter = '') {
+    return boxes.filter((box) => boxMatches(box, '', subAreaIds) && assignmentMatches(box, assignmentFilter))
+        .map((box) => ({ value: String(box.id), label: `${box.name || 'طبلون'} (${box.number})`, hint: box.subAreaName ?? 'بدون منطقة 2' }))
+        .sort((first, second) => first.label.localeCompare(second.label, 'ar', { numeric: true }));
+}
+
+/** Toggle only this result set, preserving boxes chosen in other areas. */
+export function toggleBoxSelection(selectedIds, boxes) {
+    const next = new Set(selectedIds);
+    const allSelected = boxes.length > 0 && boxes.every((box) => next.has(box.id));
+    boxes.forEach((box) => (allSelected ? next.delete(box.id) : next.add(box.id)));
+    return next;
+}
+
+/** Paper work and draft reader allocations both count as assigned. */
+export function assignmentMatches(box, filter = '') {
+    return !filter || (filter === 'assigned' ? box.column !== 'available' : box.column === filter);
+}
+
+export function distributionAreas(boxes, assignmentFilter = '') {
+    const areas = new Map();
+    boxes.forEach((box) => {
+        const id = String(box.subAreaId ?? 'none');
+        if (!areas.has(id)) areas.set(id, { id, name: box.subAreaName ?? 'بدون منطقة 2', boxes: 0, subscribers: 0, assigned: 0, unassigned: 0, matchingBoxes: 0, matchingSubscribers: 0 });
+        const area = areas.get(id);
+        area.boxes++;
+        area.subscribers += box.subscribers;
+        area[box.column === 'available' ? 'unassigned' : 'assigned']++;
+        if (assignmentMatches(box, assignmentFilter)) {
+            area.matchingBoxes++;
+            area.matchingSubscribers += box.subscribers;
+        }
+    });
+    return [...areas.values()].filter((area) => area.matchingBoxes > 0).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 }
 
 /** The boxes, subscribers, readings and drafts of one column. */

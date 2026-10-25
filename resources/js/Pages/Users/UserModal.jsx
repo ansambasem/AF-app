@@ -2,11 +2,11 @@ import FormModal from '@/Components/FormModal';
 import { useResourceForm } from '@/hooks/useResourceForm';
 import UserForm, { userFormData } from './UserForm';
 
-export default function UserModal({ show, onClose, user, branches, canChooseBranch, userTypeOptions }) {
+export default function UserModal({ show, onClose, user, branches, canChooseBranch, userTypeOptions, visitOptions }) {
     const form = useResourceForm('/users', user, userFormData(user));
 
     return (
-        <FormModal show={show} onClose={onClose} form={form} title={form.isEdit ? 'تعديل المستخدم' : 'إنشاء مستخدم'} icon="user" maxWidth="3xl">
+        <FormModal show={show} onClose={onClose} form={form} title={form.isEdit ? 'تعديل المستخدم' : 'إنشاء مستخدم'} icon="user" maxWidth="3xl" visitOptions={visitOptions}>
             <UserForm
                 data={form.data}
                 setData={form.setData}

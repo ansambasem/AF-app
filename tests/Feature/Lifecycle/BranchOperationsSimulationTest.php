@@ -338,16 +338,15 @@ class BranchOperationsSimulationTest extends TestCase
     private function recordLatePayment(int $step): void
     {
         $payment = $this->recordPayment($this->collector, [
-            'currency' => 'ILS', 'payment_method' => 'cash', 'late_payment' => true,
-            'paid_on' => now(config('app.business_timezone'))->subDays(mt_rand(1, 4))->toDateString(),
-            'late_reason' => 'تأخر تسليم السند', 'late_payment_token' => (string) Str::uuid(),
+            'currency' => 'ILS', 'payment_method' => 'bank_transfer',
+            'bank_received_on' => now(config('app.business_timezone'))->subDays(mt_rand(1, 4))->toDateString(),
         ]);
         if ($payment === null) {
             return;
         }
         $count = SubscriptionTransaction::query()->count();
 
-        $this->submit('replay the same late payment', fn () => $this->actingAs($this->collector)->post(route('subscriptions.payments.store', $payment['subscription']), $payment['payload']), mustSucceed: true);
+        $this->submit('retired late payment flag cannot create another payment', fn () => $this->actingAs($this->collector)->post(route('subscriptions.payments.store', $payment['subscription']), [...$payment['payload'], 'late_payment' => true]), mustSucceed: false);
 
         $this->assertSame($count, SubscriptionTransaction::query()->count(), $this->failure('replaying a late payment recorded it twice'));
     }

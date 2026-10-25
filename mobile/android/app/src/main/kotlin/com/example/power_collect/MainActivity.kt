@@ -12,6 +12,20 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
 
         receiptImages = ReceiptImageCapture(this)
+        val sessions = SessionTokenStorage(this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "powercollect.session")
+            .setMethodCallHandler { call, result ->
+                try {
+                    when (call.method) {
+                        "read" -> result.success(sessions.read())
+                        "write" -> { sessions.write(call.arguments as String); result.success(null) }
+                        "clear" -> { sessions.clear(); result.success(null) }
+                        else -> result.notImplemented()
+                    }
+                } catch (_: Exception) {
+                    result.error("SESSION_STORAGE", "Unable to access secure session storage", null)
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "powercollect.receipts")
             .setMethodCallHandler { call, result -> receiptImages!!.handle(call, result) }
 

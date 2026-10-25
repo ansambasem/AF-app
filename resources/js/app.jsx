@@ -15,7 +15,8 @@ router.on('finish', (event) => {
 createInertiaApp({
     // Each page's code is downloaded only when that page is first opened.
     resolve: (name) => {
-        const pages = import.meta.glob('./Pages/**/*.jsx');
+        // Forms and modals are imported by their pages, rather than compiled as separate route entries.
+        const pages = import.meta.glob(['./Pages/**/*.jsx', '!./Pages/**/*Modal.jsx', '!./Pages/**/*Form.jsx']);
         return pages[`./Pages/${name}.jsx`]();
     },
     setup({ el, App, props }) {

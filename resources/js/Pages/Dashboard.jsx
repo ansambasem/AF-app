@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import AddButton from '@/Components/AddButton';
@@ -14,10 +14,24 @@ import PageHeader from '@/Components/PageHeader';
 import SearchableSelect from '@/Components/SearchableSelect';
 import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import SegmentedTabs from '@/Components/SegmentedTabs';
-import BranchModal from '@/Pages/Branches/BranchModal';
-import UserModal from '@/Pages/Users/UserModal';
+import { useStatementWindow } from '@/hooks/useStatementWindow';
 import { formatMoney, formatNumber, formatShortDay, percentOf, timeAgo } from '@/lib/format';
 import { formatWeekDay } from '@/lib/weekDays';
+import { shouldPrefetchPage } from '@/lib/navigation';
+
+const BranchModal = lazy(() => import('@/Pages/Branches/BranchModal'));
+const UserModal = lazy(() => import('@/Pages/Users/UserModal'));
+const SubscriptionModal = lazy(() => import('@/Pages/Subscriptions/SubscriptionModal'));
+const StatementModal = lazy(() => import('@/Pages/Subscriptions/StatementModal'));
+const QuickPaymentSearch = lazy(() => import('./Dashboard/QuickPaymentSearch'));
+
+/** The current address without `?edit=` (the subscriber being edited in a window). */
+function urlWithoutEdit() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('edit');
+
+    return `${url.pathname}${url.search}`;
+}
 
 /** The period's name on the tabs and in sentences. */
 const periodLabel = (days) => (days === 7 ? '7 أيام' : `${days} يومًا`);
@@ -69,7 +83,7 @@ function SplitBar({ parts, label, className = 'mt-4' }) {
 function Panel({ icon, title, info, action, className = '', children }) {
     return (
         <section className={`rise-in rounded-panel border border-gray-100 bg-surface p-5 shadow-card sm:p-6 ${className}`}>
-            <div className="mb-5 flex items-center gap-2.5">
+            <div className="mb-5 flex flex-wrap items-center gap-x-2.5 gap-y-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-100 bg-gray-50 text-gray-500">
                     <Icon name={icon} className="h-[18px] w-[18px]" />
                 </span>
@@ -85,7 +99,7 @@ function Panel({ icon, title, info, action, className = '', children }) {
 /** "فتح" at the end of a card's title, to the page the card sums up. */
 function OpenLink({ href }) {
     return (
-        <Link href={href} prefetch className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500 transition hover:text-gray-900">
+        <Link href={href} prefetch={shouldPrefetchPage(href)} className="inline-flex items-center gap-1 text-sm font-semibold text-gray-500 transition hover:text-gray-900">
             عرض الكل
             <Icon name="chevron-left" className="h-4 w-4" strokeWidth={2} />
         </Link>
@@ -97,7 +111,7 @@ function TileLink({ href, children }) {
     return (
         <Link
             href={href}
-            prefetch
+            prefetch={shouldPrefetchPage(href)}
             className="block rounded-panel transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 [&>div]:h-full"
         >
             {children}
@@ -118,7 +132,7 @@ function AttentionItem({ icon, title, subtitle, count, href, tone = 'amber' }) {
     return (
         <Link
             href={href}
-            prefetch
+            prefetch={shouldPrefetchPage(href)}
             className="rise-in flex items-center gap-3 rounded-card border border-gray-100 bg-surface p-4 shadow-card transition hover:-translate-y-0.5 hover:border-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
         >
             <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-control ${toneClass}`}>
@@ -197,8 +211,16 @@ export default function Dashboard({
     canCreateUser,
     branchForm,
     userForm,
+    statement,
+    subscriptionForm,
+    subscriptionEdit,
 }) {
     const [creating, setCreating] = useState(null);
+    const [findingPayer, setFindingPayer] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const statementWindow = useStatementWindow(statement);
+    // A save from one of the dashboard's windows comes back here (with any open statement), not to the record's list page.
+    const returnHere = { preserveState: true, headers: { 'X-Return-To': urlWithoutEdit() } };
     const [chartView, setChartView] = useState('chart');
     const [search, setSearch] = useState(filters.search ?? '');
     const { collections, subscriptions, meterBoxes, readings, disconnections, boxes } = sections;
@@ -216,13 +238,14 @@ export default function Dashboard({
     }
 
     /**
-     * Opens the "new branch" or "new user" pop-up — the same one as on its
-     * own page — fetching its dropdown options the first time.
+     * Opens the "new branch", "new user" or "new subscriber" pop-up — the
+     * same one as on its own page — fetching its dropdown options the first
+     * time.
      */
     function openCreateForm(kind) {
-        const optionsProp = kind === 'branch' ? 'branchForm' : 'userForm';
+        const optionsProp = { branch: 'branchForm', user: 'userForm', subscription: 'subscriptionForm' }[kind];
 
-        if ({ branchForm, userForm }[optionsProp]) {
+        if ({ branchForm, userForm, subscriptionForm }[optionsProp]) {
             setCreating(kind);
             return;
         }
@@ -230,13 +253,50 @@ export default function Dashboard({
         router.reload({ only: [optionsProp], onSuccess: () => setCreating(kind) });
     }
 
+    /** A subscriber's statement — their account, with the payment, charge and discount forms — over the dashboard; `form` opens one of them at once. */
+    function openStatement(subscriber, form = null) {
+        statementWindow.open(
+            {
+                id: subscriber.subscriptionId ?? subscriber.id,
+                fullName: subscriber.fullName ?? subscriber.name ?? subscriber.subscriber,
+                accountNumber: subscriber.accountNumber,
+                status: subscriber.status,
+                statusLabel: subscriber.statusLabel,
+                branchName: subscriber.branchName,
+            },
+            form,
+        );
+    }
+
+    /** Opens the subscriber's "edit" pop-up over their statement, fetching their details (and the form's dropdowns the first time). */
+    function openEdit(subscriber) {
+        router.reload({
+            data: { edit: subscriber.id },
+            only: subscriptionForm ? ['subscriptionEdit'] : ['subscriptionEdit', 'subscriptionForm'],
+            onSuccess: () => setEditing(true),
+        });
+    }
+
+    function closeEdit() {
+        setEditing(false);
+        router.replace({ url: urlWithoutEdit(), props: (props) => ({ ...props, subscriptionEdit: null }), preserveScroll: true, preserveState: true });
+    }
+
     const scopeLine = scope.company
         ? `${scope.label} · ${formatNumber(scope.branches)} ${scope.branches === 1 ? 'فرع' : 'فروع'} في ${formatNumber(scope.governorates)} ${scope.governorates === 1 ? 'محافظة' : 'محافظات'}`
         : scope.label;
 
+    // "تسجيل دفعة" and "مشترك جديد" open over the dashboard; someone who can't open a statement records payments on the payments page.
     const quickActions = [
-        can?.recordPayments && { href: '/payments', icon: 'banknotes', title: 'تسجيل دفعة', subtitle: 'استلام دفعة وطباعة الوصل', main: true },
-        canCreateSubscription && { href: '/subscriptions/create', icon: 'plus', title: 'مشترك جديد', subtitle: 'إضافة اشتراك' },
+        can?.recordPayments && {
+            href: '/payments',
+            onClick: can?.viewSubscriptions ? () => setFindingPayer(true) : null,
+            icon: 'banknotes',
+            title: 'تسجيل دفعة',
+            subtitle: 'استلام دفعة وطباعة الوصل',
+            main: true,
+        },
+        canCreateSubscription && { href: '/subscriptions/create', onClick: () => openCreateForm('subscription'), icon: 'plus', title: 'مشترك جديد', subtitle: 'إضافة اشتراك' },
         can?.viewMeterReadings && { href: '/meter-readings', icon: 'chart', title: 'القراءات', subtitle: 'إدخال واعتماد' },
         can?.sendMessages && { href: '/messages/create', icon: 'send', title: 'رسالة جديدة', subtitle: 'لمشترك أو مجموعة' },
         can?.viewReports && { href: '/reports', icon: 'receipt', title: 'التقارير', subtitle: 'تقرير الفترة وتنزيله' },
@@ -312,7 +372,7 @@ export default function Dashboard({
                     actions={
                         <>
                             {can?.viewUserTypes && (
-                                <Link href="/users?tab=types" prefetch className={secondaryButtonClass}>
+                                <Link href="/users?tab=types" className={secondaryButtonClass}>
                                     أنواع المستخدمين
                                 </Link>
                             )}
@@ -539,26 +599,34 @@ export default function Dashboard({
                                     />
                                     <h3 className="relative font-bold">إجراءات سريعة</h3>
                                     <div className="relative mt-4 grid grid-cols-2 gap-2.5">
-                                        {quickActions.map((action, index) => (
-                                            <Link
-                                                key={action.href}
-                                                href={action.href}
-                                                prefetch
-                                                className={`flex items-center gap-3 rounded-row border px-3.5 py-3 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
-                                                    action.main
-                                                        ? 'col-span-2 border-transparent bg-brand-gradient py-4 shadow-glow hover:brightness-110'
-                                                        : 'border-white/10 bg-white/5 hover:bg-white/10'
-                                                } ${lastActionSpans && index === quickActions.length - 1 ? 'col-span-2' : ''}`}
-                                            >
-                                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
-                                                    <Icon name={action.icon} className="h-[18px] w-[18px]" />
-                                                </span>
-                                                <span className="min-w-0">
-                                                    <b className="block truncate text-sm">{action.title}</b>
-                                                    <span className="block truncate text-xs text-white/60">{action.subtitle}</span>
-                                                </span>
-                                            </Link>
-                                        ))}
+                                        {quickActions.map((action, index) => {
+                                            const className = `quick-action flex items-center gap-3 rounded-row border px-3.5 py-3 text-start transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+                                                action.main
+                                                    ? 'col-span-2 border-transparent bg-brand-gradient py-4 shadow-glow hover:brightness-110'
+                                                    : 'border-white/10 bg-white/5 hover:bg-white/10'
+                                            } ${lastActionSpans && index === quickActions.length - 1 ? 'col-span-2' : ''}`;
+                                            const content = (
+                                                <>
+                                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
+                                                        <Icon name={action.icon} className="h-[18px] w-[18px]" />
+                                                    </span>
+                                                    <span className="min-w-0">
+                                                        <b className="quick-action-title block text-sm">{action.title}</b>
+                                                        <span className="quick-action-subtitle block text-xs text-white/60">{action.subtitle}</span>
+                                                    </span>
+                                                </>
+                                            );
+
+                                            return action.onClick ? (
+                                                <button key={action.href} type="button" onClick={action.onClick} aria-haspopup="dialog" className={className}>
+                                                    {content}
+                                                </button>
+                                            ) : (
+                                                <Link key={action.href} href={action.href} prefetch={shouldPrefetchPage(action.href)} className={className}>
+                                                    {content}
+                                                </Link>
+                                            );
+                                        })}
                                     </div>
                                 </section>
                             )}
@@ -640,9 +708,21 @@ export default function Dashboard({
                                                 {debts.top.map((debtor) => (
                                                     <li
                                                         key={debtor.subscriptionId}
-                                                        className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                                                        className={`relative flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0 ${can?.viewSubscriptions ? 'dashboard-row-link' : ''}`}
                                                     >
-                                                        <RowIdentity name={debtor.name} subtitle={debtor.accountNumber} subtitleDir="ltr" />
+                                                        {can?.viewSubscriptions ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openStatement(debtor)}
+                                                                aria-haspopup="dialog"
+                                                                aria-label={`كشف حساب ${debtor.name}`}
+                                                                className="min-w-0 text-start after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+                                                            >
+                                                                <RowIdentity name={debtor.name} subtitle={debtor.accountNumber} subtitleDir="ltr" />
+                                                            </button>
+                                                        ) : (
+                                                            <RowIdentity name={debtor.name} subtitle={debtor.accountNumber} subtitleDir="ltr" />
+                                                        )}
                                                         <span className="shrink-0 text-end">
                                                             <b className="block font-display text-sm text-gray-900">
                                                                 {formatMoney(debtor.balance)} ₪
@@ -824,7 +904,19 @@ export default function Dashboard({
                                             payments.data.map((payment) => (
                                                 <tr key={payment.id}>
                                                     <td>
-                                                        <RowIdentity name={payment.subscriber} subtitle={payment.accountNumber} subtitleDir="ltr" />
+                                                        {can?.viewSubscriptions ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openStatement(payment)}
+                                                                aria-haspopup="dialog"
+                                                                title="كشف الحساب"
+                                                                className="dashboard-name-link -m-1.5 rounded-xl p-1.5 text-start transition hover:bg-gray-50 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900"
+                                                            >
+                                                                <RowIdentity name={payment.subscriber} subtitle={payment.accountNumber} subtitleDir="ltr" />
+                                                            </button>
+                                                        ) : (
+                                                            <RowIdentity name={payment.subscriber} subtitle={payment.accountNumber} subtitleDir="ltr" />
+                                                        )}
                                                     </td>
                                                     {scope.company && <td className="text-gray-600">{payment.branchName ?? '—'}</td>}
                                                     <td className="text-gray-600">{payment.recordedBy ?? '—'}</td>
@@ -883,25 +975,56 @@ export default function Dashboard({
                 </div>
             )}
 
-            {branchForm && (
-                <BranchModal
-                    show={creating === 'branch'}
-                    onClose={() => setCreating(null)}
-                    branch={null}
-                    governorates={branchForm.governorates}
-                    areas={branchForm.areas}
-                />
-            )}
-            {userForm && (
-                <UserModal
-                    show={creating === 'user'}
-                    onClose={() => setCreating(null)}
-                    user={null}
-                    branches={userForm.branches}
-                    canChooseBranch={userForm.canChooseBranch}
-                    userTypeOptions={userForm.userTypeOptions}
-                />
-            )}
+            <Suspense fallback={<p role="status" className="fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-control border border-gray-200 bg-surface px-4 py-3 text-sm text-gray-600 shadow-card">جارٍ تحميل النافذة…</p>}>
+                {branchForm && creating === 'branch' && (
+                    <BranchModal
+                        show
+                        onClose={() => setCreating(null)}
+                        branch={null}
+                        governorates={branchForm.governorates}
+                        areas={branchForm.areas}
+                        visitOptions={returnHere}
+                    />
+                )}
+                {subscriptionForm && creating === 'subscription' && (
+                    <SubscriptionModal show onClose={() => setCreating(null)} subscription={null} visitOptions={returnHere} {...subscriptionForm} />
+                )}
+                {subscriptionForm && subscriptionEdit && editing && (
+                    <SubscriptionModal key={`edit-${subscriptionEdit.id}`} show onClose={closeEdit} subscription={subscriptionEdit} visitOptions={returnHere} {...subscriptionForm} />
+                )}
+                {findingPayer && (
+                    <QuickPaymentSearch
+                        show
+                        onClose={() => setFindingPayer(false)}
+                        onPick={(subscriber) => {
+                            setFindingPayer(false);
+                            openStatement(subscriber, 'payment');
+                        }}
+                    />
+                )}
+                {statementWindow.subscription && (
+                    <StatementModal
+                        key={statementWindow.subscription.id}
+                        subscription={statementWindow.subscription}
+                        statement={statementWindow.statement}
+                        initialForm={statementWindow.form}
+                        onSwitch={(header) => statementWindow.open(header)}
+                        onClose={statementWindow.close}
+                        onEdit={openEdit}
+                    />
+                )}
+                {userForm && creating === 'user' && (
+                    <UserModal
+                        show
+                        onClose={() => setCreating(null)}
+                        user={null}
+                        branches={userForm.branches}
+                        canChooseBranch={userForm.canChooseBranch}
+                        userTypeOptions={userForm.userTypeOptions}
+                        visitOptions={returnHere}
+                    />
+                )}
+            </Suspense>
         </AuthenticatedLayout>
     );
 }

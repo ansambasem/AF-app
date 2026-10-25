@@ -1,3 +1,4 @@
+import BankReceivedDate from '@/Components/BankReceivedDate';
 import './financial-boxes.css';
 import StatusPill from '@/Components/DataTable/StatusPill';
 import LatePaymentDetails from '@/Components/LatePaymentDetails';
@@ -65,6 +66,7 @@ export function LedgerLeadCells({ ledger }) {
             <span className="block font-display font-semibold text-gray-900">{ledger.voucherNumber ? <bdi dir="ltr">{ledger.voucherNumber}</bdi> : <Dash />}</span>
             {ledger.date && <span className="mt-0.5 block font-display text-xs text-gray-500" title="تاريخ الحركة"><bdi dir="ltr">{ledger.date.split(' ').map((part) => <span key={part} className="inline-block whitespace-nowrap pe-1">{part}</span>)}</bdi></span>}
             <LatePaymentDetails paidOn={ledger.paidOn} recordedAt={ledger.date} reason={ledger.lateReason} />
+            <BankReceivedDate value={ledger.bankReceivedOn} />
         </td>
         <td className="text-xs leading-5 text-gray-700" style={stacked}>
             {ledger.referenceNumber ? <span className="block break-all font-display text-sm text-gray-900" title="الرقم المرجعي"><bdi dir="ltr">{ledger.referenceNumber}</bdi></span> : !ledger.bankName && <Dash />}

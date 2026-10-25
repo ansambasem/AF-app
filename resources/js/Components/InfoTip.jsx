@@ -88,7 +88,7 @@ export default function InfoTip({ children, label = 'معلومة', tone = 'info
                 onMouseLeave={() => !pinned && setOpen(false)}
                 onFocus={() => setOpen(true)}
                 onBlur={() => !pinned && setOpen(false)}
-                className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full align-middle transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gray-900 ${
+                className={`tap-expand inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full align-middle transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gray-900 ${
                     warning ? 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-400' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
                 } ${open ? (warning ? 'bg-amber-500/10' : 'bg-gray-100 text-gray-700') : ''} ${className}`}
             >

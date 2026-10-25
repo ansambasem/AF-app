@@ -47,9 +47,9 @@ const ACCENTS = [
 ];
 
 /** One part of the settings, opened or folded by its title. */
-function Section({ icon, title, children, open = false }) {
+function Section({ icon, title, children, open = false, id }) {
     return (
-        <details open={open} className="group border-b border-gray-100">
+        <details id={id} open={open} className="group border-b border-gray-100">
             <summary
                 className={`flex cursor-pointer list-none items-center gap-3 px-5 py-3.5 text-sm font-bold text-gray-900 hover:bg-gray-50 ${FOCUS_RING} [&::-webkit-details-marker]:hidden`}
             >
@@ -119,7 +119,7 @@ function TemplatesSection({ templates, onReset }) {
     const [confirmingDelete, setConfirmingDelete] = useState(false);
 
     return (
-        <Section icon="folder" title="قوالب الطباعة" open>
+        <Section id="print-template-settings" icon="folder" title="قوالب الطباعة" open>
             {!supported ? (
                 <p className="text-xs text-gray-500">هذه الصفحة لا تحفظ قوالب. يُحفظ آخر تصميم لها في هذا المتصفح.</p>
             ) : (
@@ -256,6 +256,7 @@ function TemplatesSection({ templates, onReset }) {
  * in the preview at once.
  */
 export default function PrintSettingsPanel({ layout, onChange, scope, templates, onReset, reportFields = [], reportFieldsTitle = 'بيانات الصندوق' }) {
+    const [columnSearch, setColumnSearch] = useState('');
     const [confirming, setConfirming] = useState(null);
 
     function set(key, value) {
@@ -289,7 +290,7 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
     }
 
     const shownCount = layout.columns.filter((column) => column.visible).length;
-    const fieldOptions = layout.columns.map((column) => (
+    const fieldOptions = layout.columns.filter((column) => !column.key.startsWith('blank:')).map((column) => (
         <option key={column.key} value={column.key}>
             {column.label}
         </option>
@@ -300,15 +301,18 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
             <TemplatesSection templates={templates} onReset={() => setConfirming('reset')} />
 
             <Section icon="list" title="الصفوف" open>
+                <fieldset disabled={scope.loading}>
                 {scope.allRowsOnly ? <p className="text-sm font-semibold text-gray-700">كل الحركات المطابقة للتصفية ({scope.total})</p> : <ChoiceChips
                     options={[
-                        { value: 'all', label: `كل النتائج${typeof scope.total === 'number' ? ` (${scope.total.toLocaleString('en')})` : ''}`, icon: 'list' },
+                        { value: 'all', label: `كل النتائج${!scope.selected && typeof scope.total === 'number' ? ` (${scope.total.toLocaleString('en')})` : ''}`, icon: 'list' },
                         { value: 'page', label: 'الصفحة المعروضة فقط', icon: 'table' },
+                        ...(scope.hasSelection ? [{ value: 'selected', label: 'العناصر المحددة', icon: 'check' }] : []),
                     ]}
-                    value={scope.allRows ? 'all' : 'page'}
-                    onChange={(value) => scope.onChange(value === 'all')}
+                    value={scope.selected ? 'selected' : scope.allRows ? 'all' : 'page'}
+                    onChange={(value) => scope.onChange(value === 'selected' ? 'selected' : value === 'all')}
                     label="الصفوف المطبوعة"
                 />}
+                </fieldset>
                 <p className="text-xs text-gray-500">بنفس البحث والترتيب والفلاتر التي كانت على الشاشة.</p>
             </Section>
 
@@ -417,8 +421,9 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                         إخفاء الكل
                     </SecondaryButton>
                 </div>
+                <input type="search" aria-label="البحث في أعمدة الطباعة" placeholder="ابحث عن عمود أو حقل إضافي..." value={columnSearch} onChange={(event) => setColumnSearch(event.target.value)} className="mb-3 block w-full text-sm" />
                 <ol className="space-y-2">
-                    {layout.columns.map((column, index) => (
+                    {layout.columns.map((column, index) => ({ column, index })).filter(({ column }) => column.label.includes(columnSearch.trim())).map(({ column, index }) => (
                         <li
                             key={column.key}
                             className={`rounded-control border p-2.5 ${column.visible ? 'border-gray-200 bg-surface' : 'border-dashed border-gray-200 bg-gray-50'}`}
@@ -449,9 +454,20 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                                     disabled={index === layout.columns.length - 1}
                                     onClick={() => set('columns', moveColumn(layout.columns, index, 1))}
                                 />
+                                {column.key.startsWith('blank:') && <IconButton icon="trash" label={`حذف «${column.label}»`} tone="danger" onClick={() => set('columns', layout.columns.filter((item) => item.key !== column.key))} />}
                             </div>
                             {column.visible && (
                                 <div className="mt-2 flex flex-wrap items-center gap-3 ps-6 text-xs">
+                                    <label className="flex items-center gap-1.5 text-gray-600">العرض (مم)
+                                        <input type="number" min="0" max="120" step="1" value={column.width ?? 0} onChange={(event) => setColumn(index, { width: Math.max(0, Math.min(120, Number(event.target.value))) })} className="w-20 !py-0.5 text-xs" aria-label={`عرض عمود ${column.label}`} />
+                                        <span>0 تلقائي</span>
+                                    </label>
+                                    <label className="flex items-center gap-1.5 text-gray-600"><input type="checkbox" checked={Boolean(column.blank)} onChange={(event) => setColumn(index, { blank: event.target.checked, total: false })} className="rounded border-gray-300 text-brand-600" />خانة فارغة للكتابة</label>
+                                    {!column.blank && <label className="flex items-center gap-1.5 text-gray-600">سطر إضافي تحته
+                                        <select aria-label={`السطر الإضافي لعمود ${column.label}`} value={column.secondaryKey ?? ''} onChange={(event) => setColumn(index, { secondaryKey: event.target.value })} className="max-w-44 !py-0.5 text-xs">
+                                            <option value="">بدون</option>{layout.columns.filter((item) => item.key !== column.key && !item.key.startsWith('blank:')).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+                                        </select>
+                                    </label>}
                                     <label className="flex items-center gap-1.5 text-gray-600">
                                         المحاذاة
                                         <select value={column.align} onChange={(e) => setColumn(index, { align: e.target.value })} className="!py-0.5 text-xs">
@@ -476,13 +492,14 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                         </li>
                     ))}
                 </ol>
+                <SecondaryButton className="mt-3 w-full" disabled={layout.columns.filter((column) => column.key.startsWith('blank:')).length >= 10} onClick={() => set('columns', [...layout.columns, { key: `blank:${crypto.randomUUID()}`, label: 'ملاحظات', blank: true, extra: true, visible: true, align: 'start', total: false, width: 25 }])}><Icon name="plus" className="h-4 w-4" />إضافة عمود فارغ</SecondaryButton>
             </Section>
 
             <Section icon="sort" title="الترتيب والتجميع" open>
                 <p className="text-xs text-gray-500">رتّب الصفوف بأي حقل ولو كان مخفيًا، وجمّعها مثلًا حسب الطبلون. بدون ترتيب تبقى بترتيب الجدول.</p>
                 <Field label="تجميع الصفوف حسب">
                     {(id) => (
-                        <select id={id} value={layout.group.key} onChange={(e) => setIn('group', 'key', e.target.value)} className="block w-full text-sm">
+                        <select id={id} value={layout.group.key} onChange={(event) => set('group', { ...layout.group, key: event.target.value, then: (layout.group.then ?? []).filter((key) => key !== event.target.value) })} className="block w-full text-sm">
                             <option value="">بدون تجميع</option>
                             {fieldOptions}
                         </select>
@@ -490,6 +507,17 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                 </Field>
                 {layout.group.key !== '' && (
                     <div className="grid grid-cols-1 gap-3">
+                        {(layout.group.then ?? []).map((key, index) => <div key={index} className="flex items-center gap-2">
+                            <label className="text-xs text-gray-600">ثم حسب</label>
+                            <select aria-label={`التجميع الإضافي ${index + 1}`} value={key} onChange={(event) => setIn('group', 'then', layout.group.then.map((value, position) => position === index ? event.target.value : value))} className="min-w-0 flex-1 text-sm">
+                                {layout.columns.filter((column) => column.key !== layout.group.key && !(layout.group.then ?? []).some((value, position) => value === column.key && position !== index) && !column.key.startsWith('blank:')).map((column) => <option key={column.key} value={column.key}>{column.label}</option>)}
+                            </select>
+                            <IconButton icon="trash" label={`حذف التجميع ${index + 1}`} onClick={() => setIn('group', 'then', layout.group.then.filter((_, position) => position !== index))} />
+                        </div>)}
+                        {(layout.group.then ?? []).length < 2 && <SecondaryButton onClick={() => {
+                            const next = layout.columns.find((column) => column.key !== layout.group.key && !(layout.group.then ?? []).includes(column.key) && !column.key.startsWith('blank:'));
+                            if (next) setIn('group', 'then', [...(layout.group.then ?? []), next.key]);
+                        }}>إضافة مستوى تجميع</SecondaryButton>}
                         <Switch checked={layout.group.newPage} onChange={(value) => setIn('group', 'newPage', value)} label="كل مجموعة في صفحة جديدة" />
                         <Switch
                             checked={layout.group.subtotals}

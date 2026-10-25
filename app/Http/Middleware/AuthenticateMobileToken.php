@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\MobileAccessToken;
+use App\Support\UserDeviceAccess;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +28,11 @@ class AuthenticateMobileToken
         }
 
         abort_if($token->user->isAuditOnly(), 403);
+        if (! $request->routeIs('mobile.logout') && ! app(UserDeviceAccess::class)->allowed($token->user, 'mobile:'.$token->id)) {
+            $token->delete();
+
+            return response()->json(['message' => UserDeviceAccess::LIMIT_MESSAGE], 401);
+        }
 
         Auth::setUser($token->user);
         $request->attributes->set('mobile_access_token', $token);

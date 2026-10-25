@@ -23,14 +23,14 @@ class MobileAccessToken extends Model
         return $this->belongsTo(User::class);
     }
 
-    public static function issue(User $user): string
+    public static function issue(User $user, bool $remember = true): string
     {
         $plainTextToken = Str::random(64);
 
         self::create([
             'user_id' => $user->id,
             'token_hash' => hash('sha256', $plainTextToken),
-            'expires_at' => now()->addDays(30),
+            'expires_at' => $remember ? now()->addDays(30) : now()->addHours(12),
         ]);
 
         return $plainTextToken;

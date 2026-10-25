@@ -223,4 +223,55 @@ class DashboardTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page->reloadOnly('branchForm', fn ($reload) => $reload->where('branchForm', null)));
     }
+
+    public function test_a_subscribers_statement_opens_over_the_dashboard_with_an_edit_button_for_who_may_edit(): void
+    {
+        [$own, $other] = Branch::factory()->count(2)->create();
+        $manager = User::factory()->branchAdmin()->create(['branch_id' => $own->id]);
+        $mine = Subscription::factory()->create(['branch_id' => $own->id]);
+        $foreign = Subscription::factory()->create(['branch_id' => $other->id]);
+
+        $this->actingAs(User::factory()->superAdmin()->create())->get(route('dashboard', ['statement' => $mine->id]))
+            ->assertInertia(fn ($page) => $page->where('statement.subscription.id', $mine->id)->where('statement.canUpdate', true));
+
+        $this->actingAs($manager)->get(route('dashboard', ['statement' => $foreign->id]))
+            ->assertInertia(fn ($page) => $page->where('statement', null));
+    }
+
+    public function test_the_edit_subscriber_pop_up_loads_only_a_subscriber_the_user_may_edit(): void
+    {
+        [$own, $other] = Branch::factory()->count(2)->create();
+        $manager = User::factory()->branchAdmin()->create(['branch_id' => $own->id]);
+        $mine = Subscription::factory()->create(['branch_id' => $own->id, 'full_name' => 'Editable subscriber']);
+        $foreign = Subscription::factory()->create(['branch_id' => $other->id]);
+
+        $this->actingAs($manager)->get(route('dashboard', ['edit' => $mine->id]))->assertInertia(fn ($page) => $page
+            ->missing('subscriptionEdit')
+            ->reloadOnly(['subscriptionEdit', 'subscriptionForm'], fn ($reload) => $reload
+                ->where('subscriptionEdit.id', $mine->id)
+                ->where('subscriptionEdit.full_name', 'Editable subscriber')
+                ->has('subscriptionForm.tariffs')));
+
+        $this->actingAs($manager)->get(route('dashboard', ['edit' => $foreign->id]))->assertInertia(fn ($page) => $page
+            ->reloadOnly('subscriptionEdit', fn ($reload) => $reload->where('subscriptionEdit', null)));
+
+        $viewer = User::factory()->collector()->create(['branch_id' => $own->id]);
+        $viewer->permissions()->sync(Permission::idsFor([PermissionKey::ViewSubscriptions]));
+        $this->actingAs($viewer)->get(route('dashboard', ['edit' => $mine->id]))->assertInertia(fn ($page) => $page
+            ->reloadOnly(['subscriptionEdit', 'subscriptionForm'], fn ($reload) => $reload->where('subscriptionEdit', null)->where('subscriptionForm', null)));
+    }
+
+    public function test_a_save_from_a_dashboard_pop_up_returns_to_the_dashboard_and_nowhere_else(): void
+    {
+        $superAdmin = User::factory()->superAdmin()->create();
+        $save = fn (?string $returnTo, string $name) => $this->actingAs($superAdmin)
+            ->post(route('branches.store'), ['name' => $name], $returnTo === null ? [] : ['X-Return-To' => $returnTo]);
+
+        $save('/dashboard?statement=5', 'From the dashboard')->assertRedirect(route('dashboard').'?statement=5')->assertSessionHas('status', 'branch-created');
+        $save(null, 'From the branches page')->assertRedirect(route('branches.index'));
+
+        foreach (['https://elsewhere.example/dashboard', '//elsewhere.example/dashboard', '/subscriptions', 'dashboard'] as $index => $target) {
+            $save($target, "Outside target {$index}")->assertRedirect(route('branches.index'));
+        }
+    }
 }

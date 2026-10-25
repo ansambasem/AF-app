@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, usePage } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
-import { HOME_LINK, currentGroup, isActiveLink } from '@/lib/navigation';
+import { shouldPrefetchPage, HOME_LINK, currentGroup, isActiveLink } from '@/lib/navigation';
 import { Avatar, LogoutForm } from './AccountMenu';
 import { LockMark } from './MegaMenu';
 import ThemeSegments from './ThemeSegments';
@@ -122,7 +122,7 @@ export default function NavigationDrawer({ open, groups, badges, onClose, onOpen
                         {props.can?.recordPayments && props.can?.viewSubscriptions ? 'ابحث عن صفحة أو مشترك…' : 'ابحث عن صفحة أو أمر…'}
                     </button>
                     <div className="grid gap-1">
-                        <Link href={HOME_LINK.href} prefetch className="tn-drawer-group" data-current={onHome || undefined} aria-current={onHome ? 'page' : undefined}>
+                        <Link href={HOME_LINK.href} prefetch={shouldPrefetchPage(HOME_LINK.href)} className="tn-drawer-group" data-current={onHome || undefined} aria-current={onHome ? 'page' : undefined}>
                             <Icon name={HOME_LINK.icon} className="tn-section-icon" />
                             {HOME_LINK.label}
                         </Link>
@@ -147,7 +147,7 @@ export default function NavigationDrawer({ open, groups, badges, onClose, onOpen
                                         <div>
                                             <div className="grid gap-0.5 py-1 ps-3">
                                                 {group.links.map((link) => (
-                                                    <Link key={link.href} href={link.href} prefetch={!link.locked} className="tn-drawer-link" aria-current={isActiveLink(link, url) ? 'page' : undefined}>
+                                                    <Link key={link.href} href={link.href} prefetch={!link.locked && shouldPrefetchPage(link.href)} className="tn-drawer-link" aria-current={isActiveLink(link, url) ? 'page' : undefined}>
                                                         <Icon name={link.icon} />
                                                         <span className="flex-1">{link.label}</span>
                                                         {link.locked && <LockMark />}

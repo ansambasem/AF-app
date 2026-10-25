@@ -34,4 +34,10 @@ class UpdateSplitPaymentRequest extends FormRequest
             'recorded_by' => ['prohibited'], 'created_at' => ['prohibited'], 'payment_method' => ['prohibited'], 'branch_id' => ['prohibited'],
         ];
     }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return StoreSubscriptionPaymentRequest::paymentMessages();
+    }
 }

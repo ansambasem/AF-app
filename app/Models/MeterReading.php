@@ -660,6 +660,39 @@ class MeterReading extends Model
         return number_format((float) $this->amount_due + (float) $this->discount_amount, 2, '.', '');
     }
 
+    /** Batch the successor count for lists; mutations still query their freshly loaded reading. */
+    public function scopeWithLaterReadingsCount(Builder $query): void
+    {
+        $laterModel = new static;
+        $laterModel->setTable('later_readings');
+        $laterReadings = $laterModel->newQuery()->from('meter_readings as later_readings')
+            ->whereColumn('later_readings.subscription_id', 'meter_readings.subscription_id')
+            ->whereColumn('later_readings.week_start', '>', 'meter_readings.week_start');
+        $query->addSelect([
+            'later_readings_count' => (clone $laterReadings)->selectRaw('COUNT(*)'),
+            'next_reading_week_start' => (clone $laterReadings)->selectRaw('MIN(week_start)'),
+        ]);
+    }
+
+    public function laterReadingsCount(): int
+    {
+        return array_key_exists('later_readings_count', $this->attributes)
+            ? (int) $this->attributes['later_readings_count']
+            : $this->subscription->meterReadings()->where('week_start', '>', $this->week_start)->count();
+    }
+
+    public function hasLaterReadingBefore(CarbonInterface $weekStart): bool
+    {
+        if (array_key_exists('next_reading_week_start', $this->attributes)) {
+            $next = $this->attributes['next_reading_week_start'];
+
+            return $next !== null && $next < $weekStart->toDateString();
+        }
+
+        return $this->subscription->meterReadings()->where('week_start', '>', $this->week_start)
+            ->where('week_start', '<', $weekStart)->exists();
+    }
+
     public function subscription(): BelongsTo
     {
         return $this->belongsTo(Subscription::class);

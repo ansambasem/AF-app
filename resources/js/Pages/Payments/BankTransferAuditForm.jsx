@@ -1,3 +1,4 @@
+import BankReceivedDate from '@/Components/BankReceivedDate';
 import { useEffect, useId, useState } from 'react';
 import { useForm } from '@inertiajs/react';
 import DialogFrame from '@/Components/DialogFrame';
@@ -54,6 +55,7 @@ export default function BankTransferAuditForm({ entry, onClose }) {
     </>}>
         {review.loading ? <div role="status" className="animate-pulse space-y-4 py-4"><p className="text-base text-gray-600">جارٍ تحميل بيانات الحوالة…</p><div className="h-24 rounded-control bg-gray-100" /></div> : review.error ? <InputError message={review.error} /> : <form id={`${id}-form`} onSubmit={submit} className="space-y-5">
             <LatePaymentDetails paidOn={ledger.paidOn} recordedAt={ledger.date} reason={ledger.lateReason} />
+            <BankReceivedDate value={ledger.bankReceivedOn} />
             <dl className="flex flex-wrap justify-between gap-4 border-b border-gray-100 pb-4 text-base">
                 <div><dt className="text-gray-600">الرقم المرجعي</dt><dd className="mt-1 font-display font-semibold text-gray-900"><bdi dir="ltr">{ledger.referenceNumber || '—'}</bdi></dd></div>
                 <div><dt className="text-gray-600">{split ? 'إجمالي الحوالة المسجّل' : 'المبلغ المسجّل'}</dt><dd className="mt-1 font-display text-xl font-bold text-gray-900"><bdi dir="ltr">{formatMoney(split?.total ?? ledger.paidAmount)}</bdi> <span className="text-base font-normal">{ledger.currencyLabel}</span></dd></div>

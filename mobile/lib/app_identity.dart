@@ -1230,9 +1230,12 @@ class AppChip extends StatelessWidget {
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(label,
-                style: AppIdentity.body(13,
-                    weight: FontWeight.w700, color: color)),
+            Flexible(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppIdentity.body(13,
+                        weight: FontWeight.w700, color: color))),
             if (count != null) ...[
               const SizedBox(width: 6),
               Opacity(

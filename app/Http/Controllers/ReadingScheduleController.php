@@ -51,6 +51,7 @@ class ReadingScheduleController extends Controller
         return Inertia::render('Settings/ReadingSchedule', [
             'setting' => [
                 'reading_day' => $setting->reading_day,
+                'assignment_lead_days' => $setting->assignment_lead_days ?? 1,
                 'open_days' => array_map('intval', $setting->open_days),
                 'opens_at' => substr($setting->opens_at, 0, 5),
                 'closes_at' => substr($setting->closes_at, 0, 5),
@@ -100,7 +101,7 @@ class ReadingScheduleController extends Controller
             'open_days' => array_map('intval', $request->validated('open_days')),
             'mode' => $request->validated('mode'),
             'updated_by' => $request->user()->id,
-        ] + $request->safe()->only(['opens_at', 'closes_at']))->save();
+        ] + $request->safe()->only(['opens_at', 'closes_at', 'assignment_lead_days']))->save();
 
         $request->user()->notify(new ActionCompleted('reading-schedule-updated'));
 

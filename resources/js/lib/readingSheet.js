@@ -1,3 +1,8 @@
+/** Keep the current sheet following the branch's reading day; only history pins a date. */
+export function readingWeekParams(week, latestWeek) {
+    return week === latestWeek ? {} : { week };
+}
+
 export function readingStatusFilters(status) {
     return { entry: status === 'missing' ? 'missing' : '', approval: ['pending', 'approved'].includes(status) ? status : '' };
 }

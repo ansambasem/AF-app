@@ -42,7 +42,7 @@ function StatementSkeleton() {
  * soon as the statement is there. `onSwitch(header)` opens another of the
  * same person's subscriptions in its place.
  */
-export default function StatementModal({ subscription, statement, initialForm = null, focusLineId = null, onSwitch, onClose }) {
+export default function StatementModal({ subscription, statement, initialForm = null, focusLineId = null, onSwitch, onClose, onEdit = null }) {
     const titleId = useId();
     // The form open over the statement: 'payment', 'charge' or 'discount', or a line to correct or delete.
     const [openForm, setOpenForm] = useState(initialForm);
@@ -62,7 +62,7 @@ export default function StatementModal({ subscription, statement, initialForm = 
                                     <h3 id={titleId} className="text-xl font-bold text-gray-900">
                                         كشف حساب {header.fullName}
                                     </h3>
-                                    <StatusPill tone={STATUS_TONES[header.status]} label={header.statusLabel} />
+                                    {header.statusLabel && <StatusPill tone={STATUS_TONES[header.status]} label={header.statusLabel} />}
                                     {header.standingDiscount && <StandingDiscountBadge discount={header.standingDiscount} />}
                                     {header.standingDiscount && statement?.canAddDiscount && (
                                         <StopStandingDiscountButton
@@ -106,6 +106,16 @@ export default function StatementModal({ subscription, statement, initialForm = 
                                     canAddClearing={statement.canAddClearing}
                                     onOpen={setOpenForm}
                                 />
+                            )}
+                            {onEdit && statement?.canUpdate && (
+                                <button
+                                    type="button"
+                                    onClick={() => onEdit(header)}
+                                    className="inline-flex h-10 items-center gap-2 rounded-control border border-blue-500/30 bg-blue-500/10 px-3.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-500/15 active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 dark:text-blue-600"
+                                >
+                                    <Icon name="pencil" className="h-[18px] w-[18px]" />
+                                    تعديل البيانات
+                                </button>
                             )}
                             <Link
                                 href={`/subscriptions/${header.id}/statement${focusLineId ? `?transaction=${focusLineId}` : ''}`}

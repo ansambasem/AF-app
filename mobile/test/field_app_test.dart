@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:power_collect/api_client.dart';
 import 'package:power_collect/app_identity.dart';
@@ -73,6 +74,59 @@ class CollectorApi extends ApiClient {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    String? sessionToken;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('powercollect.session'),
+            (call) async {
+      if (call.method == 'read') return sessionToken;
+      if (call.method == 'write') sessionToken = call.arguments as String;
+      if (call.method == 'clear') sessionToken = null;
+      return null;
+    });
+  });
+  testWidgets(
+      'an upgrade clears the old branch roster and keeps unsent readings',
+      (tester) async {
+    final store = MemoryStore()
+      ..state = {
+        'token': 'test',
+        'user': {
+          'id': 1,
+          'username': 'reader',
+          'name': 'Reader',
+          'can_record_readings': true
+        },
+        'week_start': '2026-10-16',
+        'subscribers': [
+          {
+            'id': 1,
+            'full_name': 'Old Branch Subscriber',
+            'meter_box_number': 'B1'
+          }
+        ],
+        'queued_readings': [
+          {
+            'mobile_operation_id': 'existing-operation',
+            'subscription_id': 1,
+            'current_reading': '125'
+          }
+        ],
+      };
+    await tester.pumpWidget(
+        PowerCollectApp(apiClient: OfflineApi(), fieldStore: store));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('إدخال القراءات').last);
+    await tester.pumpAndSettle();
+    expect(store.subscribers, isEmpty);
+    expect(store.queuedReadings.single['mobile_operation_id'],
+        'existing-operation');
+    expect(find.text('Old Branch Subscriber'), findsNothing);
+    expect(find.text('لا توجد طبلونات موزعة إليك حاليًا'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   test('switching staff clears the previous subscriber roster', () async {
     final directory =
         await Directory.systemTemp.createTemp('powercollect-users-');
@@ -83,6 +137,12 @@ void main() {
         {'id': 42, 'full_name': 'Private Subscriber'}
       ];
       store.state['week_start'] = '2026-09-21';
+      store.state['next_reading'] = {
+        'reading_date': '2026-10-29',
+        'boxes': [
+          {'id': 42}
+        ]
+      };
       await store.save();
 
       await store.saveSession({'id': 2, 'username': 'reader-b'}, 'token-b');
@@ -91,6 +151,7 @@ void main() {
       expect(restored.user?['id'], 2);
       expect(restored.subscribers, isEmpty);
       expect(restored.state['week_start'], isNull);
+      expect(restored.state['next_reading'], isNull);
 
       await restored.queueReading({
         'mobile_operation_id': newOperationId(),
@@ -143,10 +204,17 @@ void main() {
       final restored = FieldStore(directory: directory);
       await restored.load();
       expect(restored.queuedReadings.single['mobile_operation_id'], id);
+      await restored.markReadingUncertain(id);
+      final pending = FieldStore(directory: directory);
+      await pending.load();
+      expect(pending.queuedReadings.single['upload_uncertain'], true);
+      await pending.reopenReading(id);
+      expect(pending.queuedReadings, hasLength(1));
       await restored.markReadingError(id, 'validation error');
       final again = FieldStore(directory: directory);
       await again.load();
       expect(again.queuedReadings.single['sync_error'], 'validation error');
+      expect(again.queuedReadings.single['upload_uncertain'], isNull);
       await again.removeReading(id);
       expect(again.queuedReadings, isEmpty);
     } finally {
@@ -171,6 +239,7 @@ void main() {
       'week_start': '2026-09-21',
       'week_end': '2026-09-27',
       'can_record_readings_now': true,
+      'assignment_roster_version': 1,
       'subscribers': [
         {
           'id': 42,
@@ -221,6 +290,7 @@ void main() {
       'week_start': '2026-09-21',
       'week_end': '2026-09-27',
       'can_record_readings_now': true,
+      'assignment_roster_version': 1,
       'subscribers': [
         {
           'id': 1,
@@ -272,7 +342,7 @@ void main() {
       await tester.tap(find.byKey(ValueKey('reading-key-$digit')));
       await tester.pump();
     }
-    await tester.tap(find.text('حفظ قراءتين وإرسالهما للمراجعة'));
+    await tester.tap(find.text('حفظ قراءتين على الجهاز'));
     await tester.pumpAndSettle();
 
     expect(store.queuedReadings, hasLength(2));

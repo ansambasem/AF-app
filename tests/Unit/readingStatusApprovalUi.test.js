@@ -24,7 +24,7 @@ before(async () => {
         } }],
     });
     try {
-        const { output } = await bundle.generate({ format: 'esm' });
+        const { output } = await bundle.generate({ format: 'esm', codeSplitting: false });
         ({ SheetRow, Dialog, History } = await import(`data:text/javascript;base64,${Buffer.from(output[0].code).toString('base64')}`));
     } finally { await bundle.close(); }
 });

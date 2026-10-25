@@ -1,6 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activeFilterChips, activeReadingStatus, readingStatusFilters } from '../../resources/js/lib/readingSheet.js';
+import { activeFilterChips, activeReadingStatus, readingStatusFilters, readingWeekParams } from '../../resources/js/lib/readingSheet.js';
+
+test('the current sheet follows the branch reading day through search and pagination', () => {
+    assert.deepEqual(readingWeekParams('2026-09-18', '2026-09-18'), {});
+    assert.deepEqual(readingWeekParams('2026-09-25', '2026-09-25'), {});
+});
+
+test('choosing a previous reading week keeps its date through search and pagination', () => {
+    assert.deepEqual(readingWeekParams('2026-09-11', '2026-09-18'), { week: '2026-09-11' });
+});
 
 test('switching status clears the previous status while retaining location filters', () => {
     const filters = { meter_box_id: '42', tariff_id: '3', entry: 'missing', approval: '' };

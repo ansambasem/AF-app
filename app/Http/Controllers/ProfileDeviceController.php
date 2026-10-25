@@ -73,6 +73,7 @@ class ProfileDeviceController extends Controller
                 abort_unless($session !== null, 404);
                 abort_if($session->id === $request->session()->getId(), 422, 'لا يمكن تسجيل خروج الجهاز الحالي من هنا.');
                 self::sessions()->where('user_id', $user->id)->where('id', $session->id)->delete();
+                DB::table('user_login_devices')->where('user_id', $user->id)->where('session_hash', hash('sha256', $session->id))->delete();
                 // Retired sessions must not sign in again through an old remember-me cookie.
                 $user->forceFill(['remember_token' => Str::random(60)])->save();
             } else {
@@ -97,6 +98,8 @@ class ProfileDeviceController extends Controller
         }
 
         MobileAccessToken::query()->where('user_id', $user->id)->delete();
+        DB::table('user_login_devices')->where('user_id', $user->id)
+            ->where('session_hash', '!=', hash('sha256', $request->session()->getId()))->delete();
         $user->forceFill(['remember_token' => Str::random(60)])->save();
     }
 

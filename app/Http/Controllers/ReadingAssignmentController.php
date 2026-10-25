@@ -38,6 +38,8 @@ class ReadingAssignmentController extends Controller
             array_map('intval', $request->validated('versions') ?? []),
             $request->boolean('confirm_downloaded'),
             $request->user(),
+            $request->boolean('recurring'),
+            $request->boolean('publish') || $request->boolean('recurring'),
         );
 
         Inertia::flash('allocationResult', ['action' => 'move', 'moved' => $result['moved'], 'conflicts' => $result['conflicts']]);

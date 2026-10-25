@@ -74,10 +74,11 @@ class HandleInertiaRequests extends Middleware
             ],
             'status' => fn () => $request->session()->get('status'),
             'paymentOptions' => fn () => $user ? [
+                'today' => now(config('app.business_timezone'))->toDateString(),
                 'currencies' => CurrencyRate::options(),
                 'banks' => Bank::query()->get()->map(fn (Bank $bank): array => ['name' => $bank->name, 'logo' => $bank->logoUrl()])->all(),
             ] : null,
-            'auth' => $user ? [
+            'auth' => fn () => $user ? [
                 'user' => [
                     'name' => $user->name,
                     'username' => $user->username,
@@ -85,7 +86,7 @@ class HandleInertiaRequests extends Middleware
                     'branchName' => $user->branch?->name,
                 ],
             ] : null,
-            'can' => $user ? [
+            'can' => fn () => $user ? [
                 'auditOnly' => $user->isAuditOnly(),
                 'printAuditReports' => (! $user->hasFinancialAuditAccess()) || $user->canAuditAction(AuditAction::PrintReports),
                 'viewBranches' => $user->can('viewAny', Branch::class),
@@ -131,7 +132,7 @@ class HandleInertiaRequests extends Middleware
      */
     private function printTemplates(Request $request): ?array
     {
-        $page = '/'.trim($request->path(), '/');
+        $page = PrintTemplate::pageForRequest($request);
 
         if (! array_key_exists($page, PrintTemplate::PAGES)) {
             return null;

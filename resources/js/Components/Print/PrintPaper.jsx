@@ -22,7 +22,7 @@ export default function PrintPaper({ layout, table, summary, context, zoom }) {
     const dataRows = table.rows.filter((row) => row.type === 'row');
     const sections = arrangeRows(table.rows, layout);
     const groupColumn = layout.columns.find((column) => column.key === layout.group.key);
-    const totalsOf = (rows) => columns.map((column) => (column.total ? rowColumnTotal(rows, column.key) : null));
+    const totalsOf = (rows) => columns.map((column) => (column.total && !column.blank ? rowColumnTotal(rows, column.key) : null));
     const totals = totalsOf(dataRows);
     const hasTotals = totals.some((total) => total !== null);
     const size = paperSize(layout);
@@ -94,6 +94,10 @@ export default function PrintPaper({ layout, table, summary, context, zoom }) {
                         .filter(Boolean)
                         .join(' ')}
                 >
+                    <colgroup>
+                        {style.rowNumbers && <col style={{ width: '8mm' }} />}
+                        {columns.map((column) => <col key={column.key} style={Number(column.width) > 0 && Number(column.width) <= 120 ? { width: `${Number(column.width)}mm` } : undefined} />)}
+                    </colgroup>
                     <thead>
                         <tr>
                             {style.rowNumbers && <th className="pd-number">#</th>}
@@ -105,11 +109,11 @@ export default function PrintPaper({ layout, table, summary, context, zoom }) {
                         </tr>
                     </thead>
                     {sections.map((section, sectionIndex) => (
-                        <tbody key={sectionIndex} className={layout.group.newPage && sectionIndex > 0 ? 'pd-new-page' : undefined}>
+                        <tbody key={sectionIndex} className={layout.group.newPage && sectionIndex > 0 && section.breakBefore !== false ? 'pd-new-page' : undefined}>
                             {section.title !== null && (
                                 <tr className="pd-group pd-group-title">
                                     <td colSpan={span}>
-                                        {groupColumn?.label}: {section.title}
+                                        {section.groups ? section.groups.map((group) => `${layout.columns.find((column) => column.key === group.key)?.label}: ${group.value}`).join(' / ') : `${groupColumn?.label}: ${section.title}`}
                                         <span className="ms-2 font-normal text-gray-600">({section.rows.length.toLocaleString('en')})</span>
                                     </td>
                                 </tr>
@@ -123,8 +127,8 @@ export default function PrintPaper({ layout, table, summary, context, zoom }) {
                                     <tr key={index} className="pd-row">
                                         {style.rowNumbers && <td className="pd-number">{++rowNumber}</td>}
                                         {columns.map((column) => (
-                                            <td key={column.key} className={ALIGN_CLASSES[column.align]}>
-                                                {row.cells[column.key] ?? ''}
+                                            <td key={column.key} className={`${ALIGN_CLASSES[column.align]} whitespace-pre-line`}>
+                                                {!column.blank && <>{row.cells[column.key] ?? ''}{column.secondaryKey && <bdi className="mt-1 block text-[0.85em] font-normal text-gray-600">{row.cells[column.secondaryKey] ?? ''}</bdi>}</>}
                                             </td>
                                         ))}
                                     </tr>

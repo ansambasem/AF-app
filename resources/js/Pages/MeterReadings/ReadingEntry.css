@@ -22,7 +22,9 @@
 .re-week-field { min-width: 0; }
 .re-week-year { width: 110px; }
 .re-week-month { width: 120px; }
-.re-week-range { width: 180px; }
+.re-week-range { width: 340px; }
+.re-week-range > div > button { height: auto; min-height: 42px; padding-block: 8px; }
+.re-week-range .truncate { overflow: visible; text-overflow: clip; white-space: normal; font-size: 18px; }
 .re-hint { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; padding: 12px 16px; border-radius: 18px; background: color-mix(in srgb, var(--re-info) 8%, transparent); border: 1px solid color-mix(in srgb, var(--re-info) 22%, transparent); font-size: 14px; color: var(--re-ink2); line-height: 1.8; }
 .re-hint svg { width: 19px; height: 19px; color: var(--re-info); flex: none; margin-top: 3px; }
 .re-hint b { color: var(--re-info); }
@@ -86,7 +88,8 @@
 .re-last-pencil svg { width: 15px; height: 15px; }
 .re-last .re-input { width: 196px; }
 .re-table.has-last-edit .re-last { min-width: 214px; text-align: center; }
-.re-table th.re-last { text-align: start; }
+.re-table .re-last, .re-table th.re-input-cell { text-align: center; }
+.re-input-cell .re-input { margin-inline: auto; }
 .re-input { width: 196px; display: flex; align-items: stretch; gap: 4px; }
 .re-step { width: 40px; height: 44px; flex: none; border-radius: 12px; border: 1.5px solid var(--re-line); background: var(--re-sunken); color: var(--re-ink); font: 700 20px/1 Alexandria, sans-serif; display: grid; place-items: center; padding: 0; cursor: pointer; }
 .re-step:hover:not(:disabled) { background: var(--re-ink); color: var(--re-surface); border-color: var(--re-ink); }
@@ -166,6 +169,7 @@
     .re-table .re-diff, .re-table .re-rate, .re-table .re-fee, .re-table .re-min { display: none; }
     .re-last::before { content: 'القراءة السابقة: '; font: 13px 'IBM Plex Sans Arabic', sans-serif; }
     .re-table.has-last-edit .re-last { min-width: 0; text-align: start; }
+    .re-table .re-last { text-align: start; }
     .re-due::before { content: 'المطلوب دفعه: '; font: 13px 'IBM Plex Sans Arabic', sans-serif; color: var(--re-faint); }
     .re-sub b { font-size: 14px; white-space: normal; overflow: visible; }
     .re-table .re-line { max-width: none; white-space: normal; overflow: visible; }

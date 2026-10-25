@@ -32,6 +32,7 @@ class LayoutApi extends CollectorApi {
         'week_start': '2026-10-09',
         'week_end': '2026-10-15',
         'can_record_readings_now': true,
+        'assignment_roster_version': 1,
       };
 
   @override

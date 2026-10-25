@@ -299,6 +299,7 @@ class LedgerController extends Controller
             'day' => DailySeries::localDate($transaction->created_at),
             'time' => DailySeries::localTime($transaction->created_at),
             'paidOn' => $transaction->paid_on?->toDateString(),
+            'bankReceivedOn' => $transaction->bank_received_on?->toDateString(),
             'lateReason' => $transaction->late_reason,
             'subscriptionId' => $transaction->subscription_id,
             'subscriptionName' => $transaction->subscription->displayName(),
@@ -457,13 +458,14 @@ class LedgerController extends Controller
         return response()->streamDownload(function () use ($lines): void {
             $file = fopen('php://output', 'w');
             fwrite($file, "\xEF\xBB\xBF");
-            fputcsv($file, ['التاريخ', 'الوقت', 'المشترك', 'الحساب', 'الفرع', 'النوع', 'السند', 'الطريقة', 'البنك', 'المرجع', 'سجّله', 'عليه', 'له', 'الرصيد بعده', 'حالة الرصيد', 'ملغاة', 'تاريخ الدفع الفعلي', 'سبب تأخر التسجيل']);
+            fputcsv($file, ['التاريخ', 'الوقت', 'المشترك', 'الحساب', 'الفرع', 'النوع', 'السند', 'الطريقة', 'البنك', 'المرجع', 'سجّله', 'عليه', 'له', 'الرصيد بعده', 'حالة الرصيد', 'ملغاة', 'تاريخ الدفع الفعلي', 'سبب تأخر التسجيل', 'تاريخ وصول الحوالة إلى البنك']);
 
             foreach ($lines->lazy(500) as $transaction) {
                 $row = $this->row($transaction);
                 $cells = [$row['day'], $row['time'], $row['subscriptionName'], $row['subscriptionAccountNumber'], $row['branchName'], $row['typeLabel'], $row['voucherNumber'], $row['paymentMethodLabel'], $row['bankName'], $row['referenceNumber'], $row['recordedByName'], $row['isCredit'] ? '' : (float) $row['amount'], $row['isCredit'] ? (float) $row['amount'] : '', $row['balanceAfter'] === null ? '' : (float) $row['balanceAfter'], $this->balanceWord($row['balanceAfter']), $row['isCancelled'] ? 'نعم' : 'لا'];
                 $cells[] = $row['paidOn'];
                 $cells[] = $row['lateReason'];
+                $cells[] = $row['bankReceivedOn'];
                 fputcsv($file, array_map(fn ($cell) => is_string($cell) && preg_match('/^[=+@\-\t\r]/u', $cell) ? "'".$cell : $cell, $cells));
             }
 

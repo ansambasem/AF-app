@@ -22,7 +22,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-#[Fillable(['name', 'username', 'password', 'role', 'branch_id', 'is_active', 'user_type_id'])]
+#[Fillable(['name', 'username', 'password', 'role', 'branch_id', 'is_active', 'user_type_id', 'max_devices'])]
 #[Hidden(['password', 'remember_token', 'audit_settings'])]
 class User extends Authenticatable
 {
@@ -64,6 +64,7 @@ class User extends Authenticatable
             'role' => UserRole::class,
             'is_active' => 'boolean',
             'audit_settings' => 'array',
+            'max_devices' => 'integer',
         ];
     }
 

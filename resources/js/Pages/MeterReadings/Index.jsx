@@ -18,9 +18,10 @@ import { printFieldsProps, printRowProps } from '@/lib/print';
 import { formatCurrency } from '@/lib/currency';
 import { formatMonthName } from '@/lib/format';
 import { consumptionBetween, steppedReading, weeklyCharges } from '@/lib/readings';
-import { activeReadingStatus, readingStatusFilters } from '@/lib/readingSheet';
+import { activeReadingStatus, readingStatusFilters, readingWeekParams } from '@/lib/readingSheet';
 import ReadingContextBar from './ReadingContextBar';
 import ReadingApprovalDialog from './ReadingApprovalDialog';
+import PrintButton from '@/Components/PrintButton';
 import './ReadingEntry.css';
 import { WEEK_DAYS, formatWeekDay } from '@/lib/weekDays';
 import InfoTip from '@/Components/InfoTip';
@@ -40,7 +41,7 @@ const SORT_OPTIONS = [
     { value: 'meter_box', label: 'الطبلون (الاسم ثم الرقم)', type: 'text' },
     { value: 'meter_box_number', label: 'رقم الطبلون', type: 'number' },
     { value: 'last_reading', label: 'القراءة السابقة', type: 'amount' },
-    { value: 'current_reading', label: 'القراءة الجديدة', type: 'amount' },
+    { value: 'current_reading', label: 'القراءة الحالية', type: 'amount' },
     { value: 'consumption', label: 'الفرق (كيلو)', type: 'amount' },
     { value: 'amount_due', label: 'المطلوب دفعه', type: 'amount' },
     { value: 'account_number', label: 'رقم الاشتراك', type: 'number' },
@@ -63,6 +64,7 @@ const STATUS_TABS = [
     { value: 'approved', label: 'معتمدة', count: 'approved' },
 ];
 const shortDate = (date) => date.slice(5).split('-').reverse().join('/');
+const fullDate = (date) => date.split('-').reverse().join('/');
 
 /**
  * The week's cost for a typed reading: consumption × kilowatt price, less
@@ -255,7 +257,7 @@ export function SheetRow({ row, week, approvable, showRecorder, selected, onTogg
                     dir="ltr"
                     data-reading-input
                     ref={inputRef}
-                    aria-label={`القراءة الجديدة لـ ${row.fullName}`}
+                    aria-label={`القراءة الحالية لـ ${row.fullName}`}
                     aria-invalid={Boolean(error)}
                     // The reason shows as a flash message when the save fails, and on hover here: the row never grows.
                     title={hoverText ?? undefined}
@@ -386,12 +388,13 @@ export function SheetRow({ row, week, approvable, showRecorder, selected, onTogg
 function EntryWindowNotice({ entryWindow, canRecord, canApprove, weekIsViewOnly, onShowLatestWeek }) {
     if (entryWindow.appliesToActor && !entryWindow.isOpen) {
         const days = WEEK_DAYS.filter((day) => entryWindow.openDays.includes(day.value)).map((day) => day.label);
+        const openingDay = entryWindow.nextOpensOn ? formatWeekDay(entryWindow.nextOpensOn) : days.join(' و');
 
         return (
             <div role="status" className="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">
                 <p className="font-semibold">إدخال القراءات الجديدة مغلق حاليًا.</p>
                 <p className="mt-1">
-                    {days.length ? `يُفتح الإدخال يوم ${days.join(' و')} من ${entryWindow.opensAt} إلى ${entryWindow.closesAt} بتوقيت الشركة.` : 'سيُفتح عندما يفتحه المدير.'} حتى ذلك الحين يمكنك تعديل القراءات المُدخلة
+                    {openingDay ? `سيُفتح الإدخال يوم ${openingDay} من ${entryWindow.opensAt} إلى ${entryWindow.closesAt} بتوقيت الشركة.` : 'سيُفتح عندما يفتحه المدير.'} حتى ذلك الحين يمكنك تعديل القراءات المُدخلة
                     للأسبوع الأخير فقط.
                 </p>
             </div>
@@ -443,7 +446,10 @@ export default function Index({
     filters,
     filterOptions,
 }) {
-    const { search, setSearch, sort, sortBy, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/meter-readings', filters, { week });
+    const weekParams = readingWeekParams(week, weekOptions[0]?.value);
+    const { search, setSearch, sort, sortBy, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/meter-readings', filters, weekParams, {
+        only: ['rows', 'filters', 'filterOptions', 'week', 'weekEnd', 'weekOptions', 'summary', 'statusSummary', 'pendingApproval', 'can', 'canRecord', 'canApprove', 'seesWhoRecorded', 'weekIsViewOnly', 'entryWindow'],
+    });
     // The readings ticked for approval, and which approval is waiting on "are you sure?" ('selected' or 'all').
     const [selectedIds, setSelectedIds] = useState(() => new Set());
     const [confirming, setConfirming] = useState(null);
@@ -531,7 +537,7 @@ export default function Index({
     function changeWeek(nextWeek) {
         router.get(
             '/meter-readings',
-            { week: nextWeek, search, sort: filters.sort, direction: filters.direction, per_page: filters.per_page, filter: filterValues },
+            { ...readingWeekParams(nextWeek, weekOptions[0]?.value), search, sort: filters.sort, direction: filters.direction, per_page: filters.per_page, filter: filterValues },
             { preserveState: true, preserveScroll: true, replace: true },
         );
     }
@@ -541,14 +547,15 @@ export default function Index({
             <Head title="القراءات الأسبوعية" />
             <div className="reading-entry" dir="rtl">
                 <div className="re-heading">
-                    <div className="flex items-center gap-1"><h1>القراءات الأسبوعية</h1><InfoTip label="طريقة الإدخال">أدخل القراءة الجديدة بجانب القراءة السابقة، واضغط Enter أو السهم لأسفل للحفظ والانتقال للمشترك التالي، والسهم لأعلى للرجوع.</InfoTip></div>
+                    <div className="flex items-center gap-1"><h1>القراءات الأسبوعية</h1><InfoTip label="طريقة الإدخال">أدخل القراءة الحالية بجانب القراءة السابقة، واضغط Enter أو السهم لأسفل للحفظ والانتقال للمشترك التالي، والسهم لأعلى للرجوع.</InfoTip></div>
                     <div className="re-actions">
+                        <PrintButton title="القراءات الأسبوعية" selectedIds={[...selectedIds]} selectionPage="/meter-readings" />
                         <span className={`re-open ${entryWindow.isOpen ? 'is-open' : ''}`}><i />الإدخال {entryWindow.isOpen ? 'مفتوح' : 'مغلق'}</span>
                         <div className="re-week">
                             <button type="button" aria-label="الأسبوع السابق" disabled={weekIndex < 0 || weekIndex === weekOptions.length - 1} onClick={() => changeWeek(weekOptions[weekIndex + 1].value)}><Icon name="chevron-right" /></button>
                             <div className="re-week-field re-week-year"><label htmlFor="reading-week-year" className="sr-only">السنة</label><SearchableSelect id="reading-week-year" value={currentYear} onChange={changePeriod} options={yearOptions.map((year) => ({ value: year, label: year }))} clearable={false} searchable={false} className="[&>div.absolute]:min-w-0" /></div>
                             <div className="re-week-field re-week-month"><label htmlFor="reading-week-month" className="sr-only">الشهر</label><SearchableSelect id="reading-week-month" value={currentMonth} onChange={changePeriod} options={monthOptions.map((month) => ({ value: month, label: formatMonthName(`${month}-01`) }))} clearable={false} searchable={false} className="[&>div.absolute]:min-w-0" /></div>
-                            <div className="re-week-field re-week-range"><label htmlFor="reading-week-range" className="sr-only">أسبوع القراءة</label><SearchableSelect id="reading-week-range" value={week} onChange={changeWeek} options={weeksOfMonth.map((option) => ({ value: option.value, label: `\u202A${shortDate(option.value)} – ${shortDate(option.end)}\u202C` }))} clearable={false} searchable={false} className="[&>div.absolute]:min-w-0" /></div>
+                            <div className="re-week-field re-week-range"><label htmlFor="reading-week-range" className="sr-only">أسبوع القراءة</label><SearchableSelect id="reading-week-range" value={week} onChange={changeWeek} options={weeksOfMonth.map((option) => ({ value: option.value, label: `\u202A${fullDate(option.value)} – ${fullDate(option.end)}\u202C` }))} clearable={false} searchable={false} className="[&>div.absolute]:min-w-0" /></div>
                             <button type="button" aria-label="الأسبوع التالي" disabled={weekIndex <= 0} onClick={() => changeWeek(weekOptions[weekIndex - 1].value)}><Icon name="chevron-left" /></button>
                         </div>
                     </div>
@@ -653,6 +660,7 @@ export default function Index({
             </div>
 
             <DataTableToolbar
+                printable={false}
                 search={search}
                 onSearchChange={setSearch}
                 placeholder="بحث بالاسم أو رقم الاشتراك أو الهاتف..."
@@ -679,7 +687,7 @@ export default function Index({
                         <tr>
                             <SortableTh column="full_name" label="المشترك" sortState={filters} onSort={sort} className="re-sub" />
                             <SortableTh column="last_reading" label="القراءة السابقة" sortState={filters} onSort={sort} className="re-last" />
-                            <SortableTh column="current_reading" label="القراءة الجديدة" sortState={filters} onSort={sort} className="re-input-cell" />
+                            <SortableTh column="current_reading" label="القراءة الحالية" sortState={filters} onSort={sort} className="re-input-cell" />
                             <SortableTh column="consumption" label="الفرق (كيلو)" sortState={filters} onSort={sort} className="re-diff" />
                             <th className="re-rate">سعر الكيلو</th>
                             <th className="re-fee">قيمة القراءة</th>
@@ -716,7 +724,7 @@ export default function Index({
             </div>
 
             <div className="re-footer"><span>مجموع المستحق لهذا الأسبوع <b>{formatCurrency(summary.amountDue)}</b></span><span><Icon name="enter" /> Enter أو ↓ للحفظ والانتقال · ↑ للرجوع · Tab للتنقل</span></div>
-            <Pagination meta={rows} filters={filters} baseUrl="/meter-readings" extraParams={{ week }} />
+            <Pagination meta={rows} filters={filters} baseUrl="/meter-readings" extraParams={weekParams} />
             </section>
 
             {selectedRows.length > 0 && (

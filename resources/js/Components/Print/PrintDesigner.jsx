@@ -34,14 +34,37 @@ const ZOOMS = [
  * everyone (PrintTemplateController); whoever may manage them saves the
  * design into one from here.
  */
-export default function PrintDesigner({ settings, children }) {
+export default function PrintDesigner({ settings, children, beforePrint }) {
     const { props } = usePage();
     const sourceRef = useRef(null);
     const stageRef = useRef(null);
-    const pageKey = window.location.pathname;
+    const toolbarRef = useRef(null);
+    const [toolbarHeight, setToolbarHeight] = useState(65);
+    const provided = props.printData ?? null;
+    const pageKey = provided?.context?.templatePage ?? window.location.pathname;
     const [table, setTable] = useState(null);
     const [summary, setSummary] = useState('');
     const [layout, setLayout] = useState(null);
+    const [printing, setPrinting] = useState(false);
+    const [loadingRows, setLoadingRows] = useState(false);
+    const printingRef = useRef(false);
+    const [printError, setPrintError] = useState('');
+
+    async function print() {
+        if (printingRef.current) return;
+        printingRef.current = true;
+        setPrinting(true);
+        setPrintError('');
+        try {
+            await beforePrint?.();
+            window.print();
+        } catch {
+            setPrintError('تعذّر تجهيز الطباعة. تحقق من الاتصال وأعد المحاولة.');
+        } finally {
+            printingRef.current = false;
+            setPrinting(false);
+        }
+    }
     const templates = props.printTemplates ?? [];
     const supportsTemplates = Array.isArray(props.printTemplates);
     const canManageTemplates = Boolean(props.can?.managePrintTemplates) && supportsTemplates;
@@ -59,15 +82,37 @@ export default function PrintDesigner({ settings, children }) {
     const pendingTemplateName = useRef(null);
     const [zoom, setZoom] = useState('fit');
     const [fitZoom, setFitZoom] = useState(1);
-    const list = paginatedProp(props);
+    const list = provided ? { total: provided.total, data: provided.rows } : paginatedProp(props);
     const isCut = settings.allRows && list && list.total > list.data.length;
     const report = props.report;
     const statementPrint = Boolean(props.printOptions);
-    const details = statementPrint ? statementPrintDetails(props) : report?.counts ? reportDetails(report) : [];
-    const context = { appName: props.appName, branchName: statementPrint ? props.subscription?.branchName : report?.branch ?? props.auth?.user?.branchName, userName: props.auth?.user?.name, details };
+    const readingContext = provided?.context;
+    const readingDetails = readingContext ? [
+        { key: 'readingDate', label: 'موعد القراءة', value: [readingContext.readingDayName, readingContext.readingDate].filter(Boolean).join(' ') },
+        { key: 'week', label: 'أسبوع القراءة', value: [readingContext.weekStart, readingContext.weekEnd].filter(Boolean).join(' — ') },
+        { key: 'sheet', label: 'رقم الكشف', value: readingContext.sheetNumber },
+    ].filter((field) => field.value) : [];
+    const details = readingContext ? readingDetails : statementPrint ? statementPrintDetails(props) : report?.counts ? reportDetails(report) : [];
+    const context = { appName: props.appName, branchName: readingContext?.branchName ?? (statementPrint ? props.subscription?.branchName : report?.branch ?? props.auth?.user?.branchName), userName: props.auth?.user?.name, details };
+    const visibleColumns = layout?.columns.filter((column) => column.visible) ?? [];
+    const widths = visibleColumns.reduce((sum, column) => sum + Math.max(0, Number(column.width) || 0), layout?.table.rowNumbers ? 8 : 0);
+    const widthWarning = layout && widths > paperSize(layout).width - layout.margin * 2 ? 'عروض الأعمدة تتجاوز مساحة الورقة. قلّل العرض أو الهوامش أو اختر الاتجاه العرضي.' : '';
+
+    useLayoutEffect(() => {
+        const toolbar = toolbarRef.current;
+        if (!toolbar) return;
+        const update = () => setToolbarHeight(toolbar.offsetHeight);
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(toolbar);
+        return () => observer.disconnect();
+    }, []);
 
     function freshLayout(columns) {
         const fresh = defaultLayout({ columns, title: settings.title || document.title, company: props.appName ?? '' });
+        Object.entries(provided?.defaults ?? {}).forEach(([key, value]) => {
+            fresh[key] = value && typeof value === 'object' && !Array.isArray(value) ? { ...fresh[key], ...value } : value;
+        });
         if (details.length > 0) fresh.header.reportFields = details.map((field) => field.key);
         if (report?.counts) {
             fresh.columns = fresh.columns.map((column) => ({ ...column, total: ['مبلغ الصندوق', 'وصل البنك', 'الفرق'].includes(column.key) }));
@@ -86,6 +131,12 @@ export default function PrintDesigner({ settings, children }) {
 
     // Read the page's table now and whenever it redraws.
     useEffect(() => {
+        if (provided) {
+            setTable({ columns: provided.columns, rows: provided.rows });
+            setSummary(provided.summary ?? '');
+            setLayout((current) => fitLayout(current ?? start.layout, freshLayout(provided.columns)));
+            return;
+        }
         let frame = null;
 
         function read() {
@@ -114,7 +165,7 @@ export default function PrintDesigner({ settings, children }) {
             cancelAnimationFrame(frame);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [provided]);
 
     useEffect(() => {
         if (layout) {
@@ -178,10 +229,11 @@ export default function PrintDesigner({ settings, children }) {
     };
 
     return (
-        <div className="pd-root min-h-screen bg-gray-100 text-gray-900">
+        <div className="pd-root min-h-screen bg-gray-100 text-gray-900" style={{ '--pd-toolbar-height': `${toolbarHeight}px` }}>
             {layout && <style>{pageCss(layout)}</style>}
 
             <header
+                ref={toolbarRef}
                 aria-label="أدوات الطباعة"
                 className="pd-toolbar sticky top-0 z-30 flex flex-wrap items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 sm:px-6"
             >
@@ -189,6 +241,7 @@ export default function PrintDesigner({ settings, children }) {
                     <Icon name="printer" className="h-5 w-5 text-print-600" />
                     تصميم الطباعة
                 </span>
+                {readingContext && <span className="text-xs text-gray-600">{readingContext.title} · {readingContext.branchName} · {[readingContext.readingDayName, readingContext.readingDate].filter(Boolean).join(' ')} · {provided.rows.length.toLocaleString('en')} سجل</span>}
                 {isCut && (
                     <span role="status" className="inline-flex items-center gap-1 text-sm font-semibold text-amber-700">
                         <Icon name="warning" className="h-4 w-4 shrink-0" />
@@ -196,6 +249,15 @@ export default function PrintDesigner({ settings, children }) {
                     </span>
                 )}
                 <div className="ms-auto flex flex-wrap items-center gap-2">
+                    {supportsTemplates && <select aria-label="القالب المختار" className="max-w-52 !py-1.5 text-sm" value={activeTemplateId ?? ''} onChange={(event) => applyTemplate(event.target.value)}>
+                        <option value="">تصميم غير محفوظ</option>
+                        {templates.map((template) => <option key={template.id} value={template.id}>{template.name}{template.isDefault ? ' (افتراضي)' : ''}</option>)}
+                    </select>}
+                    {canManageTemplates && <SecondaryButton disabled={!layout} onClick={() => {
+                        if (activeTemplateId) { templateActions.saveChanges(); return; }
+                        const section = document.getElementById('print-template-settings');
+                        if (section) { section.open = true; section.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); section.querySelector('input[type=text]')?.focus(); }
+                    }}><Icon name="check" className="h-4 w-4" />حفظ القالب{isChanged ? ' *' : ''}</SecondaryButton>}
                     {statementPrint && <label className="flex items-center gap-2 text-sm text-gray-600">عرض الكشف
                         <select aria-label="عرض الكشف المطبوع" value={props.printOptions.view} onChange={(event) => {
                             const url = new URL(window.location.href);
@@ -227,9 +289,12 @@ export default function PrintDesigner({ settings, children }) {
                             ))}
                         </select>
                     </label>
-                    <PrimaryButton type="button" className="tone-print tone-solid" onClick={() => window.print()} disabled={!layout} autoFocus>
+                    {loadingRows && <span role="status" className="animate-pulse text-sm text-gray-600">جارٍ تحديث المعاينة...</span>}
+                    {printError && <p role="alert" className="text-sm text-red-600">{printError}</p>}
+                    {widthWarning && <p role="alert" className="max-w-xs text-xs text-amber-800">{widthWarning}</p>}
+                    <PrimaryButton type="button" className="tone-print tone-solid" onClick={print} disabled={!layout || printing || loadingRows || !visibleColumns.length || Boolean(widthWarning) || !table?.rows.some((row) => row.type === 'row')} autoFocus>
                         <Icon name="printer" className="h-4 w-4" />
-                        طباعة
+                        طباعة / حفظ PDF
                     </PrimaryButton>
                     <SecondaryButton onClick={() => window.close()}>
                         <Icon name="close" className="h-4 w-4" />
@@ -238,22 +303,33 @@ export default function PrintDesigner({ settings, children }) {
                 </div>
             </header>
 
+            {provided?.warnings?.length > 0 && <div role="status" className="pd-screen-only space-y-1 border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900">
+                {provided.warnings.map((warning, index) => <p key={index}>{warning}</p>)}
+            </div>}
+
             <div className="pd-body lg:grid lg:grid-cols-[380px_minmax(0,1fr)]">
                 <aside
                     aria-label="إعدادات الطباعة"
-                    className="pd-panel border-e border-gray-200 bg-white lg:sticky lg:top-[65px] lg:h-[calc(100vh-65px)] lg:overflow-y-auto"
+                    className="pd-panel border-e border-gray-200 bg-white lg:sticky lg:top-[var(--pd-toolbar-height)] lg:h-[calc(100vh-var(--pd-toolbar-height))] lg:overflow-y-auto"
                 >
                     {layout ? (
                         <PrintSettingsPanel
                             reportFields={details}
-                            reportFieldsTitle={statementPrint ? 'بيانات الكشف' : 'بيانات الصندوق'}
+                            reportFieldsTitle={readingContext || statementPrint ? 'بيانات الكشف' : 'بيانات الصندوق'}
                             layout={layout}
                             onChange={setLayout}
                             scope={{
                                 allRows: settings.allRows,
-                                allRowsOnly: Boolean(report?.counts) || statementPrint,
+                                allRowsOnly: Boolean(provided?.allRowsOnly) || Boolean(report?.counts) || statementPrint,
+                                selected: settings.scope === 'selected',
+                                hasSelection: Boolean(settings.selection),
+                                loading: loadingRows,
                                 total: statementPrint ? table?.rows.filter((row) => row.type === 'row').length : report?.counts ? report.rows.length : list?.total,
-                                onChange: (allRows) => window.location.assign(printScopeUrl(allRows)),
+                                onChange: (allRows) => router.get(printScopeUrl(allRows), {}, {
+                                    preserveState: true, preserveScroll: true,
+                                    onStart: () => setLoadingRows(true),
+                                    onFinish: () => setLoadingRows(false),
+                                }),
                             }}
                             templates={{
                                 list: templates,
@@ -286,9 +362,9 @@ export default function PrintDesigner({ settings, children }) {
             </div>
 
             {/* The page itself, out of sight, for its table to be read from. */}
-            <div ref={sourceRef} className="pd-source" aria-hidden="true" inert>
+            {!provided && <div ref={sourceRef} className="pd-source" aria-hidden="true" inert>
                 {children}
-            </div>
+            </div>}
         </div>
     );
 }

@@ -14,8 +14,8 @@
  */
 
 /** The print settings in the current address, or null when the page isn't being printed. */
-export function currentPrintSettings() {
-    const params = new URLSearchParams(window.location.search);
+export function currentPrintSettings(search = window.location.search) {
+    const params = new URLSearchParams(search);
 
     if (params.get('print') !== '1') {
         return null;
@@ -24,6 +24,7 @@ export function currentPrintSettings() {
     return {
         title: params.get('print_title') ?? '',
         allRows: params.get('print_all') === '1',
+        ...(params.has('print_selection') ? { scope: params.get('print_scope') ?? 'selected', selection: params.get('print_selection') } : {}),
         // A template to open (its id), or "new" to start a new one (see the templates page).
         template: params.get('print_template'),
     };
@@ -60,7 +61,9 @@ export function printScopeUrl(allRows) {
     const url = new URL(window.location.href);
     const params = url.searchParams;
 
-    if (allRows) {
+    const mode = allRows === 'selected' ? 'selected' : allRows ? 'all' : 'page';
+    if (params.has('print_selection')) params.set('print_scope', mode);
+    if (mode !== 'page') {
         params.delete('page');
         params.set('print_all', '1');
     } else {

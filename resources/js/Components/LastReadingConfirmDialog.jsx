@@ -61,17 +61,17 @@ export default function LastReadingConfirmDialog({ editor, subscriptionName }) {
                 <div>
                     <label htmlFor={`${id}-reading`} className="mb-3 block text-lg font-bold text-gray-900">{meterChange ? 'قراءة بداية العداد الجديد' : 'القراءة الصحيحة'}</label>
                     <div className="flex items-center gap-3" dir="ltr">
-                        <SecondaryButton aria-label="إنقاص القراءة السابقة" onClick={() => editor.step(-1)} disabled={editor.saving || Number(editor.value) <= Number(meterChange ? 0 : editor.floor)} className="h-14 w-14 shrink-0 !text-2xl">−</SecondaryButton>
-                        <TextInput {...editor.inputProps} id={`${id}-reading`} aria-label="القراءة السابقة الجديدة" className="min-w-0 flex-1 py-3 text-center font-display !text-2xl" />
-                        <SecondaryButton aria-label="زيادة القراءة السابقة" onClick={() => editor.step(1)} disabled={editor.saving} className="h-14 w-14 shrink-0 !text-2xl">+</SecondaryButton>
+                        <SecondaryButton aria-label="إنقاص القراءة السابقة" onClick={() => editor.step(-1)} disabled={editor.saving || Number(editor.value) <= Number(meterChange ? 0 : editor.floor)} className="h-14 w-14 shrink-0 !px-0 !text-2xl">−</SecondaryButton>
+                        <TextInput {...editor.inputProps} id={`${id}-reading`} aria-label="القراءة السابقة الجديدة" className="h-14 min-w-0 flex-1 py-3 !text-center font-display !text-2xl" />
+                        <SecondaryButton aria-label="زيادة القراءة السابقة" onClick={() => editor.step(1)} disabled={editor.saving} className="h-14 w-14 shrink-0 !px-0 !text-2xl">+</SecondaryButton>
                     </div>
                     {!meterChange && <p className="mt-3 text-base text-gray-600">بداية الفترة: <bdi dir="ltr">{formatMoney(editor.floor)}</bdi> كيلو.</p>}
                 </div>
             </>}
             {phase === 'review' && preview && <>
-                <div className="grid grid-cols-2 divide-x divide-x-reverse divide-gray-200 rounded-control bg-gray-50 p-5">
-                    <div className="px-2"><p className="text-base text-gray-600">قبل التعديل</p><bdi dir="ltr" className="mt-2 block font-display text-2xl font-semibold text-gray-500">{formatMoney(preview.before)}</bdi></div>
-                    <div className="px-4"><p className="text-base text-gray-600">بعد التعديل</p><bdi dir="ltr" className="mt-2 block font-display text-2xl font-bold text-gray-900">{formatMoney(preview.after)}</bdi></div>
+                <div className="grid grid-cols-2 divide-x divide-x-reverse divide-gray-200 rounded-control bg-gray-50 py-5 text-center">
+                    <div className="min-w-0 px-3"><p className="text-base text-gray-600">قبل التعديل</p><bdi dir="ltr" className="mt-2 block break-words text-center font-display text-2xl font-semibold text-gray-500">{formatMoney(preview.before)}</bdi></div>
+                    <div className="min-w-0 px-3"><p className="text-base text-gray-600">بعد التعديل</p><bdi dir="ltr" className="mt-2 block break-words text-center font-display text-2xl font-bold text-gray-900">{formatMoney(preview.after)}</bdi></div>
                 </div>
                 <div><b className="text-gray-900">{purpose?.label}</b>{meterChange && <p className="mt-1 whitespace-pre-wrap text-base">{editor.reason}</p>}</div>
                 {meterChange ? <p className="rounded-control bg-emerald-500/10 p-4 font-semibold text-emerald-800 dark:text-emerald-300">الفاتورة السابقة وحركاتها محفوظة كما هي.</p> : week && <dl className="space-y-2 border-y border-gray-100 py-4">

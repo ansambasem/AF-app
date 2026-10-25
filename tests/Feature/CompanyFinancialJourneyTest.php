@@ -69,8 +69,8 @@ class CompanyFinancialJourneyTest extends TestCase
         $late = ['amount' => '10', 'currency' => 'ILS', 'payment_method' => 'cash',
             'late_payment' => true, 'paid_on' => '2026-10-21', 'late_reason' => 'نسيان تسجيل السند',
             'late_payment_token' => Str::uuid()->toString()];
-        $this->post(route('subscriptions.payments.store', $subscription), $late)->assertSessionHasNoErrors();
-        $this->post(route('subscriptions.payments.store', $subscription), $late)->assertSessionHasNoErrors();
+        $this->post(route('subscriptions.payments.store', $subscription), $late)->assertSessionHasErrors('late_payment');
+        $this->post(route('subscriptions.payments.store', $subscription), ['amount' => '10', 'currency' => 'ILS', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
         $this->assertSame(120.0, $subscription->balance());
         $other = Subscription::factory()->for($branch)->create();
         SubscriptionTransaction::factory()->for($other)->create(['amount' => '100.00']);

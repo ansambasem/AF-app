@@ -2,6 +2,8 @@
 
 return [
 
+    'mobile_app' => ['directory' => resource_path('mobile')],
+
     'branch_domains_enabled' => (bool) env('BRANCH_DOMAINS_ENABLED', false),
 
     /*

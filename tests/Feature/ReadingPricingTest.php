@@ -68,6 +68,19 @@ class ReadingPricingTest extends TestCase
         $this->assertSame(['20.00', '2.00', '18.00'], [$reading->fresh()->reading_fee, $reading->fresh()->discount_amount, $reading->fresh()->amount_due]);
     }
 
+    public function test_minimum_charge_permissions_are_preserved_after_the_reading_day(): void
+    {
+        [$actor, $subscription, $reading] = $this->context(PermissionKey::UpdateSubscriptionMinimumCharge);
+        $this->travelTo('2026-09-25 10:00:00');
+
+        $this->assertFalse($actor->can('createOnReadingDay', MeterReading::class));
+        $this->actingAs($actor)->put(route('meter-readings.pricing', $reading), ['minimum_payment' => 12])->assertSessionHasNoErrors();
+        $this->put(route('meter-readings.pricing', $reading), ['unit_price' => 3])->assertForbidden();
+
+        $this->assertSame(['12.00', '0.50', '12.00'], [$reading->fresh()->minimum_payment, $reading->fresh()->unit_price, $reading->fresh()->amount_due]);
+        $this->assertSame(0, $subscription->fresh()->minimum_charge);
+    }
+
     public function test_old_rows_foreign_branches_and_waiting_current_readings_are_locked_even_for_super_admins(): void
     {
         [$actor, $subscription, $reading] = $this->context(PermissionKey::UpdateSubscriptionKilowattPrice);

@@ -104,7 +104,6 @@ const NEEDS = {
     'meter_readings.approve': 'view',
     'collections.record_cash': 'record',
     'collections.record_transfer': 'record',
-    'collections.record_late': 'record',
     'disconnections.warn': 'view',
     'disconnections.execute': 'manage',
     'disconnections.change_fee': 'manage',

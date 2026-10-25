@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Support\UserDeviceAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -41,6 +42,8 @@ class UpdateUserRequest extends FormRequest
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'is_active' => ['boolean'],
             'role' => ['prohibited'],
+            'max_devices' => $actor->can('updatePassword', $target) ? ['sometimes', 'required', 'integer', 'between:1,20'] : ['exclude'],
+            'reset_devices' => $actor->can('updatePassword', $target) ? ['sometimes', 'boolean'] : ['exclude'],
         ];
 
         // Only a Super Admin moves an account to another branch, or between one branch and every branch.
@@ -77,6 +80,10 @@ class UpdateUserRequest extends FormRequest
         return [
             function (Validator $validator): void {
                 $target = $this->route('user');
+                if ($this->user()->can('updatePassword', $target) && $this->filled('max_devices') && $this->integer('max_devices') < $target->max_devices
+                    && ! $this->boolean('reset_devices') && app(UserDeviceAccess::class)->activeCount($target) > $this->integer('max_devices')) {
+                    $validator->errors()->add('max_devices', 'عدد الأجهزة المتصلة أكبر من الحد الجديد. اختر إنهاء جلسات الأجهزة لتطبيق الحد الجديد.');
+                }
                 $stopping = $this->has('is_active') && ! $this->boolean('is_active');
 
                 if ($stopping && $target->is($this->user())) {

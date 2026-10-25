@@ -107,7 +107,7 @@ class SubscriptionPolicy
 
     public function recordLatePayment(User $user, Subscription $subscription): bool
     {
-        return $this->recordPayment($user, $subscription) && $user->hasPermission(PermissionKey::RecordLatePayments);
+        return false;
     }
 
     public function viewOwnCashBoxes(User $user): bool

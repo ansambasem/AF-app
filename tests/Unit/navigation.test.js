@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAIN_LINKS, SETTINGS_LINKS, allowedNavigationGroups, isActiveLink, navigationGroups, isInsideAnyLink, pageTrail, topBarItems } from '../../resources/js/lib/navigation.js';
+import { MAIN_LINKS, SETTINGS_LINKS, allowedNavigationGroups, isActiveLink, navigationGroups, isInsideAnyLink, pageTrail, topBarItems, shouldPrefetchPage } from '../../resources/js/lib/navigation.js';
+
+test('hover navigation avoids background requests for financial and reading pages', () => {
+    for (const href of ['/dashboard', '/subscriptions?sort=name', '/meter-readings', '/reading-cycles', '/reports', '/ledger', '/payments/summary', '/disconnection-lists', '/unknown']) {
+        assert.equal(shouldPrefetchPage(href), false, href);
+    }
+    for (const href of ['/profile', '/settings/mobile-app', '/governorates?selected=1', '/tariffs', '/circuit-breakers#list']) {
+        assert.equal(shouldPrefetchPage(href), true, href);
+    }
+    assert.equal(shouldPrefetchPage('https://untrusted.test/profile'), false);
+});
 
 test('auditors see subscriber accounts and audit destinations without administration even with legacy grants', () => {
     const can = Object.fromEntries([...MAIN_LINKS, ...SETTINGS_LINKS].filter((link) => link.can).map((link) => [link.can, true]));
@@ -19,7 +29,7 @@ test('the settings group counts as current on any settings page, including its c
 test('currencies and banks share one payment settings destination', () => {
     const links = allowedNavigationGroups({ managePaymentSettings: true }).flatMap((group) => group.links);
 
-    assert.deepEqual(links.map((link) => [link.href, link.label]), [['/settings/payments', 'إعدادات الدفعات']]);
+    assert.deepEqual(links.map((link) => [link.href, link.label]), [['/settings/payments', 'إعدادات الدفعات'], ['/settings/mobile-app', 'تحميل تطبيق الهاتف']]);
 });
 
 test('regrouping keeps every permitted destination exactly once', () => {
@@ -31,15 +41,15 @@ test('regrouping keeps every permitted destination exactly once', () => {
     assert.deepEqual(links.map((link) => link.href).sort(), allLinks.filter((link) => link.href !== '/dashboard').map((link) => link.href).sort());
 });
 
-test('users see only permitted links and no empty groups', () => {
+test('users see permitted business links and can always reach the mobile app download', () => {
     const groups = allowedNavigationGroups({ viewSubscriptions: true, viewTariffs: true });
 
     assert.deepEqual(groups.map((group) => ({ id: group.id, hrefs: group.links.map((link) => link.href) })), [
         { id: 'daily', hrefs: ['/subscriptions'] },
-        { id: 'administration', hrefs: ['/tariffs'] },
+        { id: 'administration', hrefs: ['/tariffs', '/settings/mobile-app'] },
     ]);
-    assert.deepEqual(allowedNavigationGroups(), []);
-    assert.deepEqual(allowedNavigationGroups({ viewSubscriptions: false }), []);
+    assert.deepEqual(allowedNavigationGroups().flatMap((group) => group.links.map((link) => link.href)), ['/settings/mobile-app']);
+    assert.deepEqual(allowedNavigationGroups({ viewSubscriptions: false }).flatMap((group) => group.links.map((link) => link.href)), ['/settings/mobile-app']);
 });
 
 test('nested and query-string pages identify their task group without matching a similar prefix', () => {
@@ -55,14 +65,14 @@ test('nested and query-string pages identify their task group without matching a
 test('retired closing destinations stay absent even with old permission flags', () => {
     const links = allowedNavigationGroups({ viewClosings: true, manageClosingSchedule: true, viewLedger: true, viewReports: true }).flatMap((group) => group.links);
 
-    assert.deepEqual(links.map((link) => link.href), ['/ledger', '/reports']);
+    assert.deepEqual(links.map((link) => link.href), ['/ledger', '/reports', '/settings/mobile-app']);
     assert.equal([...MAIN_LINKS, ...SETTINGS_LINKS].some((link) => link.href.includes('closing') || link.href.includes('cash-transfers')), false);
 });
 
 test('staff with box access can reach their boxes without payment access and only the box link is active', () => {
     const groups = allowedNavigationGroups({ viewOwnCashBoxes: true, viewCashBoxes: true });
     const boxes = groups[0].links.find((link) => link.href === '/payments/cash-boxes');
-    assert.deepEqual(groups.flatMap((group) => group.links.map((link) => link.href)), ['/payments/summary', '/payments/cash-boxes']);
+    assert.deepEqual(groups.flatMap((group) => group.links.map((link) => link.href)), ['/payments/summary', '/payments/cash-boxes', '/settings/mobile-app']);
     assert.equal(isActiveLink(MAIN_LINKS.find((link) => link.href === '/payments'), '/payments/cash-boxes/12'), false);
     assert.equal(isActiveLink(boxes, '/payments/cash-boxes/12'), true);
 });
@@ -70,7 +80,7 @@ test('staff with box access can reach their boxes without payment access and onl
 test('closing and reviewing boxes lives in the financial boxes link, whose tabs light it too', () => {
     const links = allowedNavigationGroups({ viewCashBoxes: true }).flatMap((group) => group.links);
 
-    assert.deepEqual(links.map((link) => [link.href, link.label]), [['/payments/cash-boxes', 'الصناديق المالية']]);
+    assert.deepEqual(links.map((link) => [link.href, link.label]), [['/payments/cash-boxes', 'الصناديق المالية'], ['/settings/mobile-app', 'تحميل تطبيق الهاتف']]);
     assert.equal(isActiveLink(links[0], '/payments/cash-boxes?branch_id=2&place=sent&box=7'), true);
     assert.equal(isActiveLink(links[0], '/payments/cash-boxes/entries?branch_id=2'), true);
 });
@@ -86,26 +96,26 @@ test('the top bar keeps every section and page for every user, locking those the
     assert.equal(admin.every((group) => group.links.every((link) => !link.locked)), true);
     assert.deepEqual(
         collector.flatMap((group) => group.links).filter((link) => !link.locked).map((link) => link.label),
-        ['تسجيل الدفعات', 'ملخص التحصيل', 'صناديقي'],
+        ['تسجيل الدفعات', 'ملخص التحصيل', 'صناديقي', 'تحميل تطبيق الهاتف'],
     );
-    assert.equal(collector.find((group) => group.id === 'administration').links.every((link) => link.locked), true);
+    assert.equal(collector.find((group) => group.id === 'administration').links.filter((link) => link.href !== '/settings/mobile-app').every((link) => link.locked), true);
 });
 
 test('a collector who sees only their own boxes finds them named as theirs', () => {
     const own = allowedNavigationGroups({ recordPayments: true, viewOwnCashBoxes: true, viewCashBoxes: true }).flatMap((group) => group.links);
     const branch = allowedNavigationGroups({ viewOwnCashBoxes: true, viewCashBoxes: true, viewBranchBoxes: true }).flatMap((group) => group.links);
 
-    assert.deepEqual(own.map((link) => link.label), ['تسجيل الدفعات', 'ملخص التحصيل', 'صناديقي']);
+    assert.deepEqual(own.map((link) => link.label), ['تسجيل الدفعات', 'ملخص التحصيل', 'صناديقي', 'تحميل تطبيق الهاتف']);
     assert.deepEqual(branch.map((link) => link.label).slice(0, 2), ['ملخص التحصيل', 'الصناديق المالية']);
 });
 
 test('the top bar shows home and one button per section, or a single section\'s pages directly', () => {
-    const single = topBarItems(allowedNavigationGroups({ recordPayments: true, viewOwnCashBoxes: true, viewCashBoxes: true }));
+    const single = topBarItems(allowedNavigationGroups());
     const several = topBarItems(allowedNavigationGroups({ viewSubscriptions: true, viewLedger: true }));
 
-    assert.deepEqual(single.map((item) => item.key), ['home', '/payments', '/payments/summary', '/payments/cash-boxes']);
+    assert.deepEqual(single.map((item) => item.key), ['home', '/settings/mobile-app']);
     assert.equal(single.every((item) => item.link && !item.group), true);
-    assert.deepEqual(several.map((item) => item.key), ['home', 'daily', 'finance']);
+    assert.deepEqual(several.map((item) => item.key), ['home', 'daily', 'finance', 'administration']);
     assert.equal(several[0].link.href, '/dashboard');
 });
 

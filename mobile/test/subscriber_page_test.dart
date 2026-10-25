@@ -161,6 +161,8 @@ void main() {
     await tester.tap(action);
     await tester.pumpAndSettle();
     expect(find.byType(SplitPaymentPage), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('أحمد علي'), 120,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('أحمد علي'), findsOneWidget);
   });
 

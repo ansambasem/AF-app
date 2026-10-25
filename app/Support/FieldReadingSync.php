@@ -41,7 +41,8 @@ class FieldReadingSync
     public function submit(User $reader, array $reading): array
     {
         if ($existing = ReadingSubmission::query()->where('operation_id', $reading['operation_id'])->first()) {
-            return $this->result($existing);
+            return $existing->user_id === $reader->id ? $this->result($existing)
+                : ['operation_id' => $reading['operation_id'], 'status' => ReadingSubmissionStatus::Rejected->value, 'issue' => 'not_your_assignment', 'message' => ReadingSubmission::ISSUES['not_your_assignment'], 'meter_reading_id' => null];
         }
 
         try {
@@ -49,6 +50,9 @@ class FieldReadingSync
         } catch (UniqueConstraintViolationException) {
             // The same upload arrived twice at once: answer with what the other one decided.
             $submission = ReadingSubmission::query()->where('operation_id', $reading['operation_id'])->firstOrFail();
+            if ($submission->user_id !== $reader->id) {
+                return ['operation_id' => $reading['operation_id'], 'status' => ReadingSubmissionStatus::Rejected->value, 'issue' => 'not_your_assignment', 'message' => ReadingSubmission::ISSUES['not_your_assignment'], 'meter_reading_id' => null];
+            }
         }
 
         // One that names no assignment of the reader's branch or no subscription is refused without being kept.
@@ -90,7 +94,8 @@ class FieldReadingSync
 
         $issue = match (true) {
             $claims === null => 'invalid_authorization',
-            $subscription->meter_box_id !== $assignment->meter_box_id || $subscription->status !== SubscriptionStatus::Active => 'not_on_box',
+            $subscription->branch_id !== $assignment->branch_id || $subscription->archived_at !== null
+                || $subscription->meter_box_id !== $assignment->meter_box_id || $subscription->status !== SubscriptionStatus::Active => 'not_on_box',
             default => null,
         };
         $status = $issue === null ? null : ReadingSubmissionStatus::Rejected;

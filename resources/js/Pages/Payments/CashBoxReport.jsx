@@ -1,3 +1,4 @@
+import BankReceivedDate from '@/Components/BankReceivedDate';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Icon from '@/Components/Icon';
@@ -32,7 +33,7 @@ export default function CashBoxReport({ report }) {
                     <thead><tr>{reportColumns.map((label) => <th key={label} className="whitespace-nowrap bg-gray-50 p-3 text-start">{label}</th>)}</tr></thead>
                     <tbody>{report.rows.map((row) => <tr key={row.id} data-print-totals={JSON.stringify(reportRowTotals(row))} data-print-currency={reportCurrency[row.currency] ?? row.currency} className="border-b border-gray-100">
                         <td className="p-3">{row.subscriber ?? '—'}</td>
-                        <td className="p-3">{reportDateTime(row.date)}{row.paidOn && <div className="mt-1 whitespace-normal text-xs leading-5">تسجيل متأخر · الدفع الفعلي: <bdi dir="ltr">{row.paidOn}</bdi><span className="block">سبب التأخير: {row.lateReason}</span></div>}</td>
+                        <td className="p-3">{reportDateTime(row.date)}<BankReceivedDate value={row.bankReceivedOn} />{row.paidOn && <div className="mt-1 whitespace-normal text-xs leading-5">تسجيل متأخر · الدفع الفعلي: <bdi dir="ltr">{row.paidOn}</bdi><span className="block">سبب التأخير: {row.lateReason}</span></div>}</td>
                         <td className="p-3" dir="ltr">{row.reference ?? '—'}</td>
                         <td className="p-3">{reportMoney(row.amount, row.currency)}</td>
                         <td className="p-3">{report.isBank ? row.bankAmount == null ? 'لم تُدقّق' : Number(row.bankAmount) === 0 ? `${reportMoney(0, row.currency)} · لم يصل شيء` : reportMoney(row.bankAmount, row.currency) : 'لا ينطبق'}</td>

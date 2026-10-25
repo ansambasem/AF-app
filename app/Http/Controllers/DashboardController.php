@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PermissionKey;
+use App\Http\Concerns\BuildsSubscriptionStatement;
 use App\Http\Concerns\ProvidesFormOptions;
+use App\Http\Concerns\ProvidesSubscriptionForm;
 use App\Models\Branch;
 use App\Models\Governorate;
 use App\Models\Subscription;
@@ -12,6 +14,7 @@ use App\Models\User;
 use App\Support\BranchDomainContext;
 use App\Support\DailySeries;
 use App\Support\DashboardOverview;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -20,7 +23,7 @@ use Inertia\Response as InertiaResponse;
 
 class DashboardController extends Controller
 {
-    use ProvidesFormOptions;
+    use BuildsSubscriptionStatement, ProvidesFormOptions, ProvidesSubscriptionForm;
 
     /**
      * The home page: the figures of the branches the user looks after —
@@ -103,6 +106,39 @@ class DashboardController extends Controller
             'userForm' => Inertia::optional(fn () => $actor->can('create', User::class)
                 ? $this->userBranchOptions()
                 : null),
+            // A subscriber's statement — their account, with the payment, charge and discount forms — opened over the dashboard.
+            'statement' => fn () => $this->requestedStatement($request, $actor),
+            // The "new subscriber" and "edit subscriber" windows: their dropdowns, and the subscriber being edited, loaded when opened.
+            'subscriptionForm' => Inertia::optional(fn () => $actor->can('create', Subscription::class) || $actor->isSuperAdmin() || $actor->hasPermission(PermissionKey::UpdateSubscriptions)
+                ? array_map(fn (mixed $option): mixed => $option instanceof Closure ? $option() : $option, $this->subscriptionFormOptions())
+                : null),
+            'subscriptionEdit' => Inertia::optional(fn () => $this->requestedSubscriptionEdit($request, $actor)),
         ]);
+    }
+
+    /**
+     * The subscriber named by `?edit=`, in the shape the edit window starts
+     * from, when the actor may edit them; null otherwise.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function requestedSubscriptionEdit(Request $request, User $actor): ?array
+    {
+        $subscriptionId = $request->query('edit');
+
+        if (! is_string($subscriptionId) || ! ctype_digit($subscriptionId)) {
+            return null;
+        }
+
+        $subscription = Subscription::query()->readableTo($actor)->with(['profile', 'meterBox'])->find($subscriptionId);
+
+        if (! $subscription || ! $actor->can('update', $subscription)) {
+            return null;
+        }
+
+        return [
+            ...$this->subscriptionEditableFields($subscription),
+            'subscriptionCount' => $subscription->profile?->subscriptions()->readableTo($actor)->count() ?? 1,
+        ];
     }
 }

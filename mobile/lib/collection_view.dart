@@ -191,8 +191,7 @@ class _CollectionViewState extends State<CollectionView> {
                         textAlign: TextAlign.center,
                         style: AppIdentity.body(13, color: AppIdentity.faint)))
               else
-                for (final payment in widget.today)
-                  paymentRow(payment),
+                for (final payment in widget.today) paymentRow(payment),
             ]),
           ],
           const SizedBox(height: 12),
@@ -246,7 +245,7 @@ class _CollectionViewState extends State<CollectionView> {
               size: 44),
       title: AppRowTitle('${payment['subscription']}'),
       subtitle: AppRowNote(
-          '${payment['payment_method'] == 'cash' ? 'نقد' : 'تحويل${payment['bank_name'] == null ? '' : ' إلى ${payment['bank_name']}'}'} · سند ${payment['voucher_number'] ?? '—'}'),
+          '${payment['payment_method'] == 'cash' ? 'نقد' : 'تحويل${payment['bank_name'] == null ? '' : ' إلى ${payment['bank_name']}'}'} · سند ${payment['voucher_number'] ?? '—'}${payment['bank_received_on'] == null ? '' : '\nوصول البنك: ${AppIdentity.shortDate(payment['bank_received_on'])}'}'),
       trailing: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
         Text(
             '${AppIdentity.grouped(payment['amount'])} ${const {

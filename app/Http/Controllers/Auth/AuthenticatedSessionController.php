@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Support\UserDeviceAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,8 +28,6 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
-        $request->session()->regenerate();
-
         $intended = $request->session()->get('url.intended');
         if (is_string($intended) && parse_url($intended, PHP_URL_HOST) !== $request->getHost()) {
             $request->session()->forget('url.intended');
@@ -42,6 +41,7 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        app(UserDeviceAccess::class)->releaseWeb($request);
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

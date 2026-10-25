@@ -62,6 +62,7 @@ use Illuminate\Validation\ValidationException;
     'payment_method',
     'bank_name',
     'sender_bank_name',
+    'bank_received_on',
     'sender_name',
     'reference_number',
     'active_reference',
@@ -166,7 +167,7 @@ class SubscriptionTransaction extends Model
     public const REVERSAL_TYPES = [self::TYPE_REVERSAL, self::TYPE_CANCELLATION, self::TYPE_REFUND];
 
     /** Payment details that may change without touching its financial meaning. */
-    public const AMENDABLE_FIELDS = ['bank_name', 'sender_bank_name', 'sender_name', 'reference_number', 'notes'];
+    public const AMENDABLE_FIELDS = ['bank_name', 'sender_bank_name', 'sender_name', 'reference_number', 'notes', 'bank_received_on'];
 
     protected function casts(): array
     {
@@ -183,6 +184,7 @@ class SubscriptionTransaction extends Model
             'billed_consumption' => 'decimal:2',
             'cancelled_at' => 'datetime',
             'paid_on' => 'date',
+            'bank_received_on' => 'date:Y-m-d',
             'cancellation_reason' => CorrectionReason::class,
         ];
     }
@@ -310,6 +312,7 @@ class SubscriptionTransaction extends Model
                 'exchange_rate' => $exchangeRate,
                 'payment_method' => $method,
                 'bank_name' => $method->throughBank() ? $payment['bank_name'] : null,
+                'bank_received_on' => $method->throughBank() ? ($payment['bank_received_on'] ?? null) : null,
                 'sender_bank_name' => $method->throughBank() ? ($payment['sender_bank_name'] ?? null) : null,
                 'sender_name' => $method->throughBank() ? ($payment['sender_name'] ?? null) : null,
                 'reference_number' => $referenceNumber ?: null,
@@ -592,6 +595,9 @@ class SubscriptionTransaction extends Model
 
             foreach ($fields as $field => $value) {
                 $oldValue = $line->getAttribute($field);
+                if ($field === 'bank_received_on') {
+                    $oldValue = $line->bank_received_on?->toDateString();
+                }
                 $newValue = filled($value) ? trim((string) $value) : null;
 
                 if ((string) ($oldValue ?? '') === (string) ($newValue ?? '')) {
@@ -1842,6 +1848,7 @@ class SubscriptionTransaction extends Model
             'senderBankName' => $this->sender_bank_name,
             'date' => $this->created_at->copy()->setTimezone(config('app.business_timezone'))->format('Y-m-d H:i'),
             'paidOn' => $this->paid_on?->toDateString(),
+            'bankReceivedOn' => $this->bank_received_on?->toDateString(),
             'lateReason' => $this->late_reason,
             'description' => $this->description(),
             'typeLabel' => $this->typeLabel(),

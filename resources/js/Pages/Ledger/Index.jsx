@@ -1,3 +1,4 @@
+import BankReceivedDate from '@/Components/BankReceivedDate';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -210,6 +211,7 @@ function TransactionRow({ entry, grouped, onOpen, rowClick }) {
         <tr className={`row ${entry.isCancelled ? 'cx' : ''}`} {...rowClick(onOpen)}>
             <td className="t"><bdi className="desktop-time">{time}</bdi>
                 <LatePaymentDetails paidOn={entry.paidOn} recordedAt={`${entry.day} ${entry.time}`} reason={entry.lateReason} />
+                <BankReceivedDate value={entry.bankReceivedOn} />
                 <div className="meta">
                     <span><Icon name="clock" />{time}</span>
                     {entry.voucherNumber && <span>سند <bdi>{entry.voucherNumber}</bdi>{entry.isManualVoucher && ' · يدوي'}</span>}

@@ -489,7 +489,7 @@ class PaymentController extends Controller
             ] as $cells) {
                 fputcsv($file, $safe($cells));
             }
-            fputcsv($file, ['#', 'التاريخ والوقت', 'المشترك', 'رقم الحساب', 'رقم السند', 'البنك المستلم', 'البنك المرسل', 'رقم الحوالة', 'الخدمة', 'العملة', 'المبلغ', 'الحالة']);
+            fputcsv($file, ['#', 'التاريخ والوقت', 'المشترك', 'رقم الحساب', 'رقم السند', 'البنك المستلم', 'البنك المرسل', 'رقم الحوالة', 'الخدمة', 'العملة', 'المبلغ', 'الحالة', 'تاريخ وصول الحوالة إلى البنك']);
             foreach ($entries->values() as $index => $entry) {
                 $cancelled = $entry->transaction->status !== SubscriptionTransaction::STATUS_ACTIVE;
                 fputcsv($file, $safe([
@@ -497,6 +497,7 @@ class PaymentController extends Controller
                     $entry->transaction->manual_voucher_number ?? $entry->transaction->voucher_number ?? '', $entry->transaction->bank_name ?? '', $entry->transaction->sender_bank_name ?? '',
                     $entry->transaction->reference_number ?? '', $entry->method === 'clearing' ? ($entry->transaction->notes ?? '') : '', $entry->currency, (float) $entry->amount,
                     $cancelled ? 'ملغاة' : ($statuses[$entry->status] ?? 'سارية'),
+                    $entry->transaction->bank_received_on?->toDateString() ?? '',
                 ]));
             }
             fclose($file);

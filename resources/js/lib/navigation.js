@@ -1,3 +1,10 @@
+const PREFETCH_PAGES = new Set(['/profile', '/settings/mobile-app', '/governorates', '/tariffs', '/circuit-breakers']);
+
+/** Only small lookup pages are fetched on hover; financial lists wait for an explicit visit. */
+export function shouldPrefetchPage(href) {
+    return typeof href === 'string' && PREFETCH_PAGES.has(href.split(/[?#]/)[0]);
+}
+
 /**
  * Every page in the top bar and the Ctrl+K search. `can` names the flag in
  * the shared `can` props (HandleInertiaRequests) that must be true to open
@@ -25,6 +32,7 @@ export const MAIN_LINKS = [
 ];
 
 export const SETTINGS_LINKS = [
+    { href: '/settings/mobile-app', label: 'تحميل تطبيق الهاتف', description: 'تثبيت تطبيق PowerCollect على Android', icon: 'phone' },
     { href: '/settings/payments', label: 'إعدادات الدفعات', description: 'فترات الصناديق وأسعار الصرف وبنوك الاستلام والإرسال', icon: 'currency', can: 'managePaymentSettings' },
     { href: '/branches', label: 'الفروع', description: 'الفروع ومسؤولوها ومناطقها', icon: 'pin', can: 'viewBranches' },
     { href: '/tariffs', label: 'التعرفات', description: 'سعر الأمبير وشرائح الاشتراك', icon: 'dollar', can: 'viewTariffs' },
@@ -58,7 +66,7 @@ export const NAVIGATION_GROUPS = [
     { id: 'finance', label: 'المالية والتحصيل', shortLabel: 'المالية', icon: 'wallet', description: 'الدفعات والصناديق والإغلاق', hrefs: ['/payments', '/payments/summary', '/payments/cash-boxes', '/ledger', '/receivables'] },
     { id: 'reports', label: 'التقارير والرقابة', shortLabel: 'التقارير', icon: 'trend', description: 'التقارير والأداء والتدقيق', hrefs: ['/reports', '/company-forms', '/branch-performance', '/transaction-audit'] },
     { id: 'infrastructure', label: 'الفروع والشبكة', shortLabel: 'الشبكة', icon: 'bolt', description: 'الفروع والبنية الكهربائية', hrefs: ['/branches', '/governorates', '/meter-boxes', '/circuit-breakers'] },
-    { id: 'administration', label: 'الإدارة والإعدادات', shortLabel: 'الإدارة', icon: 'cog', description: 'المستخدمون والصلاحيات والإعدادات', hrefs: ['/users', '/settings/permissions', '/tariffs', '/settings/payments', '/settings/reading-schedule', '/settings/print-templates', '/settings/sms'], featured: ['/users', '/settings/permissions'] },
+    { id: 'administration', label: 'الإدارة والإعدادات', shortLabel: 'الإدارة', icon: 'cog', description: 'المستخدمون والصلاحيات والإعدادات', hrefs: ['/users', '/settings/permissions', '/tariffs', '/settings/payments', '/settings/reading-schedule', '/settings/print-templates', '/settings/sms', '/settings/mobile-app'], featured: ['/users', '/settings/permissions'] },
 ];
 
 /**

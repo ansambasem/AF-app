@@ -5,19 +5,21 @@ namespace App\Http\Controllers;
 use App\Enums\ReadingAssignmentChannel;
 use App\Enums\ReadingAssignmentStatus;
 use App\Enums\ReadingSubmissionStatus;
-use App\Http\Concerns\FiltersDataTable;
 use App\Http\Requests\StoreReadingCycleRequest;
 use App\Models\Branch;
 use App\Models\MeterBox;
 use App\Models\MeterReading;
 use App\Models\PaperSheet;
 use App\Models\ReadingCycle;
+use App\Models\ReadingDistribution;
+use App\Models\ReadingEntrySetting;
 use App\Models\SubArea;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
+use App\Support\BranchDomainContext;
 use App\Support\DailySeries;
 use App\Support\ReadingAllocation;
-use Illuminate\Database\Eloquent\Builder;
+use App\Support\RecurringReadingDistribution;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -33,63 +35,50 @@ use Inertia\Response as InertiaResponse;
  */
 class ReadingCycleController extends Controller
 {
-    use FiltersDataTable;
-
-    /** How many weeks ahead a cycle can be prepared. */
-    private const WEEKS_AHEAD = 3;
-
     public function __construct(private ReadingAllocation $allocation) {}
 
-    /**
-     * The cycles the user may see, newest week first, with how far each one's
-     * allocation and readings have come.
-     */
-    public function index(Request $request): InertiaResponse
+    /** Show the upcoming reading directly inside a branch. */
+    public function index(Request $request, RecurringReadingDistribution $distribution): InertiaResponse
     {
         $this->authorize('viewAny', ReadingCycle::class);
-
         $actor = $request->user();
-        $query = ReadingCycle::query()
-            ->visibleTo($actor)
-            ->with(['branch', 'createdBy'])
-            ->withCount([
-                'assignments as mobile_count' => fn (Builder $assignments) => $assignments->where('channel', ReadingAssignmentChannel::Mobile)->where('status', '!=', ReadingAssignmentStatus::Unassigned),
-                'assignments as paper_count' => fn (Builder $assignments) => $assignments->where('channel', ReadingAssignmentChannel::Paper)->where('status', '!=', ReadingAssignmentStatus::Unassigned),
-                'assignments as approved_count' => fn (Builder $assignments) => $assignments->where('status', ReadingAssignmentStatus::Approved),
-                'submissions as review_count' => fn (Builder $submissions) => $submissions->where('status', ReadingSubmissionStatus::NeedsReview),
-            ]);
-        $this->applyDataTableFilters($query, $request, ['notes'], ['week_start', 'reading_date'], 'week_start', 'desc');
-        $this->applyDataTableFilterSelects($query, $request, ['branch_id']);
+        $branchId = BranchDomainContext::id() ?? ($actor->isSuperAdmin() ? null : $actor->workBranchId());
 
-        $cycles = $query->paginate($this->dataTablePerPage($request))
-            ->withQueryString()
-            ->through(fn (ReadingCycle $cycle) => [
-                'id' => $cycle->id,
-                'branchName' => $cycle->branch->name,
-                'weekStart' => $cycle->week_start->toDateString(),
-                'weekEnd' => $cycle->week_end->toDateString(),
-                'readingDate' => $cycle->reading_date->toDateString(),
-                'readingDayName' => $cycle->reading_date->locale('ar')->dayName,
-                'movedReadingDay' => ! $cycle->reading_date->isSameDay($cycle->week_end),
-                'stage' => $cycle->stage(),
-                'notes' => $cycle->notes,
-                'mobileCount' => (int) $cycle->mobile_count,
-                'paperCount' => (int) $cycle->paper_count,
-                'approvedCount' => (int) $cycle->approved_count,
-                'reviewCount' => (int) $cycle->review_count,
-                'createdBy' => $cycle->createdBy?->name,
-            ]);
+        if ($branchId !== null) {
+            $branch = Branch::query()->findOrFail($branchId);
+            $upcoming = $distribution->upcoming($branch);
+            $cycle = $actor->can('create', ReadingCycle::class)
+                ? $distribution->prepare($branch, $actor, false)
+                : $upcoming['cycle'];
 
-        $branches = $actor->isSuperAdmin() ? Branch::query()->orderBy('name')->get() : Branch::query()->whereKey($actor->workBranchId())->get();
+            if ($cycle !== null) {
+                return $this->show($request, $cycle);
+            }
+
+            return Inertia::render('ReadingCycles/Index', [
+                'distributionBranches' => [],
+                'branch' => ['name' => $branch->name, 'readingDate' => $upcoming['readingDate']->toDateString()],
+                'canCreate' => false,
+            ]);
+        }
+
+        $canChooseBranch = $actor->isSuperAdmin() || $actor->isBranchAdmin();
 
         return Inertia::render('ReadingCycles/Index', [
-            'cycles' => $cycles,
+            'branch' => null,
             'canCreate' => $actor->can('create', ReadingCycle::class),
-            'branchOptions' => $actor->isSuperAdmin() ? $this->modelOptions($branches) : [],
-            'weekOptions' => $branches->mapWithKeys(fn (Branch $branch) => [$branch->id => $this->weekOptions($branch)]),
-            'defaultBranchId' => $actor->workBranchId(),
-            'filters' => $this->dataTableState($request, 'week_start', 'desc'),
-            'filterOptions' => $actor->isSuperAdmin() ? [$this->branchFilterGroup()] : [],
+            'distributionBranches' => $canChooseBranch ? Branch::query()->where('is_active', true)
+                ->when(! $actor->isSuperAdmin(), fn ($query) => $query->whereKey($actor->workBranchId()))->orderBy('name')->get()
+                ->map(function (Branch $branch) use ($distribution): array {
+                    $upcoming = $distribution->upcoming($branch);
+
+                    return [
+                        'id' => $branch->id, 'name' => $branch->name,
+                        'readingDate' => $upcoming['readingDate']->toDateString(),
+                        'readingDayName' => $upcoming['readingDate']->locale('ar')->dayName,
+                        'cycleId' => $upcoming['cycle']?->id,
+                    ];
+                })->values() : [],
         ]);
     }
 
@@ -115,6 +104,17 @@ class ReadingCycleController extends Controller
         return redirect()->route('reading-cycles.show', $cycle)->with('status', 'reading-cycle-created');
     }
 
+    public function prepare(Request $request, RecurringReadingDistribution $distribution): RedirectResponse
+    {
+        $this->authorize('create', ReadingCycle::class);
+        $validated = $request->validate(['branch_id' => ['required', 'integer', 'exists:branches,id']]);
+        $branch = Branch::query()->findOrFail($validated['branch_id']);
+        abort_unless($request->user()->isSuperAdmin() || $branch->id === $request->user()->workBranchId(), 403);
+        $cycle = $distribution->prepare($branch, $request->user(), false);
+
+        return redirect()->route('reading-cycles.show', $cycle);
+    }
+
     /**
      * The cycle's allocation board: the boxes still available, each reader's
      * boxes, the paper boxes, the paper sheets printed, and how far the
@@ -131,13 +131,17 @@ class ReadingCycleController extends Controller
         $readCounts = $this->readCounts($cycle, $boxes->pluck('id'));
         $readers = $cycle->eligibleReaders();
         $previous = $cycle->previous();
+        $defaults = ReadingDistribution::query()->where('branch_id', $cycle->branch_id)->get()->keyBy('meter_box_id');
+        $schedule = ReadingEntrySetting::forBranch($cycle->branch_id);
 
-        $boards = $boxes->map(function (MeterBox $box) use ($assignments, $readCounts): array {
+        $boards = $boxes->map(function (MeterBox $box) use ($assignments, $readCounts, $defaults): array {
             $assignment = $assignments->get($box->id);
             $allocated = $assignment !== null && $assignment->status !== ReadingAssignmentStatus::Unassigned;
 
             return [
                 'id' => $box->id,
+                'recurringUserId' => $defaults->get($box->id)?->user_id,
+                'recurringChannel' => $defaults->get($box->id)?->channel?->value,
                 'number' => $box->box_number,
                 'name' => $box->displayName(),
                 'subAreaId' => $box->sub_area_id,
@@ -173,6 +177,8 @@ class ReadingCycleController extends Controller
                 'weekStart' => $cycle->week_start->toDateString(),
                 'weekEnd' => $cycle->week_end->toDateString(),
                 'readingDate' => $cycle->reading_date->toDateString(),
+                'availableOn' => $cycle->reading_date->copy()->subDays($schedule->assignment_lead_days ?? 1)->toDateString(),
+                'assignmentLeadDays' => $schedule->assignment_lead_days ?? 1,
                 'readingDayName' => $cycle->reading_date->locale('ar')->dayName,
                 'maxReadingDate' => $cycle->week_end->copy()->addDays(6)->toDateString(),
                 'stage' => $cycle->stage(),
@@ -181,6 +187,7 @@ class ReadingCycleController extends Controller
                 'hasPrevious' => $previous !== null,
                 'previousLabel' => $previous ? 'الأسبوع المنتهي '.$previous->week_end->toDateString() : null,
             ],
+            'showBranchSelector' => BranchDomainContext::id() === null && $actor->isSuperAdmin(),
             'boards' => $boards,
             'readers' => $readers->map(fn (User $reader) => ['id' => $reader->id, 'name' => $reader->name])->values(),
             'subAreaOptions' => SubArea::query()->whereIn('id', $boxes->pluck('sub_area_id')->filter()->unique())->orderBy('name')->get()->map(fn (SubArea $subArea) => ['value' => (string) $subArea->id, 'label' => $subArea->name])->values(),
@@ -244,42 +251,6 @@ class ReadingCycleController extends Controller
         Inertia::flash('allocationResult', ['action' => 'copy', 'moved' => $result['copied'], 'conflicts' => $result['skipped']]);
 
         return back()->with('status', 'reading-cycle-copied');
-    }
-
-    /**
-     * The weeks a cycle can be prepared for: the latest week that has ended
-     * while its reading can still be moved to today or later, and the next
-     * few. Each says the reading day it defaults to and the latest one
-     * allowed, and whether the branch already has a cycle for it.
-     *
-     * @return array<int, array{value: string, end: string, label: string, defaultReadingDate: string, maxReadingDate: string, taken: bool}>
-     */
-    private function weekOptions(Branch $branch): array
-    {
-        $today = Carbon::parse(DailySeries::today()->toDateString());
-        $taken = ReadingCycle::query()->where('branch_id', $branch->id)->pluck('week_start')->map(fn ($date) => Carbon::parse($date)->toDateString())->flip();
-        $weekStart = MeterReading::latestEndedWeekStart($branch);
-        $options = [];
-
-        for ($index = 0; $index <= self::WEEKS_AHEAD; $index++) {
-            $weekEnd = MeterReading::weekEndFor($weekStart, $branch);
-            $maxReadingDate = $weekEnd->copy()->addDays(6);
-
-            if ($maxReadingDate->gte($today)) {
-                $options[] = [
-                    'value' => $weekStart->toDateString(),
-                    'end' => $weekEnd->toDateString(),
-                    'label' => 'الأسبوع المنتهي '.$weekEnd->locale('ar')->dayName.' '.$weekEnd->format('d-m-Y'),
-                    'defaultReadingDate' => $weekEnd->max($today)->toDateString(),
-                    'maxReadingDate' => $maxReadingDate->toDateString(),
-                    'taken' => $taken->has($weekStart->toDateString()),
-                ];
-            }
-
-            $weekStart = MeterReading::weekStartFor($weekEnd->copy()->addDay(), $branch);
-        }
-
-        return $options;
     }
 
     /**

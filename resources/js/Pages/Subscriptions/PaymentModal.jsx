@@ -11,12 +11,11 @@ import Switch from '@/Components/Switch';
 import { useResourceForm } from '@/hooks/useResourceForm';
 import { describeBalance, paymentInShekels } from '@/lib/accountStatement';
 import { overpaymentLevel } from '@/lib/overpayment';
-import { operationId } from '@/lib/disconnections';
 import { formatClock, formatMoney, normalizeDecimalInput } from '@/lib/format';
 import { clearErrorOnInput, submitOnCtrlEnter, validateFormFields } from '@/lib/formValidation';
 import { balanceText, FieldLabel, SubscriptionStrip } from './AccountFormParts';
 import { CorrectionReasonFields, EMPTY_CORRECTION, OriginalLine } from './CorrectionFields';
-import DateInput from '@/Components/DateInput';
+import { BankReceivedDateField } from '@/Components/BankReceivedDate';
 
 const QUICK_AMOUNTS = [50, 100, 200];
 
@@ -405,15 +404,12 @@ export default function PaymentModal({
     senderBanks,
     correcting = null,
     correctionReasons = [],
-    latePayment = false,
-    today = '',
 }) {
     const titleId = useId();
     const amountInput = useRef(null);
     const collector = usePage().props.auth?.user?.name ?? '';
     const currencies = usePage().props.paymentOptions?.currencies ?? [{ code: 'ILS', label: 'شيكل', rate: '1' }];
     const recorded = correcting?.recorded;
-    const latestPastDate = today ? new Date(Date.parse(`${today}T00:00:00Z`) - 86400000).toISOString().slice(0, 10) : undefined;
     const form = useResourceForm(
         correcting ? `/subscriptions/${subscription.id}/transactions` : `/subscriptions/${subscription.id}/payments`,
         correcting,
@@ -426,6 +422,7 @@ export default function PaymentModal({
                       : 'bank_transfer',
                   bank_name: recorded.bank_name === 'بال باي' ? 'محفظة بالباي' : recorded.bank_name,
                   sender_bank_name: recorded.sender_bank_name ?? '',
+                  bank_received_on: recorded.bank_received_on ?? '',
                   sender_name: recorded.sender_name || subscription.fullName,
                   reference_number: recorded.reference_number,
                   confirm_duplicate_reference: false,
@@ -442,6 +439,7 @@ export default function PaymentModal({
                   payment_method: paymentMethods.some((method) => method.value === 'bank_transfer') ? 'bank_transfer' : (paymentMethods[0]?.value ?? 'bank_transfer'),
                   bank_name: '',
                   sender_bank_name: '',
+                  bank_received_on: '',
                   // Who the transfer came from: the subscription unless someone else paid.
                   sender_name: subscription.fullName,
                   reference_number: '',
@@ -450,7 +448,6 @@ export default function PaymentModal({
                   cash_box: '',
                   manual_voucher_number: '',
                   notes: '',
-                  ...(latePayment ? { late_payment: true, paid_on: '', late_reason: '', late_payment_token: operationId() } : {}),
               },
     );
     const { data, setData, errors } = form;
@@ -604,11 +601,6 @@ export default function PaymentModal({
                     balanceAfter: flashed.balance ?? Number(balance) - (inShekels ?? 0),
                 });
                 form.resetAndClearErrors();
-                if (latePayment) {
-                    const token = operationId();
-                    form.setDefaults('late_payment_token', token);
-                    form.setData('late_payment_token', token);
-                }
                 setSenderIsSubscriber(true);
                 setDetailsOpen(false);
             },
@@ -649,7 +641,7 @@ export default function PaymentModal({
                             </span>
                             <div className="min-w-0">
                                 <h3 id={titleId} className="font-luxe text-[22px] font-bold leading-tight text-gray-900">
-                                    {correcting ? 'تصحيح دفعة' : latePayment ? 'تسجيل دفعة بتاريخ سابق' : 'تسجيل دفعة'}
+                                    {correcting ? 'تصحيح دفعة' : 'تسجيل دفعة'}
                                 </h3>
                                 <p className="mt-0.5 text-[13.5px] text-gray-500">
                                     {correcting
@@ -677,21 +669,6 @@ export default function PaymentModal({
                                 />
 
                                 {correcting && <OriginalLine entry={correcting} />}
-
-                                {latePayment && <section className="space-y-4 rounded-card border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-800 dark:bg-amber-950/20" aria-label="بيانات التسجيل المتأخر">
-                                    <p className="text-sm leading-7 text-gray-700">تُحتسب الدفعة بتاريخ تسجيلها اليوم وتدخل صندوقك المفتوح الحالي. نحفظ تاريخ الدفع الفعلي للتدقيق دون تغيير الأرصدة أو الصناديق السابقة.</p>
-                                    <div>
-                                        <FieldLabel htmlFor="payment_paid_on" required>تاريخ الدفع الفعلي</FieldLabel>
-                                        <DateInput id="payment_paid_on" name="paid_on" required max={latestPastDate} value={data.paid_on} onChange={(value) => setData('paid_on', value)} />
-                                        <InputError message={errors.paid_on} className="mt-2" />
-                                    </div>
-                                    <div>
-                                        <FieldLabel htmlFor="payment_late_reason" required>سبب تأخر التسجيل</FieldLabel>
-                                        <textarea id="payment_late_reason" name="late_reason" required maxLength={1000} rows={3} value={data.late_reason} onChange={(event) => setData('late_reason', event.target.value)} className={`${inputClass} !h-auto py-3`} placeholder="مثال: نسيان تسجيل الوصل وقت التحصيل" />
-                                        <InputError message={errors.late_reason} className="mt-2" />
-                                    </div>
-                                    <InputError message={errors.late_payment_token} />
-                                </section>}
 
                                 <div>
                                     <FieldLabel htmlFor="amount" required>
@@ -870,6 +847,7 @@ export default function PaymentModal({
                                                 />
                                                 <InputError message={errors.sender_bank_name} className="mt-2" />
                                             </div>
+                                            <BankReceivedDateField value={data.bank_received_on} onChange={(value) => setData('bank_received_on', value)} error={errors.bank_received_on} />
 
                                             <div className="grid gap-4 sm:grid-cols-2">
                                                 <div>
@@ -1075,8 +1053,8 @@ export default function PaymentModal({
                 show={show && confirmingSave}
                 onConfirm={save}
                 onCancel={() => setConfirmingSave(false)}
-                title={correcting ? 'تأكيد حفظ التصحيح؟' : latePayment ? 'تأكيد تسجيل الدفعة بتاريخ سابق؟' : 'تأكيد تسجيل الدفعة؟'}
-                message={`${correcting ? 'ستُصحَّح الدفعة إلى' : 'ستُسجَّل دفعة'} ${formatMoney(data.amount)} ${currencyMark} ${methodText} على حساب ${subscription.fullName}${data.currency !== 'ILS' ? `، بقيمة ${formatMoney(inShekels)} شيكل` : ''}.${latePayment ? ` تاريخ الدفع الفعلي ${data.paid_on}، والقيد بتاريخ اليوم في الصندوق المفتوح الحالي.` : ''} هل تريد المتابعة؟`}
+                title={correcting ? 'تأكيد حفظ التصحيح؟' : 'تأكيد تسجيل الدفعة؟'}
+                message={`${correcting ? 'ستُصحَّح الدفعة إلى' : 'ستُسجَّل دفعة'} ${formatMoney(data.amount)} ${currencyMark} ${methodText} على حساب ${subscription.fullName}${data.currency !== 'ILS' ? `، بقيمة ${formatMoney(inShekels)} شيكل` : ''}.${throughBank && data.bank_received_on ? ` تاريخ وصول الحوالة إلى البنك: ${data.bank_received_on}.` : ''} هل تريد المتابعة؟`}
                 confirmLabel={correcting ? 'نعم، احفظ التصحيح' : 'نعم، سجّل الدفعة'}
                 cancelLabel="رجوع للمراجعة"
                 icon="check"

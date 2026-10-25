@@ -88,7 +88,7 @@ class MeterBoxController extends Controller
             'meterBoxes' => $meterBoxes,
             'canCreate' => $actor->can('create', MeterBox::class),
             'canViewSubscriptions' => $canViewSubscriptions,
-            'canRecordReadings' => $actor->can('create', MeterReading::class),
+            'canRecordReadings' => $actor->can('createOnReadingDay', MeterReading::class),
             'canSendMessages' => $actor->can('create', MessageBatch::class),
             'summary' => [
                 'total' => (int) $summary->total,

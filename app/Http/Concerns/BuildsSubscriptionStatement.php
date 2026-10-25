@@ -185,6 +185,8 @@ trait BuildsSubscriptionStatement
             'canAddCharge' => $actor->can('addCharge', $subscription),
             'canAddDiscount' => $canAddDiscount,
             'canAddClearing' => $actor->can('addClearing', $subscription),
+            // Whether the subscriber's own details may be edited (the window's "edit" button, where a page offers it).
+            'canUpdate' => $actor->can('update', $subscription),
             'currencies' => Currency::options(),
             'paymentMethods' => PaymentMethod::options(PaymentMethod::offered()),
             // The ways this user may take a payment: what the payment form offers.
@@ -345,6 +347,7 @@ trait BuildsSubscriptionStatement
             'groupId' => $groupId,
             'date' => $this->businessTime($transaction->created_at),
             'paidOn' => $transaction->paid_on?->toDateString(),
+            'bankReceivedOn' => $transaction->bank_received_on?->toDateString(),
             'lateReason' => $transaction->late_reason,
             'voucherNumber' => $receipt->displayVoucherNumber(),
             'systemVoucherNumber' => $receipt->printedVoucherNumber(),
@@ -528,6 +531,7 @@ trait BuildsSubscriptionStatement
         return match ($field) {
             'amount' => 'المبلغ',
             'bank_name' => 'البنك المستلم',
+            'bank_received_on' => 'تاريخ وصول الحوالة إلى البنك',
             'sender_bank_name' => 'البنك المرسل',
             'sender_name' => 'اسم المرسل',
             'reference_number' => 'الرقم المرجعي',
@@ -553,6 +557,7 @@ trait BuildsSubscriptionStatement
                 'exchange_rate' => $transaction->currency === Currency::Shekel ? '' : rtrim(rtrim($transaction->exchange_rate, '0'), '.'),
                 'payment_method' => $transaction->payment_method?->value,
                 'bank_name' => $transaction->bank_name ?? '',
+                'bank_received_on' => $transaction->bank_received_on?->toDateString() ?? '',
                 'sender_bank_name' => $transaction->sender_bank_name ?? '',
                 'sender_name' => $transaction->sender_name ?? '',
                 'reference_number' => $transaction->reference_number ?? '',

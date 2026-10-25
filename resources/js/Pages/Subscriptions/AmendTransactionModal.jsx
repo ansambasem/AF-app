@@ -1,3 +1,4 @@
+import { BankReceivedDateField } from '@/Components/BankReceivedDate';
 import { useForm } from '@inertiajs/react';
 import FormModal from '@/Components/FormModal';
 import Icon from '@/Components/Icon';
@@ -9,7 +10,7 @@ import { formatAmount } from '@/lib/currency';
 import { BalanceAfter } from './AccountSummary';
 import EditSplitPaymentModal from '@/Pages/Payments/EditSplitPaymentModal';
 
-const inputClass = 'mt-1 block w-full';
+const inputClass = 'mt-2 block w-full';
 
 function LockedValue({ label, children }) {
     return (
@@ -38,6 +39,7 @@ function SinglePaymentEditor({ onClose, subscription, balance, entry, transferBa
         ...(throughBank
             ? {
                   bank_name: entry.recorded?.bank_name ?? entry.bankName ?? '',
+                  bank_received_on: entry.bankReceivedOn ?? '',
                   sender_bank_name: entry.recorded?.sender_bank_name ?? entry.senderBankName ?? '',
                   sender_name: entry.recorded?.sender_name ?? entry.senderName ?? '',
                   reference_number: entry.recorded?.reference_number ?? entry.referenceNumber ?? '',
@@ -75,7 +77,7 @@ function SinglePaymentEditor({ onClose, subscription, balance, entry, transferBa
             </div>
 
             {throughBank && (
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid items-start gap-x-5 gap-y-5 sm:grid-cols-2">
                     <div>
                         <InputLabel htmlFor="amend_bank_name" value="البنك المستلم" />
                         <select
@@ -144,6 +146,9 @@ function SinglePaymentEditor({ onClose, subscription, balance, entry, transferBa
                             placeholder="—"
                         />
                         <InputError message={form.errors.reference_number} className="mt-2" />
+                    </div>
+                    <div className="sm:col-span-2">
+                        <BankReceivedDateField value={form.data.bank_received_on} onChange={(value) => form.setData('bank_received_on', value)} error={form.errors.bank_received_on} />
                     </div>
                 </div>
             )}

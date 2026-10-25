@@ -1,5 +1,8 @@
 # Versioned Vite assets can stay in the browser cache across visits.
 <IfModule mod_headers.c>
+    <FilesMatch "^favicon\.(ico|svg)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
     <FilesMatch "-[A-Za-z0-9_-]{8,}\.(css|js|mjs|woff2|svg|webp|png|jpg)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>

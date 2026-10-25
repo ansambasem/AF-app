@@ -17,6 +17,7 @@ export default function SubscriptionModal({
     currentBranchAreaName,
     canEditMinimumCharge,
     canEditKilowattPrice,
+    visitOptions,
 }) {
     const form = useResourceForm('/subscriptions', subscription, subscriptionFormData(subscription, sourceSubscription));
 
@@ -28,6 +29,7 @@ export default function SubscriptionModal({
             title={form.isEdit ? 'تعديل المشترك' : sourceSubscription ? 'إضافة اشتراك' : 'إنشاء مشترك'}
             icon="user"
             maxWidth="5xl"
+            visitOptions={visitOptions}
             bodyClassName="bg-gray-50"
         >
             <SubscriptionForm

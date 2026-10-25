@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Mobile;
 
+use App\Enums\PermissionKey;
 use App\Enums\SubscriptionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMobileMeterReadingRequest;
 use App\Models\MeterReading;
+use App\Models\ReadingAssignment;
 use App\Models\Subscription;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +34,8 @@ class MobileReadingController extends Controller
         $search = trim($validated['search'] ?? '');
         $subscriptions = Subscription::query()
             ->visibleTo($request->user())
+            ->when(! $request->user()->hasPermission(PermissionKey::ViewMeterReadings), fn ($query) => $query->whereIn('meter_box_id',
+                ReadingAssignment::query()->forMobileReader($request->user())->whereHas('cycle', fn ($cycles) => $cycles->whereDate('week_start', $week))->select('meter_box_id')))
             ->where('status', SubscriptionStatus::Active)
             ->with([
                 'meterBox:id,box_number',

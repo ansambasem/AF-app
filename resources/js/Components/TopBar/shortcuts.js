@@ -6,3 +6,14 @@
 export function pageWindowOpen() {
     return Boolean(document.querySelector('.modal-scroll, [aria-modal="true"]:not([data-top-bar-layer])'));
 }
+
+/** Keep the global search shortcut available before the search component is downloaded. */
+export function handlePaletteShortcut(event, open, onOpenChange, hasPageWindow = pageWindowOpen) {
+    if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey
+        || !(event.code === 'KeyK' || event.key.toLowerCase() === 'k') || (!open && hasPageWindow())) {
+        return false;
+    }
+    event.preventDefault();
+    onOpenChange(!open);
+    return true;
+}

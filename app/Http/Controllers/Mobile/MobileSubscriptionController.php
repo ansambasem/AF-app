@@ -6,6 +6,7 @@ use App\Enums\PermissionKey;
 use App\Enums\SubscriptionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\MeterReading;
+use App\Models\ReadingAssignment;
 use App\Models\Subscription;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,9 +23,11 @@ class MobileSubscriptionController extends Controller
         $week = $weekStart->toDateString();
         $subscriptions = Subscription::query()
             ->visibleTo($actor)
+            ->whereIn('meter_box_id', ReadingAssignment::query()->forMobileReader($actor)
+                ->whereHas('cycle', fn ($query) => $query->whereDate('week_start', $week))->select('meter_box_id'))
             ->where('status', SubscriptionStatus::Active)
             ->with([
-                'meterBox:id,box_number,name,name_suffix,location',
+                'meterBox:id,box_number,name,name_suffix,location,sub_area_id', 'meterBox.subArea',
                 'latestMeterReading',
                 'meterReadings' => fn ($query) => $query->whereDate('week_start', '<=', $week)->orderByDesc('week_start')->limit(4),
             ])
@@ -46,6 +49,8 @@ class MobileSubscriptionController extends Controller
                     'meter_box_number' => $subscription->meterBox?->box_number,
                     'meter_box_name' => $subscription->meterBox?->displayName(),
                     'meter_box_location' => $subscription->meterBox?->location,
+                    'sub_area_id' => $subscription->meterBox?->sub_area_id,
+                    'sub_area_name' => $subscription->meterBox?->subArea?->name,
                     'previous_reading' => $currentWeekReading?->previous_reading
                         ?? $subscription->latestMeterReading?->nextPreviousReading()
                         ?? $subscription->initial_reading,

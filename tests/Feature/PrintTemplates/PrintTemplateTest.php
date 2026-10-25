@@ -115,6 +115,25 @@ class PrintTemplateTest extends TestCase
         $this->assertDatabaseCount('print_templates', 2);
     }
 
+    public function test_reading_templates_keep_blank_columns_widths_secondary_fields_and_nested_groups(): void
+    {
+        $manager = $this->manager();
+        $layout = $this->layout([
+            'columns' => [
+                ['key' => 'field:fullName', 'label' => 'المشترك', 'secondaryKey' => 'field:phone', 'width' => 45, 'visible' => true],
+                ['key' => 'blank:notes', 'label' => 'ملاحظات', 'blank' => true, 'width' => 30, 'visible' => true],
+            ],
+            'group' => ['key' => 'field:readerName', 'then' => ['field:subAreaName', 'field:boxNumber'], 'newPage' => true],
+        ]);
+        foreach (['/reading-cycles/print', '/paper-sheets'] as $page) {
+            $this->actingAs($manager)->post(route('print-templates.store'), ['page' => $page, 'name' => 'كشف منظم', 'layout' => $layout])->assertSessionHasNoErrors();
+            $this->assertSame($layout, PrintTemplate::where('page', $page)->sole()->layout);
+        }
+        $layout['columns'][0]['width'] = 121;
+        $this->post(route('print-templates.store'), ['page' => '/reading-cycles/print', 'name' => 'عرض زائد', 'layout' => $layout])->assertSessionHasErrors('layout.columns.0.width');
+        $this->assertDatabaseCount('print_templates', 2);
+    }
+
     public function test_a_template_is_refused_for_an_unknown_list_or_an_unsafe_colour(): void
     {
         $manager = $this->manager();

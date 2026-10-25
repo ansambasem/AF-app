@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'reading_assignments.dart';
 
 /// The server the app talks to. A release build must be built with
 /// `--dart-define=API_BASE_URL=https://<domain>`; only a debug build falls back
@@ -24,19 +25,60 @@ class ApiClient {
   ApiClient({HttpClient? httpClient}) : _client = httpClient ?? HttpClient();
   final HttpClient _client;
   String? token;
+  void Function()? onUnauthenticated;
 
-  Future<Map<String, dynamic>> login(String username, String password) async {
-    final result = await _request('POST', '/api/mobile/login',
-        body: {'username': username, 'password': password});
+  Future<Map<String, dynamic>> login(String username, String password,
+      {bool remember = false}) async {
+    final result = await _request('POST', '/api/mobile/login', body: {
+      'username': username,
+      'password': password,
+      'remember': remember
+    });
     token = result['token'] as String;
     return result;
   }
 
   Future<Map<String, dynamic>> me() => _request('GET', '/api/mobile/me');
-  Future<Map<String, dynamic>> rosterPage(int page) =>
-      _request('GET', '/api/mobile/subscriptions', query: {'page': '$page'});
-  Future<Map<String, dynamic>> sendReading(Map<String, dynamic> reading) =>
-      _request('POST', '/api/mobile/readings', body: reading);
+  Future<Map<String, dynamic>> readingAssignments() =>
+      _request('GET', '/api/mobile/reading-assignments');
+  Future<Map<String, dynamic>> rosterPage(int page) async =>
+      assignedReadingRoster(await readingAssignments());
+  Future<Map<String, dynamic>> sendReading(Map<String, dynamic> reading) async {
+    if (reading['assignment_id'] == null)
+      return _request('POST', '/api/mobile/readings', body: reading);
+    final response =
+        await _request('POST', '/api/mobile/reading-assignments/sync', body: {
+      'readings': [
+        {
+          'operation_id': reading['mobile_operation_id'],
+          'assignment_id': reading['assignment_id'],
+          'authorization': reading['authorization'],
+          'subscription_id': reading['subscription_id'],
+          'current_reading': reading['current_reading'],
+          'captured_at': reading['captured_at'],
+          'notes': reading['notes'],
+        }
+      ]
+    });
+    final result =
+        Map<String, dynamic>.from((response['results'] as List).single as Map);
+    if (result['status'] == 'rejected')
+      throw ApiException('${result['message'] ?? 'رفض الخادم القراءة.'}', 422);
+    return {
+      ...result,
+      'status': result['status'] == 'accepted' ? 'pending' : result['status']
+    };
+  }
+
+  Future<Map<String, dynamic>> readingDistribution({int? branchId}) =>
+      _request('GET', '/api/mobile/reading-distribution',
+          query: {if (branchId != null) 'branch_id': '$branchId'});
+  Future<Map<String, dynamic>> distributeReadings(
+          int cycleId, Map<String, dynamic> data) =>
+      _request('POST', '/api/mobile/reading-distribution/$cycleId/assign',
+          body: data);
+  Future<Map<String, dynamic>> approveReadingDistribution(int cycleId) =>
+      _request('POST', '/api/mobile/reading-distribution/$cycleId/approve');
   Future<Map<String, dynamic>> weeklyReadings(
           {String search = '', String? week, int page = 1}) =>
       _request('GET', '/api/mobile/readings', query: {
@@ -78,7 +120,17 @@ class ApiClient {
       _request('POST', '/api/mobile/split-payments', body: payment);
 
   Future<Map<String, dynamic>> _decodeResponse(
-      HttpClientResponse response) async {
+      HttpClientResponse response, String? requestToken) async {
+    if (response.statusCode == 401 &&
+        requestToken != null &&
+        token == requestToken) {
+      onUnauthenticated?.call();
+    }
+    if (response.statusCode >= 300 && response.statusCode < 400) {
+      await response.drain<void>();
+      throw const ApiException(
+          'رفض التطبيق إعادة توجيه الاتصال. تحقق من عنوان الخادم الآمن.', 0);
+    }
     final decoded = jsonDecode(await utf8.decoder.bind(response).join())
         as Map<String, dynamic>;
     if (response.statusCode >= 400) {
@@ -107,22 +159,35 @@ class ApiClient {
       throw const ApiException(
           'لم يُضبط عنوان الخادم في هذا الإصدار من التطبيق (API_BASE_URL).', 0);
     }
+    if (const bool.fromEnvironment('dart.vm.product')) {
+      final server = Uri.tryParse(apiBaseUrl);
+      if (server == null ||
+          server.scheme != 'https' ||
+          server.host.isEmpty ||
+          server.userInfo.isNotEmpty) {
+        throw const ApiException(
+            'يجب أن يستخدم خادم التطبيق اتصال HTTPS آمنًا.', 0);
+      }
+    }
     final uri =
         Uri.parse(apiBaseUrl).resolve(path).replace(queryParameters: query);
+    final requestToken = token;
     try {
       final request = await _client
           .openUrl(method, uri)
           .timeout(const Duration(seconds: 12));
+      request.followRedirects = false;
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-      if (token != null)
-        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      if (requestToken != null)
+        request.headers
+            .set(HttpHeaders.authorizationHeader, 'Bearer $requestToken');
       if (body != null) {
         request.headers.contentType = ContentType.json;
         request.write(jsonEncode(body));
       }
       final response =
           await request.close().timeout(const Duration(seconds: 18));
-      return await _decodeResponse(response)
+      return await _decodeResponse(response, requestToken)
           .timeout(const Duration(seconds: 18));
     } on SocketException {
       throw const ApiException('لا يمكن الوصول إلى خادم Laravel.', 0);

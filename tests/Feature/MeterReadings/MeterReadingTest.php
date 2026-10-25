@@ -16,6 +16,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class MeterReadingTest extends TestCase
@@ -359,6 +360,42 @@ class MeterReadingTest extends TestCase
         $this->assertDatabaseCount('meter_readings', 0);
     }
 
+    #[TestWith(['2026-09-24 10:00:00', '2026-09-25'])]
+    #[TestWith(['2026-09-25 05:29:00', '2026-09-25'])]
+    #[TestWith(['2026-09-25 14:01:00', '2026-10-02'])]
+    #[TestWith(['2026-09-26 10:00:00', '2026-10-02'])]
+    #[TestWith(['2026-09-24 22:30:00', '2026-09-25'])]
+    public function test_the_closed_sheet_shows_the_next_branch_reading_date_in_business_time(string $utcNow, string $expectedDate): void
+    {
+        config(['app.business_timezone' => 'Asia/Gaza']);
+        ReadingEntrySetting::factory()->forBranch($this->branch)->create([
+            'reading_day' => CarbonInterface::FRIDAY,
+            'open_days' => [CarbonInterface::FRIDAY, CarbonInterface::SATURDAY],
+            'opens_at' => '08:30:00', 'closes_at' => '17:00:00',
+        ]);
+        $this->travelTo(now()->parse($utcNow, 'UTC'));
+
+        $this->actingAs($this->dataEntry)->get(route('meter-readings.index'))->assertInertia(fn ($page) => $page
+            ->where('entryWindow.isOpen', false)
+            ->where('entryWindow.nextOpensOn', $expectedDate)
+            ->where('entryWindow.opensAt', '08:30')
+            ->where('entryWindow.closesAt', '17:00'));
+    }
+
+    #[TestWith(['open'])]
+    #[TestWith(['closed'])]
+    #[TestWith(['automatic'])]
+    public function test_the_notice_does_not_promise_an_opening_without_an_automatic_reading_day(string $mode): void
+    {
+        ReadingEntrySetting::factory()->forBranch($this->branch)->create([
+            'mode' => $mode, 'reading_day' => CarbonInterface::FRIDAY,
+            'open_days' => [CarbonInterface::SATURDAY],
+        ]);
+
+        $this->actingAs($this->dataEntry)->get(route('meter-readings.index'))->assertInertia(fn ($page) => $page
+            ->where('entryWindow.nextOpensOn', null));
+    }
+
     public function test_new_readings_obey_entry_hours_but_the_super_admin_can_record_outside_them(): void
     {
         config(['app.business_timezone' => 'Asia/Gaza']);
@@ -492,6 +529,82 @@ class MeterReadingTest extends TestCase
             ->withSession(['status' => 'meter-reading-created'])
             ->get(route('meter-readings.index'))
             ->assertInertia(fn ($page) => $page->where('status', 'meter-reading-created'));
+    }
+
+    public function test_the_current_reading_stays_until_the_next_reading_day_then_becomes_previous(): void
+    {
+        config(['app.business_timezone' => 'Asia/Gaza']);
+        $this->recordedReading('2026-09-11', 1200, 1250);
+
+        $this->actingAs($this->dataEntry)
+            ->post(route('meter-readings.store'), $this->payload(['current_reading' => 1300]))
+            ->assertSessionHasNoErrors();
+
+        $this->get(route('meter-readings.index'))->assertInertia(fn ($page) => $page
+            ->where('weekEnd', '2026-09-24')
+            ->where('rows.data.0.previousReading', 1250)
+            ->where('rows.data.0.reading.currentReading', 1300));
+
+        $this->travelTo(now()->parse('2026-09-30 23:59:59', 'Asia/Gaza'));
+        $this->get(route('meter-readings.index', ['sort' => 'current_reading']))->assertInertia(fn ($page) => $page
+            ->where('weekEnd', '2026-09-24')
+            ->where('rows.data.0.previousReading', 1250)
+            ->where('rows.data.0.reading.currentReading', 1300)
+            ->where('canRecord', false));
+
+        $this->travelTo(now()->parse('2026-10-01 00:00:00', 'Asia/Gaza'));
+        $this->get(route('meter-readings.index', ['sort' => 'current_reading']))->assertInertia(fn ($page) => $page
+            ->where('week', '2026-09-25')
+            ->where('weekEnd', '2026-10-01')
+            ->where('rows.data.0.previousReading', 1300)
+            ->where('rows.data.0.reading', null)
+            ->where('rows.data.0.canEdit', true)
+            ->where('summary.entered', 0));
+
+        $this->get(route('meter-readings.index', ['week' => '2026-09-18']))->assertInertia(fn ($page) => $page
+            ->where('weekEnd', '2026-09-24')
+            ->where('rows.data.0.previousReading', 1250)
+            ->where('rows.data.0.reading.currentReading', 1300));
+
+        $this->assertDatabaseCount('meter_readings', 2);
+    }
+
+    public function test_extra_open_days_do_not_allow_new_website_entries_but_keep_correction_permissions(): void
+    {
+        ReadingEntrySetting::factory()->forBranch($this->branch)->create([
+            'reading_day' => CarbonInterface::THURSDAY,
+            'open_days' => [CarbonInterface::THURSDAY, CarbonInterface::FRIDAY],
+        ]);
+        $reading = $this->recordedReading('2026-09-18', 1200, 1250);
+        $missing = Subscription::factory()->create(['branch_id' => $this->branch->id]);
+        $this->travelTo('2026-09-25 10:00:00');
+
+        $this->assertFalse($this->dataEntry->can('createOnReadingDay', MeterReading::class));
+        $this->assertTrue($this->dataEntry->can('update', $reading));
+        $this->actingAs($this->dataEntry)->get(route('meter-readings.index'))->assertInertia(fn ($page) => $page
+            ->where('canRecord', false)
+            ->where('entryWindow.isOpen', false)
+            ->where('entryWindow.openDays', [CarbonInterface::THURSDAY])
+            ->where('rows.data', fn ($rows): bool => collect($rows)->pluck('canEdit', 'id')->all() == [
+                $this->subscription->id => true, $missing->id => false,
+            ]));
+        $this->post(route('meter-readings.store'), $this->payload(['subscription_id' => $missing->id]))->assertForbidden();
+        $this->put(route('meter-readings.update', $reading), ['current_reading' => 1260])->assertSessionHasNoErrors();
+
+        $this->assertSame(1260.0, $reading->fresh()->current_reading);
+        $this->assertDatabaseCount('meter_readings', 1);
+    }
+
+    public function test_the_super_admin_keeps_the_existing_entry_exception_outside_the_reading_day(): void
+    {
+        $this->travelTo('2026-09-25 10:00:00');
+        $actor = User::factory()->superAdmin()->create();
+
+        $this->assertTrue($actor->can('createOnReadingDay', MeterReading::class));
+        $this->actingAs($actor)->post(route('meter-readings.store'), $this->payload())->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('meter_readings', ['subscription_id' => $this->subscription->id, 'current_reading' => 1250]);
+        $this->assertSame('2026-09-18', MeterReading::sole()->week_start->toDateString());
     }
 
     public function test_the_reading_sheet_filters_by_box_name_and_lists_that_names_boxes_under_it(): void

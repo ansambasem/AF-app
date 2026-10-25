@@ -62,7 +62,6 @@ export function StatementActions({ canRecordPayment, canRecordLatePayment, canRe
 
     const actions = [
         canRecordPayment && { action: 'payment', label: 'تسجيل دفعة', icon: 'banknotes' },
-        canRecordLatePayment && { action: 'late_payment', label: 'تسجيل دفعة بتاريخ سابق', icon: 'calendar' },
         canRecordSplitPayment && { action: 'split_payment', label: 'تسجيل دفعة مقسّمة', icon: 'layers' },
         canAddCharge && { action: 'charge', label: 'تحميل حركة', icon: 'document-plus' },
         canAddDiscount && { action: 'discount', label: 'إضافة خصم', icon: 'discount' },
@@ -208,9 +207,8 @@ export function StatementForms({ statement, openForm, onClose, onOpen = null }) 
 
             {canRecordPayment && (
                 <PaymentModal
-                    key={openForm === 'late_payment' ? 'late-payment' : 'payment'}
-                    show={openForm === 'payment' || (openForm === 'late_payment' && statement.canRecordLatePayment)}
-                    latePayment={openForm === 'late_payment'}
+                    key="payment"
+                    show={openForm === 'payment'}
                     today={statement.paymentToday}
                     onClose={onClose}
                     subscription={subscription}

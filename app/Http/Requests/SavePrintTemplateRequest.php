@@ -52,8 +52,13 @@ class SavePrintTemplateRequest extends FormRequest
             'layout.margin' => ['nullable', 'numeric', 'between:0,40'],
             'layout.fontSize' => ['nullable', 'numeric', 'between:6,24'],
             'layout.columns' => ['required_with:layout', 'array', 'max:100'],
-            'layout.columns.*.key' => ['required', 'string', 'max:200'],
+            'layout.columns.*.key' => ['required', 'string', 'max:200', 'distinct'],
             'layout.columns.*.label' => ['nullable', 'string', 'max:200'],
+            'layout.columns.*.width' => ['nullable', 'numeric', 'between:0,120'],
+            'layout.columns.*.blank' => ['nullable', 'boolean'],
+            'layout.columns.*.secondaryKey' => ['nullable', 'string', 'max:200'],
+            'layout.group.then' => ['nullable', 'array', 'max:2'],
+            'layout.group.then.*' => ['string', 'max:200', 'distinct'],
             'layout.table.accent' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ];
     }

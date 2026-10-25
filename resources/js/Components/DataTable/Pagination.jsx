@@ -28,7 +28,8 @@ function pageNumbers(current, last) {
  * "Showing 1–15 of 63" and the page switch. The current page is burgundy.
  * `pageParam` names the page in the address, for a second table on the
  * same page. A table whose rows are all in the page already pages itself
- * with `onPageChange` instead of a visit.
+ * with `onPageChange` instead of a visit. On a phone the previous/next
+ * buttons show only their arrows, so the switch stays on one line.
  */
 export default function Pagination({ meta, filters, baseUrl, extraParams = {}, pageParam = 'page', onPageChange }) {
     const { current_page: current, last_page: last, from, to, total } = meta;
@@ -63,7 +64,7 @@ export default function Pagination({ meta, filters, baseUrl, extraParams = {}, p
                 <nav aria-label="صفحات الجدول" className="flex flex-wrap items-center gap-1 rounded-[14px] border border-gray-100 bg-gray-50 p-[3px]">
                     <button type="button" disabled={current === 1} onClick={() => goTo(current - 1)} className={stepClass}>
                         <Icon name="chevron-right" className="h-3.5 w-3.5" strokeWidth={2} />
-                        السابق
+                        <span className="max-sm:sr-only">السابق</span>
                     </button>
 
                     {pageNumbers(current, last).map((page, index) =>
@@ -89,7 +90,7 @@ export default function Pagination({ meta, filters, baseUrl, extraParams = {}, p
                     )}
 
                     <button type="button" disabled={current === last} onClick={() => goTo(current + 1)} className={stepClass}>
-                        التالي
+                        <span className="max-sm:sr-only">التالي</span>
                         <Icon name="chevron-left" className="h-3.5 w-3.5" strokeWidth={2} />
                     </button>
                 </nav>

@@ -21,7 +21,7 @@ use Illuminate\Support\Carbon;
  * replaced it. The company's row (no branch) is followed by every branch that
  * has no row of its own, which its admin sets for the branch alone.
  */
-#[Fillable(['branch_id', 'open_days', 'opens_at', 'closes_at', 'reading_day', 'reading_day_history', 'mode', 'updated_by'])]
+#[Fillable(['branch_id', 'open_days', 'opens_at', 'closes_at', 'reading_day', 'reading_day_history', 'mode', 'updated_by', 'assignment_lead_days'])]
 class ReadingEntrySetting extends Model
 {
     /** @use HasFactory<ReadingEntrySettingFactory> */
@@ -48,6 +48,7 @@ class ReadingEntrySetting extends Model
             'branch_id' => 'integer',
             'open_days' => 'array',
             'reading_day' => 'integer',
+            'assignment_lead_days' => 'integer',
             'reading_day_history' => 'array',
             'mode' => ReadingEntryMode::class,
         ];
@@ -61,6 +62,7 @@ class ReadingEntrySetting extends Model
             'closes_at' => self::DEFAULT_CLOSES_AT,
             'reading_day' => self::DEFAULT_READING_DAY,
             'mode' => ReadingEntryMode::Automatic,
+            'assignment_lead_days' => 1,
         ]);
     }
 
@@ -96,6 +98,35 @@ class ReadingEntrySetting extends Model
             ) && $localTime->format('H:i') >= substr($this->opens_at ?? self::DEFAULT_OPENS_AT, 0, 5)
                 && $localTime->format('H:i') <= substr($this->closes_at ?? self::DEFAULT_CLOSES_AT, 0, 5),
         };
+    }
+
+    /**
+     * The website opens new weekly readings on the branch's reading day.
+     * A manual opening still allows the existing administrative exception.
+     */
+    public function isOpenOnReadingDay(?CarbonInterface $at = null): bool
+    {
+        return $this->isOpen($at)
+            && ($this->mode === ReadingEntryMode::Open || $this->businessToday($at)->dayOfWeek === $this->reading_day);
+    }
+
+    /** The next automatic website opening, in the business's local timezone. */
+    public function nextOpeningOnReadingDay(?CarbonInterface $at = null): ?Carbon
+    {
+        if ($this->mode !== ReadingEntryMode::Automatic || ! in_array($this->reading_day, array_map('intval', $this->open_days ?? []), true)) {
+            return null;
+        }
+
+        $localNow = Carbon::instance($at ?? now())->setTimezone(config('app.business_timezone'));
+        $daysUntilReading = ($this->reading_day - $localNow->dayOfWeek + 7) % 7;
+        $opening = $localNow->copy()->startOfDay()->addDays($daysUntilReading)
+            ->setTimeFromTimeString($this->opens_at ?? self::DEFAULT_OPENS_AT);
+
+        if ($opening->lte($localNow)) {
+            $opening->addWeek();
+        }
+
+        return $opening;
     }
 
     /**

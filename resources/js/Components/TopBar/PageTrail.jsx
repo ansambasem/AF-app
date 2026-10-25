@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
-import { HOME_LINK, isActiveLink } from '@/lib/navigation';
+import { shouldPrefetchPage, HOME_LINK, isActiveLink } from '@/lib/navigation';
 import { LockMark } from './MegaMenu';
 
 /** Where the page sits: home, its section, then the page. */
@@ -14,7 +14,7 @@ export function Breadcrumb({ trail }) {
 
     return (
         <nav className="tn-trail tn-rise mb-3 flex items-center gap-1.5 text-[13.5px] text-gray-500" aria-label="مسار الصفحة">
-            <Link href={HOME_LINK.href} prefetch className="hover:text-gray-900">{HOME_LINK.label}</Link>
+            <Link href={HOME_LINK.href} prefetch={shouldPrefetchPage(HOME_LINK.href)} className="hover:text-gray-900">{HOME_LINK.label}</Link>
             {group && (
                 <>
                     <Icon name="chevron-left" className="h-3.5 w-3.5" />
@@ -24,7 +24,7 @@ export function Breadcrumb({ trail }) {
             <Icon name="chevron-left" className="h-3.5 w-3.5" />
             {exact
                 ? <span className="font-semibold text-gray-800" aria-current="page">{link.label}</span>
-                : <Link href={link.href} prefetch className="font-semibold text-gray-800 hover:text-gray-900">{link.label}</Link>}
+                : <Link href={link.href} prefetch={shouldPrefetchPage(link.href)} className="font-semibold text-gray-800 hover:text-gray-900">{link.label}</Link>}
         </nav>
     );
 }
@@ -66,7 +66,7 @@ export function SectionPages({ trail, url, badges }) {
             className="tn-subnav tn-rise mb-6 flex gap-1 overflow-x-auto rounded-2xl border border-gray-200/70 bg-surface/70 p-1.5 shadow-card backdrop-blur [scrollbar-width:none]"
         >
             {links.map((link) => (
-                <Link key={link.href} href={link.href} prefetch={!link.locked} aria-current={isActiveLink(link, url) ? 'page' : undefined}>
+                <Link key={link.href} href={link.href} prefetch={!link.locked && shouldPrefetchPage(link.href)} aria-current={isActiveLink(link, url) ? 'page' : undefined}>
                     <Icon name={link.icon} />
                     {link.label}
                     {link.locked && <LockMark />}

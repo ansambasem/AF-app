@@ -98,6 +98,7 @@ class CashBoxReportController extends Controller
             'subscriber' => $transaction?->subscription?->subscription_name ?: $transaction?->subscription?->full_name,
             'date' => $entry->occurred_at?->toIso8601String(), 'reference' => $transaction?->reference_number,
             'paidOn' => $transaction?->paid_on?->toDateString(), 'lateReason' => $transaction?->late_reason,
+            'bankReceivedOn' => $transaction?->bank_received_on?->toDateString(),
             'amount' => $entry->amount, 'currency' => $entry->currency,
             'bankAmount' => $audit?->bank_amount,
             'difference' => $audit ? Closing::money(Closing::cents($entry->amount) - Closing::cents($audit->bank_amount)) : null,

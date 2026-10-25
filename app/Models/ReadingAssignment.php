@@ -7,6 +7,8 @@ use App\Enums\ReadingAssignmentStatus;
 use App\Models\Concerns\BelongsToBranch;
 use Database\Factories\ReadingAssignmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +25,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['reading_cycle_id', 'meter_box_id', 'branch_id', 'channel', 'user_id', 'status', 'version', 'assigned_by', 'approved_by', 'approved_at', 'downloaded_at', 'downloaded_version'])]
 class ReadingAssignment extends Model
 {
+    /** Only published mobile work belonging to this reader and their current branch. */
+    #[Scope]
+    protected function forMobileReader(Builder $query, User $reader): void
+    {
+        $query->where('user_id', $reader->id)->where('branch_id', $reader->workBranchId())
+            ->where('channel', ReadingAssignmentChannel::Mobile)->where('status', ReadingAssignmentStatus::Approved)
+            ->whereHas('cycle', fn (Builder $cycles) => $cycles->whereNull('closed_at'));
+    }
+
     /** @use HasFactory<ReadingAssignmentFactory> */
     use BelongsToBranch, HasFactory;
 

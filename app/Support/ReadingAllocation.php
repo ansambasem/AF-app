@@ -7,6 +7,7 @@ use App\Enums\ReadingAssignmentStatus;
 use App\Models\MeterBox;
 use App\Models\ReadingAssignment;
 use App\Models\ReadingCycle;
+use App\Models\ReadingDistribution;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +42,7 @@ class ReadingAllocation
      * @param  array<int|string, int>  $expectedVersions
      * @return array{moved: int, conflicts: array<int, array{boxId: int, label: string, reason: string}>}
      */
-    public function allocate(ReadingCycle $cycle, array $boxIds, ?ReadingAssignmentChannel $channel, ?User $reader, array $expectedVersions, bool $confirmDownloaded, User $actor): array
+    public function allocate(ReadingCycle $cycle, array $boxIds, ?ReadingAssignmentChannel $channel, ?User $reader, array $expectedVersions, bool $confirmDownloaded, User $actor, bool $recurring = false, bool $publish = false): array
     {
         $boxes = MeterBox::query()->whereIn('id', $boxIds)->get()->keyBy('id');
         $eligible = $cycle->eligibleMeterBoxes()->pluck('id')->flip();
@@ -55,7 +56,34 @@ class ReadingAllocation
                 $cycle->isClosed() => 'closed',
                 $box === null || ! $eligible->has($boxId) => 'not_eligible',
                 ! $readerIsEligible => 'reader_not_eligible',
-                default => $this->move($cycle, $box, $channel, $reader, $expectedVersions[$boxId] ?? null, $confirmDownloaded, $actor),
+                default => DB::transaction(function () use ($cycle, $box, $channel, $reader, $expectedVersions, $boxId, $confirmDownloaded, $actor, $recurring, $publish): ?string {
+                    $issue = $this->move($cycle, $box, $channel, $reader, $expectedVersions[$boxId] ?? null, $confirmDownloaded, $actor);
+
+                    if ($issue !== null) {
+                        return $issue;
+                    }
+
+                    if ($recurring) {
+                        if ($channel === null) {
+                            ReadingDistribution::query()->where('meter_box_id', $box->id)->delete();
+                        } else {
+                            ReadingDistribution::updateOrCreate(['meter_box_id' => $box->id], [
+                                'branch_id' => $cycle->branch_id, 'channel' => $channel,
+                                'user_id' => $reader?->id, 'approved_by' => $actor->id,
+                            ]);
+                        }
+                    }
+
+                    if ($publish && $channel !== null) {
+                        $assignment = $cycle->assignments()->where('meter_box_id', $box->id)->lockForUpdate()->firstOrFail();
+                        if (! $assignment->isApproved()) {
+                            $assignment->update(['status' => ReadingAssignmentStatus::Approved, 'approved_by' => $actor->id, 'approved_at' => now()]);
+                            $assignment->recordEvent('approved', $actor);
+                        }
+                    }
+
+                    return null;
+                }),
             };
 
             if ($why === null) {

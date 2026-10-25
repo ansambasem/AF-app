@@ -1,9 +1,11 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Fragment } from 'react';
+import { Head, Link, useHttp } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Icon from '@/Components/Icon';
 import { formatNumber } from '@/lib/format';
 import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import PageHeader from '@/Components/PageHeader';
+import PrintButton from '@/Components/PrintButton';
 
 /**
  * A paper reading sheet as printed: its number and cycle, and for each box
@@ -11,14 +13,20 @@ import PageHeader from '@/Components/PageHeader';
  * the new one. Each printing is counted on the server first.
  */
 export default function PaperSheet({ sheet, cycle, boxes }) {
-    function print() {
-        router.post(`/paper-sheets/${sheet.id}/printed`, {}, { preserveScroll: true, onSuccess: () => window.print() });
+    const printing = useHttp();
+    const beforePrint = () => printing.post(`/paper-sheets/${sheet.id}/printed`);
+    const grouped = new Map();
+    for (const box of boxes) {
+        const area = box.subAreaName ?? 'بدون منطقة 2';
+        if (!grouped.has(area)) grouped.set(area, []);
+        grouped.get(area).push(box);
     }
+    const groups = [...grouped.entries()].sort(([first], [second]) => first.localeCompare(second, 'ar'));
 
     const total = boxes.reduce((count, box) => count + box.subscriptions.length, 0);
 
     return (
-        <AuthenticatedLayout
+        <AuthenticatedLayout beforePrint={beforePrint}
             header={
                 <>
                     <PageHeader
@@ -31,10 +39,7 @@ export default function PaperSheet({ sheet, cycle, boxes }) {
                             <Icon name="pencil" className="h-4 w-4" />
                             إدخال القراءات من الكشف
                         </Link>
-                        <button type="button" onClick={print} className={`${secondaryButtonClass} tone-print`}>
-                            <Icon name="printer" className="h-4 w-4" />
-                            طباعة
-                        </button>
+                        <PrintButton title={`كشف قراءة العدادات — ${cycle.branchName}`} />
                     </div>
                 </>
             }
@@ -54,38 +59,28 @@ export default function PaperSheet({ sheet, cycle, boxes }) {
                     </div>
                 </header>
 
-                {boxes.map((box) => (
-                    <section key={box.id} className="mb-5 break-inside-avoid">
-                        <h3 className="mb-1 font-bold">
-                            الطبلون {box.label} {box.subAreaName && <span className="font-normal text-gray-600">· {box.subAreaName}</span>}
-                            {box.movedOffPaper && <span className="ms-2 text-xs font-semibold text-red-700 print:hidden">(نُقل من الكشوف الورقية بعد إنشاء الكشف)</span>}
-                        </h3>
-                        <table className="w-full border-collapse text-sm">
-                            <thead>
-                                <tr className="bg-gray-100">
-                                    <th className="border border-gray-300 px-2 py-1 text-start">#</th>
-                                    <th className="border border-gray-300 px-2 py-1 text-start">المشترك</th>
-                                    <th className="border border-gray-300 px-2 py-1 text-start">رقم الاشتراك</th>
-                                    <th className="border border-gray-300 px-2 py-1 text-start">القراءة السابقة</th>
-                                    <th className="w-40 border border-gray-300 px-2 py-1 text-start">القراءة الحالية</th>
-                                    <th className="w-32 border border-gray-300 px-2 py-1 text-start">ملاحظات</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {box.subscriptions.map((subscription, index) => (
-                                    <tr key={subscription.id}>
-                                        <td className="border border-gray-300 px-2 py-2">{index + 1}</td>
-                                        <td className="border border-gray-300 px-2 py-2">{subscription.name}</td>
-                                        <td className="border border-gray-300 px-2 py-2" dir="ltr">{subscription.accountNumber}</td>
-                                        <td className="border border-gray-300 px-2 py-2 font-display">{subscription.previousReading}</td>
-                                        <td className="border border-gray-300 px-2 py-2" />
-                                        <td className="border border-gray-300 px-2 py-2" />
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </section>
-                ))}
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-sm">
+                        <thead><tr className="bg-gray-100">
+                            {['#', 'الطبلون', 'المشترك', 'رقم الاشتراك', 'القراءة السابقة', 'القراءة الحالية', 'ملاحظات'].map((label) => <th key={label} className="border border-gray-300 px-3 py-2 text-start">{label}</th>)}
+                        </tr></thead>
+                        {groups.map(([area, groupBoxes]) => <tbody key={area}>
+                            <tr><td colSpan={7} className="border border-gray-300 bg-gray-100 px-3 py-3 text-base font-bold">منطقة 2: {area}</td></tr>
+                            {groupBoxes.map((box) => <Fragment key={box.id}>
+                                {box.movedOffPaper && <tr className="print:hidden"><td colSpan={7} className="border border-gray-300 px-3 py-2 text-red-700">الطبلون {box.label}: نُقل من الكشوف الورقية بعد إنشاء الكشف.</td></tr>}
+                                {box.subscriptions.map((subscription, index) => <tr key={subscription.id} className="break-inside-avoid">
+                                    <td className="border border-gray-300 px-3 py-3">{index + 1}</td>
+                                    <td className="border border-gray-300 px-3 py-3">{box.label}</td>
+                                    <td className="border border-gray-300 px-3 py-3"><span className="block font-semibold">{subscription.name}</span>{subscription.phone && <bdi dir="ltr" className="mt-1 block font-display text-xs">{subscription.phone}</bdi>}</td>
+                                    <td className="border border-gray-300 px-3 py-3" dir="ltr">{subscription.accountNumber}</td>
+                                    <td className="border border-gray-300 px-3 py-3 text-center font-display" dir="ltr">{subscription.previousReading}</td>
+                                    <td className="min-w-32 border border-gray-300 px-3 py-3" />
+                                    <td className="min-w-24 border border-gray-300 px-3 py-3" />
+                                </tr>)}
+                            </Fragment>)}
+                        </tbody>)}
+                    </table>
+                </div>
 
                 <footer className="mt-6 grid grid-cols-2 gap-6 text-sm">
                     <p>اسم القارئ: ............................................</p>

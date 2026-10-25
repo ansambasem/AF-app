@@ -20,7 +20,12 @@ class StoreMeterReadingRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('create', MeterReading::class);
+        return $this->user()->can($this->creationAbility(), MeterReading::class);
+    }
+
+    protected function creationAbility(): string
+    {
+        return 'createOnReadingDay';
     }
 
     /**
@@ -73,7 +78,7 @@ class StoreMeterReadingRequest extends FormRequest
                     return;
                 }
 
-                if (! $this->user()->can('create', [MeterReading::class, $weekStart])) {
+                if (! $this->user()->can($this->creationAbility(), [MeterReading::class, $weekStart])) {
                     $validator->errors()->add('week_start', 'يمكن إدخال قراءات الأسبوع الأخير فقط؛ الأسابيع السابقة للعرض فقط.');
 
                     return;

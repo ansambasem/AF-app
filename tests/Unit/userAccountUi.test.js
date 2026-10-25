@@ -47,3 +47,15 @@ test('editing an account exposes password inputs only with the separate password
     assert.match(html, /id="password_confirmation"/);
     assert.match(html, /اتركها فارغة للاحتفاظ بالحالية/);
 });
+
+test('device limits default to one and only account managers can change them or end sessions', () => {
+    assert.equal(userFormData().max_devices, 1);
+    assert.equal(userFormData({max_devices: 3}).max_devices, 3);
+    assert.equal(userFormData({max_devices: 3}).reset_devices, false);
+    assert.doesNotMatch(render(), /id="max_devices"|id="reset_devices"/);
+    const html = render({canUpdatePassword: true});
+    assert.match(html, /id="max_devices"/);
+    assert.match(html, /id="reset_devices"/);
+    assert.match(html, /خروج الجهاز الأقدم تلقائيًا/);
+    assert.equal((html.match(/id="reset_devices"/g) ?? []).length, 1);
+});

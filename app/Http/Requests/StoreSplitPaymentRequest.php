@@ -50,6 +50,7 @@ class StoreSplitPaymentRequest extends FormRequest
             'total_amount' => ['required', 'numeric', 'decimal:0,2', 'gt:0', 'max:1000000'],
             'bank_name' => ['required', Rule::in(Bank::receiverNames())],
             'sender_bank_name' => ['nullable', Rule::in(Bank::senderNames())],
+            'bank_received_on' => StoreSubscriptionPaymentRequest::bankReceivedDateRules(),
             'sender_name' => ['required', 'string', 'max:255'],
             'reference_number' => ['required', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -160,6 +161,7 @@ class StoreSplitPaymentRequest extends FormRequest
     {
         return [
             'parts.required' => 'أضف المشتركين الذين تُوزَّع عليهم الدفعة.',
+            ...StoreSubscriptionPaymentRequest::paymentMessages(),
             'parts.min' => 'اختر مشتركَين على الأقل لتوزيع الدفعة عليهم؛ وإن كانت لمشترك واحد فسجّلها دفعة عادية.',
             'parts.max' => 'لا تُوزَّع الدفعة على أكثر من :max مشتركًا.',
             'parts.*.subscription_id.distinct' => 'هذا المشترك مضاف أكثر من مرة.',

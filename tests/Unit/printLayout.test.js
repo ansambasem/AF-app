@@ -8,6 +8,30 @@ const columns = [
     { key: 'balance', label: 'الرصيد' },
 ];
 
+test('custom blank columns and secondary lines survive template loading without restoring removed data fields', () => {
+    const fresh = defaultLayout({ columns });
+    const layout = fitLayout({ columns: [
+        { key: 'name', label: 'المشترك', secondaryKey: 'box', visible: true, width: 45 },
+        { key: 'blank:notes-1', label: 'ملاحظات القارئ', visible: true, blank: true, width: 30 },
+        { key: 'unauthorized-field', label: 'حقل محذوف', visible: true },
+    ] }, fresh);
+    assert.equal(layout.columns[0].secondaryKey, 'box');
+    assert.equal(layout.columns[0].width, 45);
+    assert.equal(layout.columns[1].key, 'blank:notes-1');
+    assert.equal(layout.columns[1].blank, true);
+    assert.equal(layout.columns.some((column) => column.key === 'unauthorized-field'), false);
+});
+
+test('three grouping levels keep boxes inside their reader and start a new page only for a new reader', () => {
+    const row = (reader, area, box) => ({ type: 'row', cells: { reader, area, box } });
+    const sections = arrangeRows([row('محمد', 'ب', '2'), row('محمد', 'أ', '1'), row('يوسف', 'أ', '3')], { group: { key: 'reader', then: ['area', 'box'], newPage: true }, sort: [] });
+    assert.equal(sections.length, 3);
+    assert.equal(sections[0].groups[0].value, 'محمد');
+    assert.equal(sections[0].groups[1].value, 'أ');
+    assert.equal(sections[1].breakBefore, false);
+    assert.equal(sections[2].breakBefore, true);
+});
+
 test('a cell number is read with thousands separators, a minus sign and Arabic digits', () => {
     assert.equal(cellNumber('1,421.80 شيكل'), 1421.8);
     assert.equal(cellNumber('-45 شيكل'), -45);
@@ -146,6 +170,16 @@ test('a saved sort or group on a column the table no longer has is dropped', () 
     assert.deepEqual(layout.sort, [{ key: 'box', direction: 'desc' }]);
     assert.equal(layout.group.key, '');
     assert.equal(layout.group.newPage, true);
+});
+
+test('older templates discard unavailable secondary fields and malformed nested groups', () => {
+    const layout = fitLayout({
+        columns: [{ key: 'name', secondaryKey: 'removed' }],
+        group: { key: 'box', then: { key: 'name' } },
+    }, defaultLayout({ columns }));
+    assert.equal(layout.columns[0].secondaryKey, '');
+    assert.deepEqual(layout.group.then, []);
+    assert.equal(arrangeRows([row({ name: 'محمد', box: 'BOX-1' })], layout)[0].title, 'BOX-1');
 });
 
 test('settings the server stored as empty fall back to their defaults', () => {

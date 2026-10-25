@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app_identity.dart';
 import 'field_store.dart';
+import 'reading_assignments.dart';
 import 'search_text.dart';
 
 Color get _background => AppIdentity.background;
@@ -74,24 +75,28 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
   Timer? draftSave;
   Timer? reveal;
   String? boxKey;
+  String? previewBoxId;
   int? selectedId;
   bool keypadOpen = false;
   String view = 'boxes';
   String filter = 'all';
+  String? subArea;
   bool saving = false;
   String? saveError;
   int savedCount = 0;
   String savedBox = '';
   List<String> savedOperationIds = [];
+  String? rosterWeek;
 
   @override
   void initState() {
     super.initState();
+    rosterWeek = widget.store.state['week_start'] as String?;
     WidgetsBinding.instance.addObserver(this);
     final focus = widget.store.subscribers
         .where((subscriber) => subscriber['id'] == widget.focusSubscriberId)
         .firstOrNull;
-    if (focus != null) {
+    if (focus != null && _entryOpen) {
       boxKey = _boxKey(focus);
       selectedId = focus['id'] as int;
       keypadOpen = _editable(focus);
@@ -100,6 +105,47 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
         widget.onFocusChanged?.call(true);
         _revealSelected();
       });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ReadingFlow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextWeek = widget.store.state['week_start'] as String?;
+    final weekChanged = rosterWeek != nextWeek;
+    if (weekChanged) {
+      draftSave?.cancel();
+      drafts
+        ..clear()
+        ..addAll(widget.store.readingDrafts);
+      rosterWeek = nextWeek;
+    }
+    final subscribers = widget.store.subscribers;
+    final areas = {
+      for (final subscriber in subscribers)
+        '${subscriber['sub_area_id'] ?? 'none'}',
+      for (final box
+          in widget.store.state['next_reading']?['boxes'] as List? ?? [])
+        '${box['sub_area_id'] ?? 'none'}',
+    };
+    if (subArea != null && !areas.contains(subArea)) subArea = null;
+    if (weekChanged ||
+        (boxKey != null && _inBox(boxKey!).isEmpty) ||
+        (previewBoxId != null && _previewBox == null)) {
+      final wasFocused = view != 'boxes';
+      boxKey = null;
+      previewBoxId = null;
+      selectedId = null;
+      keypadOpen = false;
+      view = 'boxes';
+      if (wasFocused)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onFocusChanged?.call(false);
+        });
+    } else if (!_entryOpen ||
+        !subscribers.any((subscriber) => subscriber['id'] == selectedId)) {
+      selectedId = null;
+      keypadOpen = false;
     }
   }
 
@@ -126,12 +172,15 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
   void _persistDrafts() {
     draftSave?.cancel();
     unawaited(widget.store
-        .saveReadingDrafts(Map.of(drafts))
+        .saveReadingDrafts(Map.of(drafts), weekStart: rosterWeek)
         .catchError((Object _) {}));
   }
 
   void _setView(String next) {
-    setState(() => view = next);
+    setState(() {
+      view = next;
+      if (next == 'boxes') previewBoxId = null;
+    });
     widget.onFocusChanged?.call(next != 'boxes');
   }
 
@@ -166,7 +215,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
   bool _done(Map<String, dynamic> subscriber) =>
       subscriber['reading_status'] != null || _queued(subscriber) != null;
 
-  bool get _entryOpen => widget.store.state['can_record_readings_now'] == true;
+  bool get _entryOpen => readingEntryIsOpen(widget.store.state, DateTime.now());
 
   bool _editable(Map<String, dynamic> subscriber) =>
       _entryOpen && !_done(subscriber);
@@ -195,6 +244,14 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
 
   _Verdict? _verdict(Map<String, dynamic> subscriber, double? value) {
     if (value == null) return null;
+    final input = drafts[subscriber['id']] ?? '';
+    if (input.contains('.') && input.split('.').last.length > 2) {
+      return (
+        text: 'القراءة تقبل منزلتين عشريتين كحد أقصى.',
+        color: _bad,
+        icon: 'err'
+      );
+    }
     final previous = _previous(subscriber);
     if (value < previous) {
       return (
@@ -230,6 +287,8 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
 
   bool _ready(Map<String, dynamic> subscriber) {
     if (!_editable(subscriber)) return false;
+    final input = drafts[subscriber['id']] ?? '';
+    if (input.contains('.') && input.split('.').last.length > 2) return false;
     final value = double.tryParse(drafts[subscriber['id']] ?? '');
     return value != null && value >= _previous(subscriber);
   }
@@ -317,6 +376,15 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
 
   Future<void> _askToReenter(
       Map<String, dynamic> reading, Map<String, dynamic> subscriber) async {
+    if (!_entryOpen || reading['upload_uncertain'] == true) {
+      showAppToast(
+          context,
+          reading['upload_uncertain'] == true
+              ? 'نتيجة الرفع غير مؤكدة. أعد رفع نفس القراءة أولًا لتجنب التكرار.'
+              : 'تعديل القراءة متاح يوم القراءة فقط.',
+          icon: 'info');
+      return;
+    }
     final reenter = await showAppSheet<bool>(context,
         title: '${subscriber['full_name']}',
         message: reading['sync_error'] == null
@@ -346,7 +414,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
   }
 
   Future<void> _reenter(Map<String, dynamic> reading) async {
-    if (widget.syncing) {
+    if (widget.syncing || !_entryOpen || reading['upload_uncertain'] == true) {
       showAppToast(context, 'جارٍ الإرسال الآن. أعد المحاولة بعد لحظات.',
           icon: 'clock');
       return;
@@ -420,8 +488,29 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
               'mobile_operation_id': newOperationId(),
               'subscription_id': subscriber['id'],
               'week_start': widget.store.state['week_start'],
-              'current_reading': drafts[subscriber['id']],
+              'current_reading':
+                  drafts[subscriber['id']]?.replaceFirst(RegExp(r'\.$'), ''),
+              'review': {
+                'name': subscriber['full_name'],
+                'account_number': subscriber['account_number'],
+                'meter_box_number': subscriber['meter_box_number'],
+                'meter_box_name': subscriber['meter_box_name'],
+                'sub_area_name': subscriber['sub_area_name'],
+                'previous_reading': subscriber['previous_reading'],
+                if (_verdict(subscriber,
+                            double.tryParse(drafts[subscriber['id']] ?? ''))
+                        ?.color ==
+                    _warning)
+                  'warning': _verdict(subscriber,
+                          double.tryParse(drafts[subscriber['id']] ?? ''))
+                      ?.text,
+              },
               'notes': '',
+              if (subscriber['assignment_id'] != null) ...{
+                'assignment_id': subscriber['assignment_id'],
+                'authorization': subscriber['authorization'],
+                'captured_at': DateTime.now().toUtc().toIso8601String(),
+              },
             })
         .toList();
     draftSave?.cancel();
@@ -459,7 +548,8 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final content = switch (view) {
-      'box' => _boxView(),
+      'box' => _refreshable(_boxView()),
+      'preview' => _refreshable(_previewBoxView()),
       'done' => _doneView(),
       _ => _boxesView(),
     };
@@ -487,7 +577,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 child: const AppNotice(
-                    'لا يوجد اتصال. تُحفظ القراءات على الجهاز وتُرسل تلقائيًا.',
+                    'لا يوجد اتصال. تُحفظ القراءات على الجهاز حتى تراجعها وتؤكد رفعها.',
                     warning: true,
                     icon: 'cloudoff'),
               ),
@@ -548,10 +638,18 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
   Widget _header() {
     final subscribers =
         boxKey == null ? <Map<String, dynamic>>[] : _inBox(boxKey!);
-    final first = subscribers.firstOrNull;
+    final preview = _previewBox;
+    final first = preview == null
+        ? subscribers.firstOrNull
+        : {
+            'meter_box_number': preview['number'],
+            'meter_box_name': preview['name'],
+            'sub_area_name': preview['sub_area_name'],
+            'meter_box_location': preview['location'],
+          };
     final weekStart = widget.store.state['week_start'];
     final weekEnd = widget.store.state['week_end'];
-    final boxView = view == 'box';
+    final boxView = view == 'box' || view == 'preview';
     return AppHeader(
         title: boxView
             ? 'طبلون ${first == null ? '—' : _boxNumber(first)}'
@@ -559,6 +657,8 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
         subtitle: boxView
             ? [
                 '${first?['meter_box_name'] ?? 'الطبلون'}',
+                if (first?['sub_area_name'] != null)
+                  '${first?['sub_area_name']}',
                 if ('${first?['meter_box_location'] ?? ''}'.isNotEmpty)
                   '${first?['meter_box_location']}',
               ].join(' · ')
@@ -579,10 +679,37 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
 
   Widget _boxesView() {
     final groups = _groups();
+    final previews =
+        (widget.store.state['next_reading']?['boxes'] as List? ?? [])
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .where((box) => !groups.containsKey('${box['id']}'))
+            .toList();
     final query = search.text.trim();
+    final areas = <String, String>{
+      for (final box in previews)
+        '${box['sub_area_id'] ?? 'none'}':
+            '${box['sub_area_name'] ?? 'بدون منطقة 2'}',
+      for (final subscriber in widget.store.subscribers)
+        '${subscriber['sub_area_id'] ?? 'none'}':
+            '${subscriber['sub_area_name'] ?? 'بدون منطقة 2'}'
+    };
+    bool inArea(Map<String, dynamic> subscriber) =>
+        subArea == null || '${subscriber['sub_area_id'] ?? 'none'}' == subArea;
     bool complete(List<Map<String, dynamic>> subscribers) =>
         subscribers.where(_done).length == subscribers.length;
+    final matchingPreviews = previews
+        .where((box) =>
+            inArea(box) &&
+            (query.isNotEmpty || filter != 'done') &&
+            matchesSearch(query, [
+              box['number'],
+              box['name'],
+              box['location'],
+              box['sub_area_name']
+            ]))
+        .toList();
     final matchingBoxes = groups.entries.where((entry) {
+      if (!inArea(entry.value.first)) return false;
       if (query.isEmpty && filter == 'remaining' && complete(entry.value)) {
         return false;
       }
@@ -594,10 +721,11 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
         _boxNumber(first),
         first['meter_box_name'],
         first['meter_box_location'],
+        first['sub_area_name'],
       ]);
     }).toList();
     final matchingSubscribers = widget.store.subscribers.where((subscriber) {
-      if (query.isEmpty) return false;
+      if (query.isEmpty || !inArea(subscriber)) return false;
       return matchesSearch(
           query, [subscriber['full_name'], subscriber['account_number']]);
     }).toList();
@@ -607,31 +735,54 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
         .where((entry) => entry.value.any(
             (subscriber) => _editable(subscriber) && _hasDraft(subscriber)))
         .firstOrNull;
-    int countFor(String value) => groups.values
-        .where((subscribers) =>
-            value == 'all' ||
-            (value == 'done' ? complete(subscribers) : !complete(subscribers)))
-        .length;
+    int countFor(String value) =>
+        groups.values
+            .where((subscribers) =>
+                value == 'all' ||
+                (value == 'done'
+                    ? complete(subscribers)
+                    : !complete(subscribers)))
+            .length +
+        (value == 'done' ? 0 : previews.length);
     return _refreshable(ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
         children: [
-          if (query.isEmpty) _progressCard(done, total),
+          if (readingScheduleMessage(widget.store.state, DateTime.now()) !=
+              null)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: AppNotice(
+                    readingScheduleMessage(widget.store.state, DateTime.now())!,
+                    warning: !_entryOpen)),
+          if (query.isEmpty && total > 0) _progressCard(done, total),
           if (query.isEmpty && draftBox != null)
             _resumeCard(draftBox.key, draftBox.value),
           const SizedBox(height: 12),
           AppSearchField(
               key: const ValueKey('reading-box-search'),
               controller: search,
-              hint: 'رقم الطبلون أو اسم المشترك',
+              hint: 'منطقة 2 أو الطبلون أو المشترك',
               onChanged: (_) => setState(() {}),
               onClear: () => setState(search.clear)),
-          AppSection(query.isEmpty ? 'طبلونات منطقتك' : 'نتائج البحث',
+          if (areas.isNotEmpty)
+            Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Wrap(spacing: 6, runSpacing: 6, children: [
+                  AppChip('كل المناطق',
+                      selected: subArea == null,
+                      onTap: () => setState(() => subArea = null)),
+                  for (final area in areas.entries)
+                    AppChip(area.value,
+                        selected: subArea == area.key,
+                        onTap: () => setState(() => subArea = area.key)),
+                ])),
+          AppSection(query.isEmpty ? 'الطبلونات الموزعة إليك' : 'نتائج البحث',
               note: query.isEmpty
                   ? null
-                  : '${matchingBoxes.length + matchingSubscribers.length} نتيجة'),
-          if (query.isEmpty && total > 0)
+                  : '${matchingBoxes.length + matchingSubscribers.length + matchingPreviews.length} نتيجة'),
+          if (query.isEmpty && (total > 0 || previews.isNotEmpty))
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Wrap(spacing: 6, runSpacing: 6, children: [
@@ -646,12 +797,15 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
                       onTap: () => setState(() => filter = value)),
               ]),
             ),
-          if (total == 0)
+          if (total == 0 && previews.isEmpty)
             AppRows(children: const [
-              AppEmpty('down', 'لم تُحمّل الطبلونات بعد',
-                  'اتصل بالخادم لتحميل مشتركي منطقتك.')
+              AppEmpty('down', 'لا توجد طبلونات موزعة إليك حاليًا',
+                  'تظهر الطبلونات بعد اعتماد توزيعها. اسحب للتحديث.')
             ]),
-          if (total > 0 && matchingBoxes.isEmpty && matchingSubscribers.isEmpty)
+          if ((total > 0 || previews.isNotEmpty) &&
+              matchingBoxes.isEmpty &&
+              matchingSubscribers.isEmpty &&
+              matchingPreviews.isEmpty)
             AppRows(children: [
               query.isEmpty
                   ? AppEmpty(
@@ -668,17 +822,23 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
                       'لا توجد نتائج لـ «${search.text.trim()}»',
                       'جرّب رقم الطبلون أو جزءًا من الاسم.'),
             ]),
-          if (matchingBoxes.isNotEmpty || matchingSubscribers.isNotEmpty)
+          if (matchingBoxes.isNotEmpty ||
+              matchingSubscribers.isNotEmpty ||
+              matchingPreviews.isNotEmpty)
             AppRows(children: [
+              for (final box in matchingPreviews) _previewBoxRow(box),
               for (final entry in matchingBoxes)
                 _boxRow(entry.key, entry.value),
               for (final subscriber in matchingSubscribers)
                 _subscriberResult(subscriber),
             ]),
-          if (widget.store.state['can_record_readings_now'] == false)
-            const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: AppNotice('إدخال قراءات هذا الأسبوع غير متاح حاليًا.',
+          if (!_entryOpen &&
+              readingScheduleMessage(widget.store.state, DateTime.now()) ==
+                  null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: const AppNotice(
+                  'إدخال قراءات هذا الأسبوع غير متاح حاليًا.',
                   warning: true),
             ),
         ]));
@@ -753,6 +913,57 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
     );
   }
 
+  Widget _previewBoxRow(Map<String, dynamic> box) => AppRow(
+      key: ValueKey('preview-box-${box['id']}'),
+      leading: _boxBadge('${box['number']}', complete: false),
+      title: AppRowTitle('${box['name']} (${box['number']})'),
+      subtitle: AppRowNote([
+        '${box['sub_area_name'] ?? 'بدون منطقة 2'}',
+        '${box['subscribers']} مشترك',
+      ].join(' · ')),
+      trailing: const AppTag('عرض فقط', AppTone.muted),
+      onTap: () {
+        previewBoxId = '${box['id']}';
+        _setView('preview');
+      });
+
+  Map<String, dynamic>? get _previewBox =>
+      (widget.store.state['next_reading']?['boxes'] as List? ?? [])
+          .where((box) => '${box['id']}' == previewBoxId)
+          .map((box) => Map<String, dynamic>.from(box as Map))
+          .firstOrNull;
+
+  Widget _previewBoxView() {
+    final subscriptions = _previewBox?['subscriptions'] as List? ?? [];
+    return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          AppNotice(readingScheduleMessage(
+                  widget.store.state, DateTime.now()) ??
+              'المشتركون للعرض فقط. الإدخال متاح يوم القراءة بعد تحديث الطبلونات.'),
+          const SizedBox(height: 12),
+          AppRows(children: [
+            if (subscriptions.isEmpty)
+              const AppEmpty('bolt', 'بيانات المشتركين غير متاحة حاليًا',
+                  'اتصل بالإنترنت واسحب للتحديث.'),
+            for (final subscription in subscriptions)
+              AppRow(
+                key: ValueKey('preview-subscriber-${subscription['id']}'),
+                title: AppRowTitle('${subscription['name']}'),
+                subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppRowNote('حساب ${subscription['account_number']}'),
+                      if (subscription['phone'] != null)
+                        AppRowNote('${subscription['phone']}'),
+                    ]),
+                trailing: const AppTag('عرض فقط', AppTone.muted),
+              ),
+          ]),
+        ]);
+  }
+
   Widget _boxRow(String key, List<Map<String, dynamic>> subscribers) {
     final first = subscribers.first;
     final done = subscribers.where(_done).length;
@@ -770,7 +981,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
           TextSpan(children: [
             TextSpan(text: '${first['meter_box_name'] ?? 'طبلون $number'} '),
             TextSpan(
-                text: number,
+                text: '($number)',
                 style: _number(12.5, color: _faint)
                     .copyWith(fontWeight: FontWeight.w600)),
           ]),
@@ -780,9 +991,11 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
       subtitle: Row(children: [
         Flexible(
           child: Text(
-              location.isEmpty
-                  ? '${subscribers.length} مشترك'
-                  : '$location · ${subscribers.length} مشترك',
+              [
+                if (first['sub_area_name'] != null) '${first['sub_area_name']}',
+                if (location.isNotEmpty) location,
+                '${subscribers.length} مشترك'
+              ].join(' · '),
               style: _body(12.5, color: _faint),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
@@ -793,7 +1006,9 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
         ],
       ]),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (complete)
+        if (!_entryOpen)
+          const AppTag('عرض فقط', AppTone.muted)
+        else if (complete)
           const AppTag('مكتمل', AppTone.good)
         else
           SizedBox(
@@ -865,6 +1080,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
     return switch (subscriber['reading_status']) {
       'approved' => const AppTag('معتمدة', AppTone.good),
       'pending' => const AppTag('قيد المراجعة', AppTone.warning),
+      'needs_review' => const AppTag('تحتاج مراجعة', AppTone.warning),
       _ => _hasDraft(subscriber)
           ? const AppTag('مسودة', AppTone.brand)
           : const AppTag('لم تُقرأ', AppTone.muted),
@@ -875,15 +1091,19 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
     final subscribers =
         boxKey == null ? <Map<String, dynamic>>[] : _inBox(boxKey!);
     if (subscribers.isEmpty) {
-      return ListView(padding: const EdgeInsets.all(16), children: [
-        AppRows(children: const [
-          AppEmpty('bolt', 'الطبلون غير متاح', 'ارجع إلى قائمة الطبلونات.')
-        ])
-      ]);
+      return ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            AppRows(children: const [
+              AppEmpty('bolt', 'الطبلون غير متاح', 'ارجع إلى قائمة الطبلونات.')
+            ])
+          ]);
     }
     final done = subscribers.where(_done).length;
     final ready = subscribers.where(_ready).length;
     return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
         children: [
           AppPanel(
@@ -929,7 +1149,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
             AppNotice(saveError!, error: true)
           else
             const AppNotice(
-                'اضغط على أي مشترك لإدخال قراءته أو تعديلها. بعد الحفظ تصل القراءات إلى النظام بحالة «قيد المراجعة».'),
+                'اضغط على المشترك لإدخال قراءته. بعد الحفظ راجع القراءات من صفحة الإرسال، ثم أكّد رفعها.'),
         ]);
   }
 
@@ -1148,10 +1368,10 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
     final label = count == 0
         ? 'اكتب القراءات أولًا'
         : count == 1
-            ? 'حفظ قراءة واحدة وإرسالها للمراجعة'
+            ? 'حفظ قراءة واحدة على الجهاز'
             : count == 2
-                ? 'حفظ قراءتين وإرسالهما للمراجعة'
-                : 'حفظ $count قراءات وإرسالها للمراجعة';
+                ? 'حفظ قراءتين على الجهاز'
+                : 'حفظ $count قراءات على الجهاز';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -1180,7 +1400,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
     final description = rejected
         ? 'حُفظت القراءات على الجهاز. تحقّق من حالة الإرسال لمعالجة القراءة المرفوضة.'
         : pending.isNotEmpty
-            ? 'حُفظت على الجهاز، وستُرسل إلى النظام الأساسي فور عودة الاتصال. يمكنك تعديلها قبل إرسالها.'
+            ? 'حُفظت على الجهاز. راجع القراءات واختر ما تريد رفعه، ثم أكّد الرفع أثناء الاتصال بالإنترنت.'
             : 'وصلت إلى النظام الأساسي بحالة «قيد المراجعة» بانتظار المدقق.';
     final next = _nextUnfinishedBox();
     return AppSuccess(
@@ -1199,6 +1419,11 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
         ),
       ],
       actions: [
+        if (pending.isNotEmpty)
+          AppAction(
+              label: 'مراجعة القراءات ورفعها',
+              icon: 'cloud',
+              onPressed: widget.onSync),
         if (next != null)
           AppAction(
               label: 'الطبلون التالي: ${_boxNumber(next.value.first)}',

@@ -79,6 +79,7 @@ class SplitPaymentController extends Controller
             'total' => SubscriptionTransaction::formatAmount($split->total_amount),
             'reference' => $split->reference_number,
             'bankName' => $split->bank_name,
+            'bankReceivedOn' => $split->bank_received_on?->toDateString(),
             'senderName' => $split->sender_name,
             'parts' => $payments->map(fn (SubscriptionTransaction $payment): array => [
                 'subscriptionName' => $payment->subscription->displayName(),
@@ -120,6 +121,7 @@ class SplitPaymentController extends Controller
             // Every part still stands and together they are what was transferred.
             'isComplete' => (int) round((float) $standingTotal * 100) === (int) round((float) $splitPayment->total_amount * 100),
             'bankName' => $splitPayment->bank_name,
+            'bankReceivedOn' => $splitPayment->bank_received_on?->toDateString(),
             'senderName' => $splitPayment->sender_name,
             'referenceNumber' => $splitPayment->reference_number,
             'recordedByName' => $splitPayment->recordedBy?->name,

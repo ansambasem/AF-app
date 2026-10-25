@@ -1,3 +1,4 @@
+import { BankReceivedDateField } from '@/Components/BankReceivedDate';
 import { useEffect, useState } from 'react';
 import { useForm, useHttp } from '@inertiajs/react';
 import FormModal from '@/Components/FormModal';
@@ -11,6 +12,7 @@ import { formatMoney } from '@/lib/format';
 export function SplitPaymentEditor({ split, onClose, transferBanks = [], senderBanks = [] }) {
     const form = useForm({
         bank_name: split.bank_name ?? '',
+        bank_received_on: split.bank_received_on ?? '',
         sender_bank_name: split.sender_bank_name ?? '',
         sender_name: split.sender_name ?? '',
         reference_number: split.reference_number ?? '',
@@ -46,6 +48,7 @@ export function SplitPaymentEditor({ split, onClose, transferBanks = [], senderB
                 <p className="text-sm text-gray-600">حوالة واحدة موزّعة على <b className="text-gray-900">{split.parts.length}</b> مشتركين</p>
             </div>
             <p className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm leading-7 text-gray-700">يظهر التعديل في جميع حصص الحوالة. تبقى مبالغ المشتركين وأرصدتهم كما هي، دون إرجاع الحوالة أو تسجيل دفعة جديدة.</p>
+            <BankReceivedDateField value={form.data.bank_received_on} onChange={(value) => form.setData('bank_received_on', value)} error={form.errors.bank_received_on} />
             <div className="grid gap-4 sm:grid-cols-2">
                 {[['sender_name', 'اسم المرسل'], ['reference_number', 'الرقم المرجعي']].map(([field, label]) => (
                     <div key={field}>

@@ -31,6 +31,7 @@ class UpdateReadingScheduleRequest extends FormRequest
         return [
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'reading_day' => ['required', 'integer', 'between:0,6'],
+            'assignment_lead_days' => ['sometimes', 'integer', 'between:0,6'],
             'open_days' => ['required', 'array', 'min:1'],
             'open_days.*' => ['integer', 'between:0,6', 'distinct'],
             'opens_at' => ['required_with:closes_at', 'filled', 'date_format:H:i'],

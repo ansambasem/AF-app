@@ -3,7 +3,6 @@ import { router, useHttp } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
 import { formatMoney } from '@/lib/format';
 import { balanceInText, balanceTone } from '@/lib/balance';
-import { pageWindowOpen } from '@/Components/TopBar/shortcuts';
 
 const SEARCH_DELAY = 200;
 
@@ -45,23 +44,6 @@ export default function CommandPalette({ open, onOpenChange, sections, commands,
     const http = useHttp();
     const httpRef = useRef(http);
     httpRef.current = http;
-
-    useEffect(() => {
-        function onKeyDown(event) {
-            if ((event.ctrlKey || event.metaKey) && !event.altKey && (event.code === 'KeyK' || event.key.toLowerCase() === 'k')) {
-                // Over a page's own window the search waits until that window is closed.
-                if (!open && pageWindowOpen()) {
-                    return;
-                }
-
-                event.preventDefault();
-                onOpenChange(!open);
-            }
-        }
-
-        document.addEventListener('keydown', onKeyDown);
-        return () => document.removeEventListener('keydown', onKeyDown);
-    }, [open, onOpenChange]);
 
     useEffect(() => {
         if (!open) {

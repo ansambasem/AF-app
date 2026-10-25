@@ -22,6 +22,9 @@ class CorrectSubscriptionTransactionRequest extends FormRequest
     {
         if ($this->line()->isPayment()) {
             $this->merge(['exchange_rate' => CurrencyRate::forPayment($this->input('currency'))]);
+            if (! $this->exists('bank_received_on')) {
+                $this->merge(['bank_received_on' => $this->line()->bank_received_on?->toDateString()]);
+            }
         }
     }
 

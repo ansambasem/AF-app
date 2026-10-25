@@ -25,6 +25,9 @@ class SecurityHeaders
         $nonce = $mode === 'off' ? null : Vite::useCspNonce();
 
         $response = $next($request);
+        if ($request->is('api/mobile/*')) {
+            $response->headers->set('Cache-Control', 'no-store, private');
+        }
 
         header_remove('X-Powered-By');
         $response->headers->remove('X-Powered-By');

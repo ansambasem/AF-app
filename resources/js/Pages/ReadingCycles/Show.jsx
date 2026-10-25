@@ -8,48 +8,38 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton, { secondaryButtonClass } from '@/Components/SecondaryButton';
 import InputError from '@/Components/InputError';
 import { formatNumber } from '@/lib/format';
-import { STAGES, boardColumns, boardCounters, boxMatches, columnTotals, draggedBoxIds, movePayload } from '@/lib/readingBoard';
+import { STAGES, assignmentMatches, boardColumns, boardCounters, boxMatches, columnTotals, distributionAreas, distributionBoxOptions, movePayload, toggleBoxSelection } from '@/lib/readingBoard';
 import PageHeader from '@/Components/PageHeader';
 import DateInput from '@/Components/DateInput';
+import DistributionTable from './DistributionTable';
+import DistributionAreas from './DistributionAreas';
+import SearchableSelect from '@/Components/SearchableSelect';
+import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
+import PrintButton from '@/Components/PrintButton';
 
 
-function Counter({ label, value, tone = 'text-gray-900' }) {
+function DistributionSummary({ boxes }) {
+    const counters = boardCounters(boxes);
+    const read = columnTotals(boxes).read;
     return (
-        <div className="rounded-card border border-gray-100 bg-surface px-4 py-3 shadow-card">
-            <p className="text-xs font-semibold text-gray-500">{label}</p>
-            <p className={`mt-1 font-display text-2xl font-bold ${tone}`}>{value}</p>
-        </div>
-    );
-}
-
-/** One meter box on the board, picked with its box or dragged to another column. */
-function BoxCard({ box, selected, canMove, onToggle, onDragStart }) {
-    return (
-        <li
-            draggable={canMove}
-            onDragStart={(event) => onDragStart(event, box)}
-            className={`rounded-control border bg-surface px-3 py-2 text-sm shadow-sm transition ${selected ? 'border-brand-500 ring-2 ring-brand-500/20' : 'border-gray-100'} ${canMove ? 'cursor-grab active:cursor-grabbing' : ''}`}
-        >
-            <div className="flex items-start gap-2">
-                {canMove && <input type="checkbox" checked={selected} onChange={() => onToggle(box.id)} aria-label={`تحديد الطبلون ${box.number}`} className="mt-0.5 rounded border-gray-300 text-brand-600" />}
-                <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-1.5">
-                        <b className="font-display text-gray-900" dir="ltr">{box.number}</b>
-                        <span className="truncate text-gray-600">{box.name}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-500">
-                        {box.subAreaName ?? '—'} · {formatNumber(box.subscribers)} مشترك
-                        {box.read > 0 && <> · قُرئ {formatNumber(box.read)}</>}
-                    </p>
-                    {box.status && (
-                        <p className="mt-1 flex flex-wrap items-center gap-1">
-                            <StatusPill tone={box.status === 'approved' ? 'green' : 'amber'} label={box.status === 'approved' ? 'معتمد' : 'مسودة'} />
-                            {box.downloaded && <StatusPill tone={box.downloadedCurrent ? 'blue' : 'gray'} label={box.downloadedCurrent ? 'نزّله القارئ' : 'نُزّلت نسخة أقدم'} />}
-                        </p>
-                    )}
-                </div>
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_repeat(3,minmax(0,1fr))]">
+            <div className="relative overflow-hidden rounded-card bg-graphite-gradient p-5 text-white shadow-card">
+                <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-spectrum" />
+                <p className="text-sm text-white/70">الطبلونات ضمن نتائج البحث والتصفية</p>
+                <p className="mt-1 font-display text-4xl font-bold">{formatNumber(boxes.length)} <span className="text-sm font-semibold text-white/70">طبلون</span></p>
+                <div className="mt-4 flex items-center gap-2 border-t border-white/15 pt-3 text-xs text-white/70"><Icon name="users" className="h-4 w-4" />المشتركون <b className="font-display text-sm text-white">{formatNumber(counters.subscribers)}</b></div>
             </div>
-        </li>
+            {[
+                { icon: 'users', label: 'موزعة على القرّاء', value: counters.mobile, hint: `قُرئ ${formatNumber(read)} من ${formatNumber(counters.subscribers)} مشترك`, tone: 'text-gray-900' },
+                { icon: 'table', label: 'بانتظار التوزيع', value: counters.available, hint: 'اختر قارئًا أو خصصها للكشوف الورقية', tone: 'text-amber-700 dark:text-amber-400' },
+                { icon: 'printer', label: 'للكشوف الورقية', value: counters.paper, hint: 'مخصصة للقراءة دون هاتف', tone: 'text-gray-900' },
+            ].map((stat) => <div key={stat.label} className="rounded-card border border-gray-100 bg-surface p-5 shadow-card">
+                <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-control bg-gray-50 text-gray-600"><Icon name={stat.icon} className="h-5 w-5" /></span>
+                <p className="text-xs font-semibold text-gray-500">{stat.label}</p>
+                <p className={`mt-1 font-display text-2xl font-bold ${stat.tone}`}>{formatNumber(stat.value)}</p>
+                <p className="mt-2 text-xs leading-5 text-gray-500">{stat.hint}</p>
+            </div>)}
+        </div>
     );
 }
 
@@ -115,27 +105,41 @@ function ReadingDayModal({ cycle, onClose }) {
     );
 }
 
-/**
- * A reading cycle's allocation board: the available boxes, one column per
- * field reader and one for the paper sheets. Boxes move by dragging them —
- * every chosen box at once — or with "assign to", which works on touch
- * screens too. Each move is checked on the server against the version
- * shown, so two people moving the same box never both win.
- */
-export default function Show({ cycle, boards, readers, subAreaOptions, paperSheets, reviewCount, abilities }) {
+/** Weekly allocations grouped by area, with standing and one-week changes. */
+export default function Show({ cycle, boards, readers, paperSheets, reviewCount, abilities, showBranchSelector = false }) {
     const { flash, props } = usePage();
     const errors = props.errors ?? {};
     const [selected, setSelected] = useState(() => new Set());
     const [search, setSearch] = useState('');
-    const [subAreaId, setSubAreaId] = useState('');
+    const [subAreaIds, setSubAreaIds] = useState([]);
     const [target, setTarget] = useState('');
-    const [dragOver, setDragOver] = useState(null);
     const [result, setResult] = useState(null);
     const [lastMove, setLastMove] = useState(null);
     const [editingDay, setEditingDay] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [recurring, setRecurring] = useState(true);
+    const [assignmentFilter, setAssignmentFilter] = useState('');
+    const [boxId, setBoxId] = useState('');
+    const [perPage, setPerPage] = useState(25);
+    const [page, setPage] = useState(1);
+    const boxOptions = useMemo(() => distributionBoxOptions(boards, subAreaIds, assignmentFilter), [boards, subAreaIds, assignmentFilter]);
+    const visibleBoxes = boards.filter((box) => boxMatches(box, search, subAreaIds, boxId) && assignmentMatches(box, assignmentFilter));
+    const remainingBoxes = visibleBoxes.filter((box) => box.column === 'available');
+    const selectedBoxes = boards.filter((box) => selected.has(box.id));
+    const selectedTotals = columnTotals(selectedBoxes);
+    const visibleIds = new Set(visibleBoxes.map((box) => box.id));
+    const hiddenSelected = selectedBoxes.filter((box) => !visibleIds.has(box.id)).length;
+    const allVisibleSelected = visibleBoxes.length > 0 && visibleBoxes.every((box) => selected.has(box.id));
+    const areas = useMemo(() => distributionAreas(boards, assignmentFilter), [boards, assignmentFilter]);
     const columns = useMemo(() => boardColumns(readers), [readers]);
     const counters = boardCounters(boards);
+    const totalPages = Math.max(1, Math.ceil(visibleBoxes.length / perPage));
+    const currentPage = Math.min(page, totalPages);
+    const pageBoxes = visibleBoxes.slice((currentPage - 1) * perPage, currentPage * perPage);
+    const targetOptions = columns.map((column) => {
+        const totals = columnTotals(boards.filter((box) => box.column === column.key));
+        return { value: column.key, label: column.key === 'available' ? 'إلغاء التخصيص' : column.label, hint: `${formatNumber(totals.boxes)} طبلون · ${formatNumber(totals.subscribers)} مشترك` };
+    });
     const stage = STAGES[cycle.stage];
 
     useEffect(() => {
@@ -143,6 +147,13 @@ export default function Show({ cycle, boards, readers, subAreaOptions, paperShee
             setResult(flash.allocationResult);
         }
     }, [flash]);
+
+    useEffect(() => {
+        if (boxId && !boxOptions.some((option) => option.value === boxId)) {
+            setBoxId('');
+            setPage(1);
+        }
+    }, [boxId, boxOptions]);
 
     function toggle(id) {
         setSelected((current) => {
@@ -153,26 +164,22 @@ export default function Show({ cycle, boards, readers, subAreaOptions, paperShee
     }
 
     function toggleColumn(boxes) {
-        setSelected((current) => {
-            const next = new Set(current);
-            const everyChosen = boxes.length > 0 && boxes.every((box) => next.has(box.id));
-            boxes.forEach((box) => (everyChosen ? next.delete(box.id) : next.add(box.id)));
-            return next;
-        });
+        setSelected((current) => toggleBoxSelection(current, boxes));
     }
 
-    function move(boxIds, column, confirmDownloaded = false) {
-        const ids = boxIds.filter((id) => boards.find((box) => box.id === id)?.column !== column.key || confirmDownloaded);
+    function move(boxIds, column, confirmDownloaded = false, repeat = recurring) {
+        const ids = boxIds;
 
         if (ids.length === 0) {
             return;
         }
 
         setBusy(true);
-        setLastMove({ boxIds: ids, column });
-        router.post(`/reading-cycles/${cycle.id}/assignments`, movePayload(ids, column, boards, confirmDownloaded), {
+        const saveRecurring = abilities.approve && repeat;
+        setLastMove({ boxIds: ids, column, recurring: saveRecurring });
+        router.post(`/reading-cycles/${cycle.id}/assignments`, { ...movePayload(ids, column, boards, confirmDownloaded), recurring: saveRecurring, publish: abilities.approve }, {
             preserveScroll: true,
-            onSuccess: () => setSelected(new Set()),
+            onSuccess: () => setSelected(column.key === 'paper' ? new Set(ids) : new Set()),
             onFinish: () => setBusy(false),
         });
     }
@@ -181,32 +188,19 @@ export default function Show({ cycle, boards, readers, subAreaOptions, paperShee
         router.post(`/reading-cycles/${cycle.id}/assignments/approve`, data, { preserveScroll: true });
     }
 
-    function onDragStart(event, box) {
-        event.dataTransfer.setData('text/plain', JSON.stringify(draggedBoxIds(box.id, selected)));
-        event.dataTransfer.effectAllowed = 'move';
-    }
-
-    function onDrop(event, column) {
-        event.preventDefault();
-        setDragOver(null);
-
-        try {
-            move(JSON.parse(event.dataTransfer.getData('text/plain')), column);
-        } catch {
-            // Something other than boxes was dropped.
-        }
-    }
-
     function assignSelected() {
         const column = columns.find((candidate) => candidate.key === target);
 
         if (column) {
-            move([...selected], column);
+            move(selectedBoxes.map((box) => box.id), column);
         }
     }
 
     function createSheet() {
-        const ids = [...selected].filter((id) => boards.find((box) => box.id === id)?.column === 'paper');
+        const ids = [...selected].filter((id) => {
+            const box = boards.find((candidate) => candidate.id === id);
+            return box?.column === 'paper' && box.status === 'approved';
+        });
         router.post(`/reading-cycles/${cycle.id}/paper-sheets`, { box_ids: ids });
     }
 
@@ -221,12 +215,13 @@ export default function Show({ cycle, boards, readers, subAreaOptions, paperShee
             header={
                 <>
                     <PageHeader
-                        eyebrow={<><Link href="/reading-cycles" className="hover:underline">توزيع القراءات</Link> / {cycle.branchName}</>}
+                        eyebrow={showBranchSelector ? <><Link href="/reading-cycles" className="hover:underline">الفروع</Link> / {cycle.branchName}</> : 'توزيع القراءة القادمة'}
                         title={<>قراءة {cycle.readingDayName} <span dir="ltr" className="font-display">{cycle.readingDate}</span></>}
                         titleAddon={<StatusPill tone={stage.tone} label={stage.label} />}
-                        meta={<>أسبوع القراءة <span dir="ltr">{cycle.weekStart}</span> — <span dir="ltr">{cycle.weekEnd}</span>{cycle.readingDate !== cycle.weekEnd && ' · يوم القراءة مؤجل لهذه الدورة'}</>}
+                        meta={<>أسبوع القراءة <span dir="ltr">{cycle.weekStart}</span> — <span dir="ltr">{cycle.weekEnd}</span> · إتاحة المهام <span dir="ltr">{cycle.availableOn}</span>{cycle.readingDate !== cycle.weekEnd && ' · يوم القراءة مؤجل لهذه الدورة'}</>}
                     />
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <PrintButton title={`توزيع القراءات — ${cycle.branchName}`} base="/reading-cycles/print" params={{ cycle: cycle.id, search, area_ids: subAreaIds, box_id: boxId, assignment: assignmentFilter, print_page: currentPage, per_page: perPage }} selectedIds={[...selected]} selectionPage="/reading-cycles/print" />
                         {abilities.review && (
                             <Link href={`/reading-cycles/${cycle.id}/submissions`} className={secondaryButtonClass}>
                                 <Icon name="list" className="h-4 w-4" />
@@ -238,18 +233,6 @@ export default function Show({ cycle, boards, readers, subAreaOptions, paperShee
                             <button type="button" onClick={() => setEditingDay(true)} className={secondaryButtonClass}>
                                 <Icon name="calendar" className="h-4 w-4" />
                                 يوم القراءة
-                            </button>
-                        )}
-                        {abilities.manage && cycle.hasPrevious && (
-                            <button type="button" onClick={() => router.post(`/reading-cycles/${cycle.id}/copy-previous`, {}, { preserveScroll: true })} title={cycle.previousLabel} className={secondaryButtonClass}>
-                                <Icon name="repeat" className="h-4 w-4" />
-                                نسخ توزيع الدورة السابقة
-                            </button>
-                        )}
-                        {abilities.manageCycle && (
-                            <button type="button" onClick={() => router.patch(`/reading-cycles/${cycle.id}`, { closed: !cycle.isClosed }, { preserveScroll: true })} className={secondaryButtonClass}>
-                                <Icon name={cycle.isClosed ? 'unlock' : 'lock'} className="h-4 w-4" />
-                                {cycle.isClosed ? 'إعادة فتح الدورة' : 'إغلاق الدورة'}
                             </button>
                         )}
                         {abilities.approve && counters.draft > 0 && (
@@ -264,106 +247,86 @@ export default function Show({ cycle, boards, readers, subAreaOptions, paperShee
         >
             <Head title={`توزيع القراءات — ${cycle.readingDate}`} />
 
-            {result && <AllocationReport result={result} onClose={() => setResult(null)} onConfirmDownloaded={abilities.manage && lastMove ? () => { setResult(null); move(lastMove.boxIds, lastMove.column, true); } : null} />}
+            {result && <AllocationReport result={result} onClose={() => setResult(null)} onConfirmDownloaded={abilities.manage && lastMove ? () => { setResult(null); move(lastMove.boxIds, lastMove.column, true, lastMove.recurring); } : null} />}
             {(errors.box_ids || errors.approve || errors.copy) && !result && <p className="mb-4 rounded-control bg-red-500/10 px-4 py-2 text-sm text-red-700">{errors.box_ids ?? errors.approve ?? errors.copy}</p>}
 
-            <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <Counter label="متاحة غير موزّعة" value={formatNumber(counters.available)} tone="text-amber-700 dark:text-amber-400" />
-                <Counter label="للقرّاء الميدانيين" value={formatNumber(counters.mobile)} />
-                <Counter label="للكشوف الورقية" value={formatNumber(counters.paper)} />
-                <Counter label="معتمدة" value={formatNumber(counters.approved)} tone="text-emerald-700 dark:text-emerald-400" />
-                <Counter label="مسودة" value={formatNumber(counters.draft)} />
-                <Counter label="المشتركون" value={formatNumber(counters.subscribers)} />
-            </div>
+            <DistributionSummary boxes={visibleBoxes} />
 
-            <div className="mb-4 flex flex-wrap items-end gap-3 rounded-card border border-gray-100 bg-surface p-4 shadow-card">
-                <div className="min-w-[12rem] flex-1">
-                    <label htmlFor="board-search" className="mb-1 block text-xs font-semibold text-gray-600">بحث بالرقم أو الاسم</label>
-                    <input id="board-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} className="block w-full text-sm" />
-                </div>
-                <div>
-                    <label htmlFor="board-subarea" className="mb-1 block text-xs font-semibold text-gray-600">منطقة 2</label>
-                    <select id="board-subarea" value={subAreaId} onChange={(event) => setSubAreaId(event.target.value)} className="block text-sm">
-                        <option value="">كل المناطق</option>
-                        {subAreaOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                </div>
-                {abilities.manage && (
-                    <div className="flex flex-wrap items-end gap-2">
-                        <div>
-                            <label htmlFor="board-target" className="mb-1 block text-xs font-semibold text-gray-600">تخصيص المحدد ({formatNumber(selected.size)}) إلى</label>
-                            <select id="board-target" value={target} onChange={(event) => setTarget(event.target.value)} className="block text-sm">
-                                <option value="">اختر…</option>
-                                {columns.map((column) => <option key={column.key} value={column.key}>{column.key === 'available' ? 'إعادة إلى المتاحة' : column.label}</option>)}
-                            </select>
-                        </div>
-                        <PrimaryButton onClick={assignSelected} disabled={busy || selected.size === 0 || !target}>تخصيص</PrimaryButton>
-                        {selected.size > 0 && <SecondaryButton onClick={() => setSelected(new Set())}>إلغاء التحديد</SecondaryButton>}
-                    </div>
-                )}
-            </div>
-
-            <div className="flex gap-4 overflow-x-auto pb-4" aria-busy={busy}>
-                {columns.map((column) => {
-                    const all = boards.filter((box) => box.column === column.key);
-                    const shown = all.filter((box) => boxMatches(box, search, subAreaId));
-                    const totals = columnTotals(all);
-
-                    return (
-                        <section
-                            key={column.key}
-                            aria-label={column.label}
-                            onDragOver={(event) => {
-                                if (abilities.manage) {
-                                    event.preventDefault();
-                                    setDragOver(column.key);
-                                }
-                            }}
-                            onDragLeave={() => setDragOver((current) => (current === column.key ? null : current))}
-                            onDrop={(event) => abilities.manage && onDrop(event, column)}
-                            className={`flex w-72 shrink-0 flex-col rounded-card border bg-gray-50 ${dragOver === column.key ? 'border-brand-500 ring-2 ring-brand-500/30' : 'border-gray-100'}`}
-                        >
-                            <header className="border-b border-gray-100 p-3">
-                                <div className="flex items-center justify-between gap-2">
-                                    <h3 className="flex items-center gap-1.5 font-bold text-gray-900">
-                                        <Icon name={column.key === 'available' ? 'table' : column.key === 'paper' ? 'printer' : 'user'} className="h-4 w-4 text-gray-500" />
-                                        {column.label}
-                                    </h3>
-                                    {abilities.manage && shown.length > 0 && (
-                                        <button type="button" onClick={() => toggleColumn(shown)} className="text-xs font-semibold text-brand-600 hover:underline">تحديد الكل</button>
-                                    )}
+            <div className="grid items-start gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]">
+                <DistributionAreas areas={areas} chosen={subAreaIds} onChange={(ids) => { setSubAreaIds(ids); setPage(1); }} disabled={busy}
+                    filter={assignmentFilter} counts={{ all: boards.length, assigned: counters.mobile + counters.paper, available: counters.available }} onFilterChange={(value) => { setAssignmentFilter(value); setPage(1); }} />
+                <div className="flex min-w-0 flex-col gap-4">
+                    <div>
+                        <DataTableToolbar search={search} onSearchChange={(value) => { setSearch(value); setPage(1); }} placeholder="ابحث باسم المنطقة أو الطبلون أو رقمه..." perPage={perPage} onPerPageChange={(size) => { setPerPage(size); setPage(1); }} total={visibleBoxes.length} printable={false}
+                            filterMenu={<div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3">
+                                <div className="grid w-full min-w-0 flex-1 gap-3 sm:grid-cols-2">
+                                    <div className="min-w-0">
+                                        <label htmlFor="assignment-filter" className="mb-1.5 block text-xs font-semibold text-gray-600">عرض التوزيع</label>
+                                        <select id="assignment-filter" value={assignmentFilter} disabled={busy} onChange={(event) => { setAssignmentFilter(event.target.value); setPage(1); }} className="block w-full text-sm">
+                                            <option value="">كل حالات التوزيع</option>
+                                            <option value="assigned">كل الطبلونات الموزعة</option>
+                                            {columns.map((column) => <option key={column.key} value={column.key}>{column.key === 'available' ? 'غير موزع' : column.label}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <label htmlFor="distribution-box-filter" className="mb-1.5 block text-xs font-semibold text-gray-600">الطبلون</label>
+                                        <SearchableSelect id="distribution-box-filter" value={boxId} options={boxOptions} disabled={busy} placeholder="كل الطبلونات" searchPlaceholder="ابحث باسم الطبلون أو رقمه..." emptyLabel="لا توجد طبلونات ضمن التصفية الحالية" onChange={(value) => { setBoxId(value); setPage(1); }} />
+                                    </div>
+                                    {(search || subAreaIds.length > 0 || assignmentFilter || boxId) && <button type="button" disabled={busy} onClick={() => { setSearch(''); setSubAreaIds([]); setAssignmentFilter(''); setBoxId(''); setPage(1); }} className="justify-self-start text-xs font-semibold text-gray-500 hover:underline sm:col-span-2">مسح التصفية</button>}
                                 </div>
-                                <p className="mt-1 text-xs text-gray-500">
-                                    {formatNumber(totals.boxes)} طبلون · {formatNumber(totals.subscribers)} مشترك
-                                    {column.key !== 'available' && totals.subscribers > 0 && <> · قُرئ {formatNumber(totals.read)}</>}
-                                </p>
-                                {abilities.approve && column.key !== 'available' && totals.drafts > 0 && (
-                                    <button type="button" onClick={() => approve(column.key === 'paper' ? { paper: true } : { user_id: column.userId })} className="mt-2 inline-flex items-center gap-1 rounded-control bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700">
-                                        <Icon name="check" className="h-3.5 w-3.5" />
-                                        {column.key === 'paper' ? 'اعتماد الورقي' : 'اعتماد هذا القارئ'} ({formatNumber(totals.drafts)})
-                                    </button>
-                                )}
-                            </header>
-                            <ul className="flex min-h-[8rem] flex-1 flex-col gap-2 overflow-y-auto p-3" style={{ maxHeight: '60vh' }}>
-                                {shown.length === 0 && <li className="py-6 text-center text-xs text-gray-400">{abilities.manage ? 'اسحب الطبلونات إلى هنا' : 'لا توجد طبلونات'}</li>}
-                                {shown.map((box) => (
-                                    <BoxCard key={box.id} box={box} selected={selected.has(box.id)} canMove={abilities.manage} onToggle={toggle} onDragStart={onDragStart} />
-                                ))}
-                            </ul>
-                        </section>
-                    );
-                })}
+                                {(abilities.manage || abilities.printSheets) && <SecondaryButton disabled={busy || visibleBoxes.length === 0} onClick={() => toggleColumn(visibleBoxes)}>{allVisibleSelected ? 'إلغاء تحديد النتائج' : 'تحديد كل النتائج'} ({formatNumber(visibleBoxes.length)})</SecondaryButton>}
+                            </div>}
+                        />
+                        <DistributionTable boxes={pageBoxes} allBoxes={visibleBoxes} readers={readers} selected={selected} canSelect={abilities.manage || abilities.printSheets} busy={busy} onToggle={toggle} onToggleGroup={toggleColumn} />
+                        {totalPages > 1 && <nav aria-label="صفحات الطبلونات" className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-500">
+                            <span>الصفحة {formatNumber(currentPage)} من {formatNumber(totalPages)} · التحديد يشمل جميع صفحات النتائج</span>
+                            <div className="flex gap-2"><SecondaryButton disabled={busy || currentPage === 1} onClick={() => setPage(currentPage - 1)}>السابق</SecondaryButton><SecondaryButton disabled={busy || currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>التالي</SecondaryButton></div>
+                        </nav>}
+                    </div>
+
+                    {remainingBoxes.length > 0 && abilities.manage && <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-gray-700">
+                        <span>{formatNumber(remainingBoxes.length)} طبلون غير موزع ضمن النتائج الحالية.</span>
+                        <button type="button" disabled={busy} onClick={() => { setSelected((current) => new Set([...current, ...remainingBoxes.map((box) => box.id)])); setTarget('paper'); setRecurring(false); }} className="font-semibold text-brand-600 hover:underline">تحديد المتبقي للكشوف الورقية</button>
+                    </div>}
+
+                </div>
             </div>
+
+            {selectedBoxes.length > 0 && <section aria-label="توزيع الطبلونات المحددة" className="fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[calc(100%-2rem)] max-w-4xl flex-col gap-3 rounded-card border border-brand-500/30 bg-surface p-4 shadow-lg">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-gray-700" role="status"><b className="font-display text-lg text-brand-600">{formatNumber(selectedTotals.boxes)}</b> طبلون محدد · {formatNumber(selectedTotals.subscribers)} مشترك</p>
+                    <button type="button" disabled={busy} onClick={() => setSelected(new Set())} className="text-xs font-semibold text-gray-500 hover:underline">إلغاء التحديد كله</button>
+                </div>
+                {hiddenSelected > 0 && <div className="flex flex-wrap items-center gap-3 text-xs text-amber-700" role="status">
+                    <span>يشمل التحديد {formatNumber(hiddenSelected)} طبلون خارج النتائج الظاهرة، وسيشملها الحفظ أيضًا.</span>
+                    <button type="button" disabled={busy} onClick={() => setSelected(new Set(visibleBoxes.filter((box) => selected.has(box.id)).map((box) => box.id)))} className="font-semibold underline">إلغاء تحديد المخفي</button>
+                </div>}
+                {!abilities.manage && abilities.printSheets && <SecondaryButton disabled={busy || selectedPaperApproved === 0 || selectedPaperApproved > 200} onClick={createSheet}>إنشاء كشف للطباعة ({formatNumber(selectedPaperApproved)})</SecondaryButton>}
+                {selectedPaperApproved > 200 && <p className="text-sm text-amber-700">يمكن وضع 200 طبلون في الكشف الواحد. حدّد منطقة أصغر لإنشاء الكشف.</p>}
+                {abilities.manage && <div className="flex flex-wrap items-end gap-3">
+                    <div className="min-w-[12rem] flex-1">
+                        <label htmlFor="board-target" className="mb-1 block text-xs font-semibold text-gray-600">توزيع المحدد إلى</label>
+                        <SearchableSelect id="board-target" value={target} onChange={setTarget} disabled={busy} options={targetOptions} portal placeholder="اختر القارئ أو الكشف الورقي" searchPlaceholder="ابحث عن قارئ..." />
+                    </div>
+                    <PrimaryButton onClick={assignSelected} disabled={busy || !target || selectedBoxes.length > 1000}>{abilities.approve ? 'حفظ التوزيع' : 'حفظ للمراجعة'}</PrimaryButton>
+                    {abilities.printSheets && selectedPaperApproved > 0 && <SecondaryButton disabled={busy || selectedPaperApproved > 200} onClick={createSheet}>إنشاء كشف للطباعة ({formatNumber(selectedPaperApproved)})</SecondaryButton>}
+                    {abilities.approve && <label className="flex w-full items-center gap-2 border-t border-gray-100 pt-3 text-sm text-gray-700">
+                        <input type="checkbox" checked={recurring} disabled={busy} onChange={(event) => setRecurring(event.target.checked)} className="rounded border-gray-300 text-brand-600" />
+                        {recurring ? 'حفظ هذا التوزيع للقراءات القادمة أيضًا' : 'تعديل لهذه القراءة فقط؛ يبقى التوزيع الثابت للقراءات التالية'}
+                    </label>}
+                    {selectedBoxes.length > 1000 && <p className="w-full text-sm text-amber-700">يمكن توزيع 1,000 طبلون في المرة الواحدة. قلّل التحديد ووزّع البقية بعدها.</p>}
+                </div>}
+            </section>}
 
             {(abilities.printSheets || paperSheets.length > 0) && (
                 <section className="mt-6 rounded-card border border-gray-100 bg-surface p-5 shadow-card" aria-labelledby="sheets-title">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h3 id="sheets-title" className="font-bold text-gray-900">الكشوف الورقية</h3>
-                            <p className="text-xs text-gray-500">حدّد طبلونات معتمدة من عمود الكشوف الورقية لإنشاء كشف برقم خاص. إعادة الطباعة تُحسب ولا تكرر التوزيع. تُدخل القراءات لاحقًا من صفحة القراءات.</p>
+                            <p className="text-xs text-gray-500">للقرّاء الذين لا يملكون هواتف: حدّد الطبلونات المخصصة للورق والمعتمدة، ثم أنشئ كشفًا للطباعة. تُدخل القراءات لاحقًا من الموقع.</p>
                         </div>
                         {abilities.printSheets && (
-                            <PrimaryButton onClick={createSheet} disabled={selectedPaperApproved === 0}>
+                            <PrimaryButton onClick={createSheet} disabled={busy || selectedPaperApproved === 0 || selectedPaperApproved > 200}>
                                 <Icon name="printer" className="h-4 w-4" />
                                 إنشاء كشف ({formatNumber(selectedPaperApproved)})
                             </PrimaryButton>
@@ -387,6 +350,7 @@ export default function Show({ cycle, boards, readers, subAreaOptions, paperShee
                 </section>
             )}
 
+            {selectedBoxes.length > 0 && <div aria-hidden="true" className="h-80" />}
             {editingDay && <ReadingDayModal cycle={cycle} onClose={() => setEditingDay(false)} />}
         </AuthenticatedLayout>
     );

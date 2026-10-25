@@ -129,6 +129,7 @@ class SubscriptionPaymentController extends Controller
                 'date' => DailySeries::localDate($transaction->created_at),
                 'time' => DailySeries::localTime($transaction->created_at),
                 'paidOn' => $transaction->paid_on?->toDateString(),
+                'bankReceivedOn' => $transaction->bank_received_on?->toDateString(),
                 'lateReason' => $transaction->late_reason,
                 'amount' => SubscriptionTransaction::formatAmount($transaction->currency_amount ?? ltrim($transaction->amount, '-')),
                 'currencyLabel' => __($transaction->currency->label()),

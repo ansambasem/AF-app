@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'api_client.dart';
+import 'bank_received_date_field.dart';
 import 'app_balance.dart';
 import 'app_identity.dart';
 import 'field_store.dart';
@@ -48,6 +49,7 @@ class _SplitPaymentPageState extends State<SplitPaymentPage> {
   Timer? searchTimer;
   int searchVersion = 0;
   String? bank, senderBank, error, searchError;
+  DateTime? bankReceivedOn;
   bool busy = false, searching = false, confirmed = false;
   bool needsOverpayment = false, overpaymentConfirmed = false;
   bool needsDuplicate = false, duplicateConfirmed = false;
@@ -135,6 +137,9 @@ class _SplitPaymentPageState extends State<SplitPaymentPage> {
       'collector_confirmed': true,
       'total_amount': total.text.trim(),
       'bank_name': bank,
+      'bank_received_on': bankReceivedOn == null
+          ? null
+          : bankReceivedDateValue(bankReceivedOn!),
       'sender_bank_name': senderBank,
       'sender_name': sender.text.trim(),
       'reference_number': reference.text.trim(),
@@ -288,6 +293,11 @@ class _SplitPaymentPageState extends State<SplitPaymentPage> {
                                   (value) => senderBank = value,
                                   'split-sender-bank'),
                             input('اسم المرسل', sender, 'split-sender'),
+                            BankReceivedDateField(
+                                value: bankReceivedOn,
+                                enabled: !locked,
+                                onChanged: (date) =>
+                                    setState(() => bankReceivedOn = date)),
                             input('الرقم المرجعي', reference, 'split-reference',
                                 maxLength: 100),
                             input('ملاحظات', notes, 'split-notes',
@@ -414,6 +424,10 @@ class _SplitPaymentPageState extends State<SplitPaymentPage> {
             style: AppIdentity.body(16, weight: FontWeight.w700)),
         Text('الإجمالي: ${receipt!['total_amount']} شيكل',
             style: AppIdentity.body(16)),
+        if (receipt!['bank_received_on'] != null)
+          Text(
+              'وصول الحوالة إلى البنك: ${'${receipt!['bank_received_on']}'.split('-').reversed.join('/')}',
+              style: AppIdentity.body(14)),
         const AppSection('السندات والأرصدة بعد التسجيل'),
         ...((receipt!['parts'] as List?) ?? []).map((part) => ListTile(
             title: Text('${part['subscription']}'),

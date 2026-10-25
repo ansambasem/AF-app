@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,6 +41,8 @@ class PrintTemplate extends Model
         '/messages' => ['label' => 'الرسائل', 'icon' => 'messages'],
         '/payments/cash-boxes/report' => ['label' => 'تفاصيل الصندوق المالي', 'icon' => 'wallet'],
         '/subscriptions/statement-print' => ['label' => 'كشف حساب المشترك', 'icon' => 'ledger'],
+        '/reading-cycles/print' => ['label' => 'توزيع القراءات', 'icon' => 'layers'],
+        '/paper-sheets' => ['label' => 'كشوف القراءات الورقية', 'icon' => 'printer'],
     ];
 
     protected function casts(): array
@@ -48,6 +51,11 @@ class PrintTemplate extends Model
             'layout' => 'array',
             'is_default' => 'boolean',
         ];
+    }
+
+    public static function pageForRequest(Request $request): string
+    {
+        return $request->routeIs('paper-sheets.show') ? '/paper-sheets' : '/'.trim($request->path(), '/');
     }
 
     public function updatedBy(): BelongsTo

@@ -1,4 +1,5 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { LABEL_WIDTH, labelLeft, labelledDays } from '@/lib/chartLabels';
 import { formatNumber, formatShortDay } from '@/lib/format';
 
 const TICKS = 4;
@@ -29,8 +30,24 @@ export default function BarChart({ data, label, formatValue = formatNumber, coun
     const tooltipId = useId();
     const max = niceMax(Math.max(0, ...data.map((point) => point.value)));
     const ticks = Array.from({ length: TICKS + 1 }, (_, index) => (max / TICKS) * (TICKS - index));
-    const labelEvery = Math.max(1, Math.ceil(data.length / 7));
     const point = active !== null ? data[active] : null;
+    // The labels follow the chart's width: fewer on a phone, so they never overlap or spill past the card.
+    const labelsRef = useRef(null);
+    const [labelsWidth, setLabelsWidth] = useState(7 * LABEL_WIDTH);
+    const labelled = labelledDays(data.length, labelsWidth);
+
+    useEffect(() => {
+        const element = labelsRef.current;
+
+        if (!element || typeof ResizeObserver === 'undefined') {
+            return;
+        }
+
+        const observer = new ResizeObserver(([entry]) => setLabelsWidth(Math.round(entry.contentRect.width)));
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, []);
 
     function onKeyDown(event) {
         const step = { ArrowRight: 1, ArrowLeft: -1, Home: -data.length, End: data.length }[event.key];
@@ -115,12 +132,24 @@ export default function BarChart({ data, label, formatValue = formatNumber, coun
                         </div>
                     )}
 
-                    <div className="mt-2 flex text-[12px] text-gray-400" aria-hidden="true">
-                        {data.map((day, index) => (
-                            <span key={day.date} className="flex-1 whitespace-nowrap text-center" dir="rtl">
-                                {(data.length - 1 - index) % labelEvery === 0 ? formatShortDay(day.date) : ''}
-                            </span>
-                        ))}
+                    <div ref={labelsRef} className="relative mt-2 h-5 text-[12px] text-gray-400" aria-hidden="true">
+                        {data.map((day, index) => {
+                            if (!labelled[index]) {
+                                return null;
+                            }
+
+                            // Centred under its column; the ones at the ends are moved in so they stay inside the chart.
+                            return (
+                                <span
+                                    key={day.date}
+                                    className="absolute top-0 whitespace-nowrap text-center"
+                                    style={{ left: labelLeft(index, data.length, labelsWidth), width: LABEL_WIDTH }}
+                                    dir="rtl"
+                                >
+                                    {formatShortDay(day.date)}
+                                </span>
+                            );
+                        })}
                     </div>
                 </div>
             </div>

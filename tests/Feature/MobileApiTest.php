@@ -10,6 +10,8 @@ use App\Models\MeterBox;
 use App\Models\MeterReading;
 use App\Models\MobileAccessToken;
 use App\Models\Permission;
+use App\Models\ReadingAssignment;
+use App\Models\ReadingCycle;
 use App\Models\ReadingEntrySetting;
 use App\Models\SubArea;
 use App\Models\Subscription;
@@ -27,6 +29,21 @@ class MobileApiTest extends TestCase
 
     /** Taking payments in the app, both ways: cash and bank transfers. */
     private const TAKES_PAYMENTS = [PermissionKey::RecordCollections, PermissionKey::RecordCashPayments, PermissionKey::RecordTransferPayments];
+
+    private function assignReading(User $reader, Subscription $subscription): void
+    {
+        if ($subscription->meter_box_id === null) {
+            $subscription->update(['meter_box_id' => MeterBox::factory()->create(['branch_id' => $reader->branch_id])->id]);
+        }
+        $week = MeterReading::latestEndedWeekStart($reader->branch_id);
+        $cycle = ReadingCycle::firstOrCreate(['branch_id' => $reader->branch_id, 'week_start' => $week->toDateString()], [
+            'week_end' => MeterReading::weekEndFor($week, $reader->branch_id)->toDateString(),
+            'reading_date' => now()->timezone(config('app.business_timezone'))->toDateString(), 'created_by' => $reader->id,
+        ]);
+        ReadingAssignment::factory()->mobile($reader)->approved()->create([
+            'reading_cycle_id' => $cycle->id, 'branch_id' => $reader->branch_id, 'meter_box_id' => $subscription->meter_box_id, 'assigned_by' => $reader->id,
+        ]);
+    }
 
     public function test_mobile_login_issues_a_hashed_token_and_logout_revokes_it(): void
     {
@@ -47,6 +64,23 @@ class MobileApiTest extends TestCase
             ->getJson(route('mobile.me'))->assertOk()->assertJsonPath('user.username', $user->username);
         $this->postJson(route('mobile.logout'))->assertOk();
         $this->getJson(route('mobile.me'))->assertUnauthorized();
+    }
+
+    public function test_the_website_reading_day_limit_keeps_the_mobile_apps_configured_entry_days(): void
+    {
+        $this->travelTo('2026-09-25 10:00:00');
+        $actor = User::factory()->dataEntry()->create();
+        ReadingEntrySetting::factory()->forBranch($actor->branch)->create(['reading_day' => 4, 'open_days' => [4, 5]]);
+        $subscription = Subscription::factory()->for($actor->branch)->create(['initial_reading' => 100]);
+        $this->assignReading($actor, $subscription);
+
+        $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($actor))
+            ->postJson(route('mobile.readings.store'), [
+                'subscription_id' => $subscription->id, 'week_start' => '2026-09-18',
+                'current_reading' => 130, 'mobile_operation_id' => (string) Str::uuid(),
+            ])->assertCreated()->assertJsonPath('current_reading', 130);
+
+        $this->assertDatabaseHas('meter_readings', ['subscription_id' => $subscription->id, 'current_reading' => 130]);
     }
 
     public function test_weekly_reading_view_requires_permission_and_does_not_grant_write_access(): void
@@ -147,6 +181,7 @@ class MobileApiTest extends TestCase
         $otherBranch = Branch::factory()->create();
         $user = User::factory()->dataEntry()->create(['branch_id' => $branch->id]);
         $own = Subscription::factory()->create(['branch_id' => $branch->id, 'full_name' => 'Own Subscription', 'initial_reading' => 1200]);
+        $this->assignReading($user, $own);
         Subscription::factory()->create(['branch_id' => $otherBranch->id, 'full_name' => 'Other Subscription']);
 
         $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($user))
@@ -162,6 +197,7 @@ class MobileApiTest extends TestCase
         $this->travelTo('2026-09-24 10:00:00');
         $user = User::factory()->dataEntry()->create();
         $subscription = Subscription::factory()->create(['branch_id' => $user->branch_id, 'initial_reading' => 0]);
+        $this->assignReading($user, $subscription);
         $week = MeterReading::latestEndedWeekStart(null);
         foreach ([4 => [0, 100], 3 => [100, 130], 2 => [130, 170], 1 => [170, 195]] as $weeksAgo => [$previous, $current]) {
             MeterReading::factory()->approved()->create([
@@ -203,6 +239,7 @@ class MobileApiTest extends TestCase
         ReadingEntrySetting::factory()->forcedOpen()->create();
         $user = User::factory()->dataEntry()->create();
         $subscription = Subscription::factory()->create(['branch_id' => $user->branch_id, 'initial_reading' => 1200]);
+        $this->assignReading($user, $subscription);
         $operationId = Str::uuid()->toString();
         $payload = [
             'mobile_operation_id' => $operationId,

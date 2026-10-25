@@ -62,6 +62,7 @@ class AmendSubscriptionTransactionRequest extends FormRequest
                 ? ['nullable', Rule::in(Bank::senderNames())]
                 : ['prohibited'],
             'sender_name' => $throughBank ? ['nullable', 'string', 'max:255'] : ['prohibited'],
+            'bank_received_on' => $throughBank ? ['sometimes', ...StoreSubscriptionPaymentRequest::bankReceivedDateRules()] : ['prohibited'],
         ];
     }
 
@@ -72,6 +73,7 @@ class AmendSubscriptionTransactionRequest extends FormRequest
     {
         return [
             'bank_name' => 'البنك المستلم',
+            'bank_received_on' => 'تاريخ وصول الحوالة إلى البنك',
             'sender_bank_name' => 'البنك المرسل',
             'sender_name' => 'اسم المرسل',
             'reference_number' => 'الرقم المرجعي',
@@ -86,5 +88,11 @@ class AmendSubscriptionTransactionRequest extends FormRequest
     private function line(): SubscriptionTransaction
     {
         return $this->route('transaction');
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return StoreSubscriptionPaymentRequest::paymentMessages();
     }
 }

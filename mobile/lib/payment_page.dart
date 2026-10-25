@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'api_client.dart';
+import 'bank_received_date_field.dart';
 import 'app_balance.dart';
 import 'app_identity.dart';
 import 'field_store.dart';
@@ -76,6 +77,7 @@ class _PaymentPageState extends State<PaymentPage> {
   String method = 'bank_transfer';
   String? bank;
   String? senderBank;
+  DateTime? bankReceivedOn;
   bool senderIsSubscriber = true;
   bool busy = false;
   bool scanning = false;
@@ -166,6 +168,7 @@ class _PaymentPageState extends State<PaymentPage> {
             : widget.paymentMethods.firstOrNull ?? '';
         bank = null;
         senderBank = null;
+        bankReceivedOn = null;
         senderIsSubscriber = true;
         sender.text = subscriberName;
         collectorConfirmed = false;
@@ -270,6 +273,9 @@ class _PaymentPageState extends State<PaymentPage> {
         'payment_method': method,
         if (throughBank) ...{
           'bank_name': bank,
+          'bank_received_on': bankReceivedOn == null
+              ? null
+              : bankReceivedDateValue(bankReceivedOn!),
           if (senderBank != null) 'sender_bank_name': senderBank,
           'sender_name': sender.text.trim(),
           'reference_number': reference.text.trim(),
@@ -678,6 +684,10 @@ class _PaymentPageState extends State<PaymentPage> {
             ]),
         const AppLabel('البنك المرسل', hint: 'اختياري'),
         senderBankField(),
+        BankReceivedDateField(
+            value: bankReceivedOn,
+            enabled: editable,
+            onChanged: (date) => setState(() => bankReceivedOn = date)),
         AppLabel('اسم المحوِّل',
             trailing: AppToggle(
                 key: const ValueKey('payment-sender-is-subscriber'),
@@ -1041,6 +1051,13 @@ class _PaymentPageState extends State<PaymentPage> {
             AppFact('${AppIdentity.grouped(recordedInShekels)} ₪', number: true)
           ),
         ('الطريقة', AppFact(methodText)),
+        if (receipt?['bank_received_on'] != null)
+          (
+            'وصول البنك',
+            AppFact(
+                '${receipt!['bank_received_on']}'.split('-').reversed.join('/'),
+                number: true)
+          ),
         (
           'الرصيد بعد الدفعة',
           AppFact(balanceText(newBalance),

@@ -51,6 +51,7 @@ class MobileSplitPaymentController extends Controller
             'status' => 'recorded',
             'total_amount' => $split->total_amount,
             'reference_number' => $split->reference_number,
+            'bank_received_on' => $split->bank_received_on?->toDateString(),
             'parts' => $split->payments()->with('subscription')->get()->map(fn (SubscriptionTransaction $payment): array => [
                 'id' => $payment->id,
                 'subscription_id' => $payment->subscription_id,

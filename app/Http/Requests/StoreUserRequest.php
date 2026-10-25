@@ -36,6 +36,7 @@ class StoreUserRequest extends FormRequest
             'username' => ['required', 'string', 'max:255', 'regex:/^[\w.-]+$/', Rule::unique('users', 'username')],
             'password' => ['required', 'confirmed', Password::defaults()],
             'role' => ['prohibited'],
+            'max_devices' => ['sometimes', 'required', 'integer', 'between:1,20'],
         ];
 
         // Only a Super Admin chooses the branch, or makes the account another Super Admin over every branch.

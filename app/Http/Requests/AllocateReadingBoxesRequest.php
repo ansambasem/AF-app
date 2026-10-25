@@ -15,7 +15,9 @@ class AllocateReadingBoxesRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('manage', $this->route('readingCycle'));
+        return $this->user()->can('manage', $this->route('readingCycle'))
+            && ((! $this->boolean('recurring') && ! $this->boolean('publish'))
+                || $this->user()->can('approve', $this->route('readingCycle')));
     }
 
     /**
@@ -31,6 +33,8 @@ class AllocateReadingBoxesRequest extends FormRequest
             'versions' => ['nullable', 'array'],
             'versions.*' => ['integer', 'min:0'],
             'confirm_downloaded' => ['boolean'],
+            'recurring' => ['boolean'],
+            'publish' => ['boolean'],
         ];
     }
 

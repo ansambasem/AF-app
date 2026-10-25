@@ -5,16 +5,25 @@ namespace App\Http\Controllers\Mobile;
 use App\Enums\PermissionKey;
 use App\Enums\ReadingAssignmentChannel;
 use App\Enums\ReadingAssignmentStatus;
+use App\Enums\ReadingSubmissionStatus;
 use App\Enums\SubscriptionStatus;
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
+use App\Models\MeterBox;
 use App\Models\MeterReading;
 use App\Models\ReadingAssignment;
 use App\Models\ReadingCycle;
+use App\Models\ReadingDistribution;
+use App\Models\ReadingEntrySetting;
+use App\Models\ReadingSubmission;
 use App\Models\Subscription;
+use App\Models\User;
 use App\Support\DailySeries;
 use App\Support\FieldReadingAuthorization;
 use App\Support\FieldReadingSync;
+use App\Support\RecurringReadingDistribution;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,20 +47,26 @@ class MobileReadingAssignmentController extends Controller
      * still be uploaded, with each box's active subscriptions. Downloading
      * marks each one downloaded at its version.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, RecurringReadingDistribution $distribution): JsonResponse
     {
         $reader = $request->user();
         abort_unless($reader->hasPermission(PermissionKey::RecordMeterReadings), 403);
 
         $today = DailySeries::today();
+        $branch = Branch::query()->find($reader->workBranchId());
+        if ($branch !== null) {
+            $distribution->prepare($branch);
+        }
+        $leadDays = ReadingEntrySetting::forBranch($reader->workBranchId())->assignment_lead_days ?? 1;
         $assignments = ReadingAssignment::query()
-            ->where('user_id', $reader->id)
-            ->where('channel', ReadingAssignmentChannel::Mobile)
-            ->where('status', ReadingAssignmentStatus::Approved)
-            ->whereHas('cycle', fn (Builder $cycles) => $cycles->whereNull('closed_at')->whereDate('reading_date', '>=', $today->subDays(ReadingCycle::SYNC_GRACE_DAYS)->toDateString()))
-            ->with(['cycle', 'meterBox'])
+            ->forMobileReader($reader)
+            ->whereHas('cycle', fn (Builder $cycles) => $cycles->whereDate('reading_date', '>=', $today->copy()->subDays(ReadingCycle::SYNC_GRACE_DAYS)->toDateString()))
+            ->with(['cycle', 'meterBox.subArea'])
             ->orderBy('reading_cycle_id')
-            ->get();
+            ->get()
+            ->filter(fn (ReadingAssignment $assignment): bool => $today->toDateString() >= $assignment->cycle->reading_date->copy()
+                ->subDays($leadDays)->toDateString())
+            ->values();
 
         DB::transaction(function () use ($assignments, $reader): void {
             foreach ($assignments as $assignment) {
@@ -65,6 +80,7 @@ class MobileReadingAssignmentController extends Controller
         return response()->json([
             'server_time' => now()->toIso8601String(),
             'business_date' => $today->toDateString(),
+            'next_reading' => $branch === null ? null : $this->nextReading($reader, $branch, $distribution),
             'assignments' => $assignments->map(fn (ReadingAssignment $assignment) => $this->assignmentData($assignment, $today->toDateString()))->values(),
         ]);
     }
@@ -97,6 +113,42 @@ class MobileReadingAssignmentController extends Controller
     }
 
     /**
+     * Preview the effective upcoming distribution without issuing work authorisations
+     * or marking boxes downloaded before the configured download window.
+     *
+     * @return array<string, mixed>
+     */
+    private function nextReading(User $reader, Branch $branch, RecurringReadingDistribution $distribution): array
+    {
+        $upcoming = $distribution->upcoming($branch);
+        $overrides = $upcoming['cycle']?->assignments()->get()->keyBy('meter_box_id') ?? collect();
+        $boxIds = ReadingDistribution::query()->where('branch_id', $branch->id)
+            ->where('channel', ReadingAssignmentChannel::Mobile)->where('user_id', $reader->id)
+            ->whereNotIn('meter_box_id', $overrides->keys())->pluck('meter_box_id')
+            ->merge($overrides->filter(fn (ReadingAssignment $assignment): bool => $assignment->status === ReadingAssignmentStatus::Approved
+                && $assignment->channel === ReadingAssignmentChannel::Mobile && $assignment->user_id === $reader->id)->keys());
+        $active = fn (Builder $subscriptions) => $subscriptions->where('branch_id', $branch->id)
+            ->where('status', SubscriptionStatus::Active)->whereNull('archived_at');
+        $boxes = MeterBox::query()->where('branch_id', $branch->id)->whereIn('id', $boxIds)
+            ->whereHas('subscriptions', $active)->withCount(['subscriptions as subscribers' => $active])
+            ->with(['subArea', 'subscriptions' => fn (HasMany $subscriptions): Builder => $active($subscriptions->getQuery())->orderBy('account_number')])
+            ->orderBy('name')->orderBy('name_suffix')->orderBy('box_number')->get();
+
+        return [
+            'reading_date' => $upcoming['readingDate']->toDateString(),
+            'boxes' => $boxes->map(fn (MeterBox $box): array => [
+                'id' => $box->id, 'name' => $box->displayName(), 'number' => $box->box_number,
+                'location' => $box->location, 'sub_area_id' => $box->sub_area_id,
+                'sub_area_name' => $box->subArea?->name, 'subscribers' => (int) $box->subscribers,
+                'subscriptions' => $box->subscriptions->map(fn (Subscription $subscription): array => [
+                    'id' => $subscription->id, 'name' => $subscription->displayName(),
+                    'account_number' => $subscription->account_number, 'phone' => $subscription->contactPhone(),
+                ])->values(),
+            ])->values(),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function assignmentData(ReadingAssignment $assignment, string $today): array
@@ -104,15 +156,15 @@ class MobileReadingAssignmentController extends Controller
         $cycle = $assignment->cycle;
         $weekStart = $cycle->week_start;
         $subscriptions = Subscription::query()
+            ->where('branch_id', $assignment->branch_id)
             ->where('meter_box_id', $assignment->meter_box_id)
             ->where('status', SubscriptionStatus::Active)
+            ->whereNull('archived_at')
+            ->with(['meterReadings' => fn ($query) => $query->whereDate('week_start', '<=', $weekStart->toDateString())->orderByDesc('week_start')->limit(4)])
             ->orderBy('account_number')
             ->get();
-        $readThisWeek = MeterReading::query()
-            ->whereIn('subscription_id', $subscriptions->pluck('id'))
-            ->whereDate('week_start', $weekStart->toDateString())
-            ->pluck('subscription_id')
-            ->flip();
+        $held = ReadingSubmission::query()->where('reading_assignment_id', $assignment->id)->where('user_id', $assignment->user_id)
+            ->where('status', ReadingSubmissionStatus::NeedsReview)->latest('id')->get()->unique('subscription_id')->keyBy('subscription_id');
 
         return [
             'id' => $assignment->id,
@@ -124,20 +176,35 @@ class MobileReadingAssignmentController extends Controller
                 'week_end' => $cycle->week_end->toDateString(),
                 'reading_date' => $cycle->reading_date->toDateString(),
                 'entry_open' => $cycle->reading_date->toDateString() === $today,
+                'entry_starts_at' => $cycle->reading_date->copy()->shiftTimezone(config('app.business_timezone'))->startOfDay()->toIso8601String(),
+                'entry_ends_at' => $cycle->reading_date->copy()->shiftTimezone(config('app.business_timezone'))->endOfDay()->toIso8601String(),
                 'sync_deadline' => $cycle->syncDeadline()->toIso8601String(),
             ],
             'meter_box' => [
                 'id' => $assignment->meterBox->id,
                 'number' => $assignment->meterBox->box_number,
                 'name' => $assignment->meterBox->displayName(),
+                'location' => $assignment->meterBox->location,
+                'sub_area_id' => $assignment->meterBox->sub_area_id,
+                'sub_area_name' => $assignment->meterBox->subArea?->name,
             ],
-            'subscriptions' => $subscriptions->map(fn (Subscription $subscription) => [
-                'id' => $subscription->id,
-                'name' => $subscription->displayName(),
-                'account_number' => $subscription->account_number,
-                'previous_reading' => $subscription->previousReadingBefore($weekStart),
-                'already_read' => $readThisWeek->has($subscription->id),
-            ])->values(),
+            'subscriptions' => $subscriptions->map(function (Subscription $subscription) use ($weekStart, $held): array {
+                $current = $subscription->meterReadings->first(fn (MeterReading $reading): bool => $reading->week_start->equalTo($weekStart));
+                $previous = $subscription->meterReadings->first(fn (MeterReading $reading): bool => $reading->week_start->lt($weekStart));
+                $heldReading = $held->get($subscription->id);
+
+                return [
+                    'id' => $subscription->id,
+                    'name' => $subscription->displayName(),
+                    'account_number' => $subscription->account_number,
+                    'previous_reading' => $current?->previous_reading ?? $previous?->nextPreviousReading() ?? $subscription->initial_reading,
+                    'already_read' => $current !== null || $heldReading !== null,
+                    'current_reading' => $current?->requires_reentry ? null : ($current?->current_reading ?? $heldReading?->current_reading),
+                    'reading_status' => $current?->status?->value ?? ($heldReading === null ? null : ReadingSubmissionStatus::NeedsReview->value),
+                    'recent_readings' => $subscription->meterReadings->filter(fn (MeterReading $reading): bool => $reading->week_start->lt($weekStart))->take(3)
+                        ->map(fn (MeterReading $reading): array => ['week_start' => $reading->week_start->toDateString(), 'current_reading' => $reading->current_reading, 'consumption' => $reading->consumption])->values(),
+                ];
+            })->values(),
         ];
     }
 }

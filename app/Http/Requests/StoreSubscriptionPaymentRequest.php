@@ -30,10 +30,6 @@ class StoreSubscriptionPaymentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        if ($this->boolean('late_payment') || $this->filled('paid_on') || $this->filled('late_reason') || $this->filled('late_payment_token')) {
-            return $this->user()->can('recordLatePayment', $this->route('subscription'));
-        }
-
         return $this->user()->can('recordPayment', $this->route('subscription'));
     }
 
@@ -48,11 +44,9 @@ class StoreSubscriptionPaymentRequest extends FormRequest
     {
         $rules = self::paymentRules($this->input('payment_method'));
         $rules['payment_method'][] = self::allowedMethodRule($this->user());
-        $late = $this->boolean('late_payment');
-        $rules['late_payment'] = ['sometimes', 'boolean'];
-        $rules['paid_on'] = [Rule::requiredIf($late), Rule::prohibitedIf(! $late), 'nullable', 'date_format:Y-m-d', 'before:'.now(config('app.business_timezone'))->toDateString()];
-        $rules['late_reason'] = [Rule::requiredIf($late), Rule::prohibitedIf(! $late), 'nullable', 'string', 'max:1000'];
-        $rules['late_payment_token'] = [Rule::requiredIf($late), Rule::prohibitedIf(! $late), 'nullable', 'uuid'];
+        foreach (['late_payment', 'paid_on', 'late_reason', 'late_payment_token'] as $field) {
+            $rules[$field] = ['prohibited'];
+        }
 
         return $rules;
     }
@@ -86,12 +80,6 @@ class StoreSubscriptionPaymentRequest extends FormRequest
             function (Validator $validator): void {
                 /** @var Subscription $subscription */
                 $subscription = $this->route('subscription');
-
-                if ($validator->errors()->isEmpty() && $this->boolean('late_payment') && SubscriptionTransaction::query()
-                    ->where('late_payment_token', $this->input('late_payment_token'))
-                    ->where('subscription_id', $subscription->id)->where('recorded_by', $this->user()->id)->exists()) {
-                    return;
-                }
 
                 self::checkOverpayment($validator, self::amountInShekels($this->input('amount'), $this->input('currency'), $this->input('exchange_rate')), max($subscription->balance(), 0.0), $this->boolean('confirm_overpayment'));
             },
@@ -141,6 +129,7 @@ class StoreSubscriptionPaymentRequest extends FormRequest
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)->only(PaymentMethod::offered())],
             'bank_name' => ['exclude_unless:payment_method,'.PaymentMethod::BankTransfer->value, 'required', Rule::in(Bank::receiverNames())],
             'sender_bank_name' => ['exclude_unless:payment_method,'.PaymentMethod::BankTransfer->value, 'nullable', Rule::in(Bank::senderNames())],
+            'bank_received_on' => ['exclude_unless:payment_method,'.PaymentMethod::BankTransfer->value, ...self::bankReceivedDateRules()],
             'sender_name' => ['exclude_unless:payment_method,'.PaymentMethod::BankTransfer->value, 'required', 'string', 'max:255'],
             'reference_number' => ['exclude_if:payment_method,'.PaymentMethod::Cash->value, 'nullable', 'string', 'max:100'],
             // Sent once the collector confirmed that the reference is already on another payment.
@@ -159,12 +148,14 @@ class StoreSubscriptionPaymentRequest extends FormRequest
     public function messages(): array
     {
         return [...self::paymentMessages(),
-            'paid_on.required' => 'حدد تاريخ الدفع الفعلي.',
-            'paid_on.date_format' => 'أدخل تاريخ دفع صحيحًا.',
-            'paid_on.before' => 'تاريخ الدفع يجب أن يكون قبل اليوم؛ استخدم الدفعة العادية لدفعات اليوم.',
-            'late_reason.required' => 'وضح سبب تأخر تسجيل الدفعة.',
-            'late_reason.max' => 'سبب التأخير يجب ألا يتجاوز 1000 حرف.',
+            'late_payment.prohibited' => 'أُلغي التسجيل المتأخر. سجّل دفعة عادية وحدد تاريخ وصول الحوالة إلى البنك عند الحاجة.',
         ];
+    }
+
+    /** @return array<int, string> */
+    public static function bankReceivedDateRules(): array
+    {
+        return ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.now(config('app.business_timezone'))->toDateString()];
     }
 
     /**
@@ -173,6 +164,8 @@ class StoreSubscriptionPaymentRequest extends FormRequest
     public static function paymentMessages(): array
     {
         return [
+            'bank_received_on.date_format' => 'أدخل تاريخ وصول الحوالة إلى البنك بشكل صحيح.',
+            'bank_received_on.before_or_equal' => 'تاريخ وصول الحوالة إلى البنك لا يمكن أن يكون بعد اليوم.',
             'currency.enum' => 'اختر الشيكل أو الدولار أو الدينار أو اليورو.',
             'exchange_rate.required_unless' => 'لم يُضبط سعر صرف هذه العملة في صفحة العملات وأسعار الصرف.',
             'exchange_rate.gt' => 'يجب أن يكون سعر الصرف أكبر من صفر.',

@@ -21,6 +21,20 @@ class AuditTransferSearchTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    public function test_bank_arrival_filter_uses_only_the_optional_bank_date_and_leaves_recording_date_separate(): void
+    {
+        $entry = $this->entry(attributes: ['bank_received_on' => '2026-10-16']);
+        $this->entry($entry->box, ['reference_number' => 'UNKNOWN-DATE', 'active_reference' => 'UNKNOWNDATE']);
+        $auditor = User::factory()->financialAuditor()->create();
+        $dates = ['transfer_from' => '2026-10-16', 'transfer_to' => '2026-10-16'];
+        $this->actingAs($auditor)->get($this->url($entry, $dates))->assertInertia(fn ($page) => $page->where('transferSearch.results.total', 0));
+        $this->get($this->url($entry, [...$dates, 'transfer_date_basis' => 'bank']))->assertInertia(fn ($page) => $page
+            ->where('transferSearch.results.total', 1)
+            ->where('transferSearch.results.data.0.id', $entry->id)
+            ->where('transferSearch.results.data.0.ledger.bankReceivedOn', '2026-10-16')
+            ->where('transferSearch.dateBasis', 'bank'));
+    }
+
     public function test_auditor_can_filter_by_payment_date_without_confusing_it_with_recording_date(): void
     {
         $entry = $this->entry(attributes: ['paid_on' => '2026-10-10', 'late_reason' => 'تأخر إدخال الوصل']);

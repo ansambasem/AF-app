@@ -22,6 +22,7 @@ MemoryStore readerStore({List<Map<String, dynamic>> queued = const []}) =>
         'week_start': '2026-09-21',
         'week_end': '2026-09-27',
         'can_record_readings_now': true,
+        'assignment_roster_version': 1,
         'subscribers': [
           {
             'id': 1,
@@ -46,6 +47,8 @@ MemoryStore readerStore({List<Map<String, dynamic>> queued = const []}) =>
           },
           {
             'id': 2,
+            'assignment_id': 12,
+            'authorization': 'signed-work',
             'full_name': 'Subscriber Two',
             'account_number': 'A2',
             'meter_box_id': 7,
@@ -83,6 +86,120 @@ Future<void> typeReading(WidgetTester tester, String digits) async {
 }
 
 void main() {
+  testWidgets(
+      'readings with more than two decimal places explain the error before saving',
+      (tester) async {
+    final store = readerStore();
+    await openBox(tester, store);
+    await typeReading(tester, '1245.123');
+    expect(find.text('القراءة تقبل منزلتين عشريتين كحد أقصى.'), findsOneWidget);
+    expect(find.text('حفظ قراءة واحدة على الجهاز'), findsNothing);
+    expect(store.queuedReadings, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+      'the next reading date and assigned boxes are visible offline while entry stays locked',
+      (tester) async {
+    final store = readerStore();
+    store.state['subscribers'] = [];
+    store.state['can_record_readings_now'] = false;
+    store.state['next_reading'] = {
+      'reading_date': '2026-10-29',
+      'boxes': [
+        {
+          'id': 7,
+          'name': 'North Box',
+          'number': 'B1',
+          'sub_area_id': 1,
+          'sub_area_name': 'North',
+          'subscribers': 2,
+          'subscriptions': [
+            {
+              'id': 55,
+              'name': 'Assigned Preview Subscriber',
+              'account_number': 'P55',
+              'phone': '0599000001'
+            }
+          ],
+        },
+        {
+          'id': 8,
+          'name': 'South Box',
+          'number': 'B2',
+          'sub_area_id': 2,
+          'sub_area_name': 'South',
+          'subscribers': 3
+        },
+      ],
+    };
+    await tester.pumpWidget(
+        PowerCollectApp(apiClient: OfflineApi(), fieldStore: store));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('الخميس 29/10/2026'), findsOneWidget);
+    expect(find.text('2 طبلون موزع إليك'), findsOneWidget);
+    await tester.tap(find.text('إدخال القراءات').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('الخميس 29/10/2026'), findsOneWidget);
+    expect(find.byKey(const ValueKey('preview-box-7')), findsOneWidget);
+    expect(find.byKey(const ValueKey('preview-box-8')), findsOneWidget);
+    await tester.tap(find.text('North').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('preview-box-8')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('preview-box-7')));
+    await tester.pumpAndSettle();
+    expect(find.text('Assigned Preview Subscriber'), findsOneWidget);
+    expect(find.text('0599000001'), findsOneWidget);
+    await tester.tap(find.text('Assigned Preview Subscriber'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('reading-key-1')), findsNothing);
+    expect(store.queuedReadings, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('downloaded boxes stay locked outside their dated entry window',
+      (tester) async {
+    final store = readerStore();
+    store.state['entry_starts_at'] = '2099-01-01T00:00:00+02:00';
+    store.state['entry_ends_at'] = '2099-01-01T23:59:59+02:00';
+    store.state['reading_date'] = '2099-01-01';
+    await openBox(tester, store, startEditing: false);
+    expect(find.text('Subscriber One'), findsOneWidget);
+    await tester.tap(find.text('Subscriber One'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('reading-key-1')), findsNothing);
+    expect(store.queuedReadings, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('area 2 filters the reader boxes and remains searchable offline',
+      (tester) async {
+    final store = readerStore();
+    final subscribers = store.state['subscribers'] as List;
+    subscribers[0].addAll({'sub_area_id': 1, 'sub_area_name': 'North'});
+    subscribers[1].addAll({
+      'sub_area_id': 2,
+      'sub_area_name': 'South',
+      'meter_box_id': 8,
+      'meter_box_number': 'B2'
+    });
+    await tester.pumpWidget(
+        PowerCollectApp(apiClient: OfflineApi(), fieldStore: store));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('إدخال القراءات').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('North').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('box-B1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('box-B2')), findsNothing);
+    await tester.tap(find.text('كل المناطق'));
+    await tester.enterText(find.byType(TextField), 'South');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('box-B1')), findsNothing);
+    expect(find.byKey(const ValueKey('box-B2')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
       'phone back and a downward swipe hide the keypad without losing a reading',
       (tester) async {
@@ -178,10 +295,14 @@ void main() {
     await typeReading(tester, '350');
     expect(find.text('350'), findsWidgets);
     expect(store.queuedReadings, isEmpty);
-    await tester.tap(find.text('حفظ قراءة واحدة وإرسالها للمراجعة'));
+    await tester.tap(find.text('حفظ قراءة واحدة على الجهاز'));
     await tester.pumpAndSettle();
     expect(store.queuedReadings.single['subscription_id'], 2);
     expect(store.queuedReadings.single['current_reading'], '350');
+    expect(store.queuedReadings.single['assignment_id'], 12);
+    expect(store.queuedReadings.single['authorization'], 'signed-work');
+    expect(DateTime.tryParse(store.queuedReadings.single['captured_at']),
+        isNotNull);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -209,7 +330,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('reading-key-delete')));
     await tester.pump();
     await typeReading(tester, '40');
-    await tester.tap(find.text('حفظ قراءة واحدة وإرسالها للمراجعة'));
+    await tester.tap(find.text('حفظ قراءة واحدة على الجهاز'));
     await tester.pumpAndSettle();
     expect(store.queuedReadings.single['current_reading'], '1240');
     expect(store.queuedReadings.single['mobile_operation_id'],

@@ -94,6 +94,7 @@ export default function SplitPaymentDetails({ id, onClose }) {
                                         <bdi dir="ltr" className="font-display">{split.date} {split.time}</bdi>
                                     </span>
                                 </Detail>
+                                <Detail label="تاريخ وصول الحوالة إلى البنك" ltr>{split.bankReceivedOn?.split('-').reverse().join('/')}</Detail>
                             </dl>
 
                             <div>

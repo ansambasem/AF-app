@@ -8,6 +8,8 @@ use App\Models\Branch;
 use App\Models\MeterReading;
 use App\Models\MobileAccessToken;
 use App\Models\Permission;
+use App\Models\ReadingAssignment;
+use App\Models\ReadingCycle;
 use App\Models\ReadingEntrySetting;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
@@ -139,6 +141,10 @@ class UnusualConsumptionTest extends TestCase
         ReadingEntrySetting::factory()->forcedOpen()->create();
         $this->history(consumptions: [50, 50, 50, 50]);
         $user = User::factory()->dataEntry()->create(['branch_id' => $this->branch->id]);
+        ReadingAssignment::factory()->mobile($user)->approved()->create([
+            'reading_cycle_id' => ReadingCycle::factory()->create(['branch_id' => $this->branch->id, 'created_by' => $this->accountant->id])->id,
+            'meter_box_id' => $this->subscription->meter_box_id, 'assigned_by' => $this->accountant->id,
+        ]);
         $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($user));
         $week = MeterReading::latestEndedWeekStart(null)->toDateString();
         $payload = fn (float $reading) => ['mobile_operation_id' => Str::uuid()->toString(), 'subscription_id' => $this->subscription->id, 'week_start' => $week, 'current_reading' => $reading];
@@ -156,6 +162,10 @@ class UnusualConsumptionTest extends TestCase
     {
         ReadingEntrySetting::factory()->forcedOpen()->create();
         $user = User::factory()->dataEntry()->create(['branch_id' => $this->branch->id]);
+        ReadingAssignment::factory()->mobile($user)->approved()->create([
+            'reading_cycle_id' => ReadingCycle::factory()->create(['branch_id' => $this->branch->id, 'created_by' => $this->accountant->id])->id,
+            'meter_box_id' => $this->subscription->meter_box_id, 'assigned_by' => $this->accountant->id,
+        ]);
         $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($user));
 
         $this->postJson(route('mobile.readings.store'), [

@@ -209,6 +209,12 @@ class SubscriberTransactionRow extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 5),
                 child: Text('المرجع: ${line['reference_number']}',
                     style: AppIdentity.body(12.5, color: AppIdentity.faint))),
+          if (line['bank_received_on'] != null)
+            Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: Text(
+                    'وصول الحوالة إلى البنك: ${AppIdentity.shortDate(line['bank_received_on'])}',
+                    style: AppIdentity.body(12.5, color: AppIdentity.muted))),
         ]),
         trailing: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text('${AppIdentity.grouped(line['amount'])} ₪',

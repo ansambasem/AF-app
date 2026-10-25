@@ -40,6 +40,7 @@ export default function ReadingSchedule({ setting, branch, branches, followsComp
     const { data, setData, put, processing, errors, isDirty, resetAndClearErrors, setDefaults } = useForm({
         branch_id: branch?.id ?? null,
         reading_day: setting.reading_day,
+        assignment_lead_days: setting.assignment_lead_days ?? 1,
         open_days: [...setting.open_days].sort((a, b) => a - b),
         mode: setting.mode,
         opens_at: setting.opens_at,
@@ -205,6 +206,18 @@ export default function ReadingSchedule({ setting, branch, branches, followsComp
                                 </div>
                                 <span className="rs-timezone">بتوقيت الشركة · {businessTimezone}</span>
                             </div>
+                        </section>
+                        <section className="rs-panel">
+                            <PanelTitle icon="calendar">إتاحة مهام القرّاء</PanelTitle>
+                            <p>يُجهّز التوزيع الثابت تلقائيًا قبل موعد القراءة، لتتاح المهام للمكلّفين في الموعد المحدد.</p>
+                            <label htmlFor="assignment-lead-days" className="mb-2 block text-sm font-semibold text-gray-700">إتاحة المهام قبل يوم القراءة</label>
+                            <select id="assignment-lead-days" value={data.assignment_lead_days} onChange={(event) => setData('assignment_lead_days', Number(event.target.value))} disabled={processing} className="w-full text-sm">
+                                <option value={0}>في يوم القراءة</option>
+                                <option value={1}>قبل يوم واحد</option>
+                                {[2, 3, 4, 5, 6].map((days) => <option key={days} value={days}>قبل {days} أيام</option>)}
+                            </select>
+                            <InputError message={errors.assignment_lead_days} />
+                            <p>إتاحة المهام للتحضير لا تفتح إدخال القراءات قبل موعده.</p>
                         </section>
                     </div>
 

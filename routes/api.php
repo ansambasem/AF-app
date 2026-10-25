@@ -5,6 +5,7 @@ use App\Http\Controllers\Mobile\MobileCashBoxController;
 use App\Http\Controllers\Mobile\MobileCollectionController;
 use App\Http\Controllers\Mobile\MobileReadingAssignmentController;
 use App\Http\Controllers\Mobile\MobileReadingController;
+use App\Http\Controllers\Mobile\MobileReadingDistributionController;
 use App\Http\Controllers\Mobile\MobileSessionController;
 use App\Http\Controllers\Mobile\MobileSplitPaymentController;
 use App\Http\Controllers\Mobile\MobileSubscriberMessageController;
@@ -24,6 +25,9 @@ Route::prefix('mobile')->name('mobile.')->group(function (): void {
         Route::get('/readings', [MobileReadingController::class, 'index'])->name('readings.index');
         Route::get('/reading-assignments', [MobileReadingAssignmentController::class, 'index'])->name('reading-assignments.index');
         Route::post('/reading-assignments/sync', [MobileReadingAssignmentController::class, 'sync'])->middleware('throttle:60,1')->name('reading-assignments.sync');
+        Route::get('/reading-distribution', [MobileReadingDistributionController::class, 'index'])->name('reading-distribution.index');
+        Route::post('/reading-distribution/{readingCycle}/assign', [MobileReadingDistributionController::class, 'store'])->name('reading-distribution.store');
+        Route::post('/reading-distribution/{readingCycle}/approve', [MobileReadingDistributionController::class, 'approve'])->name('reading-distribution.approve');
         Route::get('/collections/subscriptions', [MobileCollectionController::class, 'subscriptions'])->name('collections.subscriptions');
         Route::get('/collections/subscriptions/{subscription}', [MobileCollectionController::class, 'show'])->whereNumber('subscription')->name('collections.subscriptions.show');
         Route::post('/collections/subscriptions/{subscription}/adjustments', [MobileAdjustmentController::class, 'store'])->whereNumber('subscription')->middleware('throttle:60,1')->name('collections.subscriptions.adjustments');

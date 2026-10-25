@@ -25,6 +25,8 @@ use App\Models\Tariff;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
 use App\Notifications\ReadingNeedsReapproval;
+use App\Support\PrintSelection;
+use App\Support\ReadingPrintData;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -68,10 +70,17 @@ class MeterReadingController extends Controller
                 'circuitBreaker',
                 'standingDiscount',
                 'meterBox.subArea',
-                'meterReadings' => fn ($q) => $q->whereDate('week_start', '<=', $week)->orderByDesc('week_start')
+                'meterReadings' => fn ($q) => $q->chaperone()->withLaterReadingsCount()->whereDate('week_start', '<=', $week)->orderByDesc('week_start')->limit(2)
                     ->with(['recordedBy:id,name', 'approvedBy:id,name', 'chargeLine:id,meter_reading_id']),
             ])
             ->withExists(['meterReadings as has_later_week' => fn ($q) => $q->whereDate('week_start', '>', $week)]);
+        if ($request->boolean('print')) {
+            $query->with('branch:id,name');
+            $selected = PrintSelection::ids($request, '/meter-readings');
+            if ($selected !== null) {
+                $query->whereHas('meterReadings', fn (Builder $readings): Builder => $readings->whereKey($selected)->whereDate('week_start', $week));
+            }
+        }
 
         $this->withSheetColumns($query, $week);
         $this->applyMeterBoxSort($query, $request);
@@ -80,14 +89,30 @@ class MeterReadingController extends Controller
         $this->applyDataTableFilterSelects($query, $request, ['branch_id', 'meter_box_id', 'tariff_id']);
         $this->applyMeterBoxNameFilter($query, $request);
         $this->applySheetFilters($query, $request, $week, includeStatus: false);
-        $statusSummary = $this->statusSummary($query, $week);
+        $summaryQuery = clone $query;
         $this->applySheetStatusFilters($query, $request, $week);
 
         $enteredThisWeek = fn (Builder $q) => $q->whereDate('week_start', $week);
 
-        $rows = $query->paginate($this->dataTablePerPage($request, 25))
+        $rows = fn () => $query->paginate($this->dataTablePerPage($request, 25))
             ->withQueryString()
-            ->through(fn (Subscription $subscription) => $this->sheetRow($subscription, $weekStart, $actor));
+            ->through(fn (Subscription $subscription) => $this->sheetRow($subscription, $weekStart, $actor, $request->boolean('print')));
+
+        if ($request->boolean('print')) {
+            $weekEnd = MeterReading::weekEndFor($weekStart, $weekBranchId);
+            $context = [
+                'templatePage' => '/meter-readings',
+                'title' => 'القراءات الأسبوعية',
+                'branchName' => $actor->workBranch()?->name ?? 'كل الفروع',
+                'readingDate' => $weekEnd->toDateString(),
+                'readingDayName' => $weekEnd->locale('ar')->dayName,
+                'weekStart' => $week,
+                'weekEnd' => $weekEnd->toDateString(),
+                'sourceUrl' => route('meter-readings.index'),
+            ];
+
+            return Inertia::render('Print/ReadingReport', ['printData' => fn (): array => ReadingPrintData::sheet($rows(), $context, $this->seesWhoRecorded($actor))]);
+        }
 
         $scope = $this->subscriptionsInScope($actor);
         $canApprove = $actor->can('approveAny', MeterReading::class);
@@ -98,8 +123,8 @@ class MeterReadingController extends Controller
             'weekEnd' => MeterReading::weekEndFor($weekStart, $weekBranchId)->toDateString(),
             // The weeks back to the first reading (at least fourteen months), for the year, month and week pickers;
             // only the latest one for someone who may not browse earlier weeks.
-            'weekOptions' => MeterReading::recentWeekOptions($weekBranchId, $canBrowseWeeks ? $this->weeksToOffer($actor, $weekBranchId) : 1),
-            'summary' => [
+            'weekOptions' => fn () => MeterReading::recentWeekOptions($weekBranchId, $canBrowseWeeks ? $this->weeksToOffer($actor, $weekBranchId) : 1),
+            'summary' => fn () => [
                 'total' => (clone $scope)->count(),
                 'entered' => (clone $scope)->whereHas('meterReadings', $enteredThisWeek)->count(),
                 'amountDue' => number_format((float) MeterReading::query()
@@ -107,16 +132,16 @@ class MeterReadingController extends Controller
                     ->whereDate('week_start', $week)
                     ->sum('amount_due'), 2, '.', ''),
             ],
-            'canRecord' => $actor->can('create', MeterReading::class),
+            'canRecord' => $actor->can('createOnReadingDay', MeterReading::class),
             'canApprove' => $canApprove,
             'seesWhoRecorded' => $this->seesWhoRecorded($actor),
-            'statusSummary' => $statusSummary,
-            'pendingApproval' => $canApprove ? $this->pendingApprovalSummary($request, $actor, $week) : null,
+            'statusSummary' => fn () => $this->statusSummary($summaryQuery, $week),
+            'pendingApproval' => fn () => $canApprove ? $this->pendingApprovalSummary($request, $actor, $week) : null,
             // The actor could record now, just not in this earlier week.
-            'weekIsViewOnly' => $actor->can('create', MeterReading::class) && ! $actor->can('create', [MeterReading::class, $weekStart]),
+            'weekIsViewOnly' => $actor->can('createOnReadingDay', MeterReading::class) && ! $actor->can('createOnReadingDay', [MeterReading::class, $weekStart]),
             'entryWindow' => $this->entryWindow($actor),
             'filters' => $this->dataTableState($request, 'full_name', 'asc', 25),
-            'filterOptions' => $this->filterOptions($actor, $request),
+            'filterOptions' => fn () => $this->filterOptions($actor, $request),
         ]);
     }
 
@@ -479,18 +504,21 @@ class MeterReadingController extends Controller
      * whether it restricts this actor at all: only people who enter readings
      * are held to it, and the Super Admin may enter them any time.
      *
-     * @return array{isOpen: bool, appliesToActor: bool, openDays: array<int, int>, opensAt: string, closesAt: string}
+     * @return array{isOpen: bool, appliesToActor: bool, openDays: array<int, int>, opensAt: string, closesAt: string, nextOpensOn: ?string}
      */
     private function entryWindow(User $actor): array
     {
         $setting = ReadingEntrySetting::forBranch($actor->workBranchId());
 
         return [
-            'isOpen' => $setting->isOpen(),
+            'isOpen' => $setting->isOpenOnReadingDay(),
             'appliesToActor' => ! $actor->isSuperAdmin() && $actor->hasPermission(PermissionKey::RecordMeterReadings),
-            'openDays' => $setting->mode === ReadingEntryMode::Automatic ? array_map('intval', $setting->open_days) : [],
+            'openDays' => $setting->mode === ReadingEntryMode::Automatic
+                ? array_values(array_intersect(array_map('intval', $setting->open_days), [$setting->reading_day]))
+                : [],
             'opensAt' => substr($setting->opens_at, 0, 5),
             'closesAt' => substr($setting->closes_at, 0, 5),
+            'nextOpensOn' => $setting->nextOpeningOnReadingDay()?->toDateString(),
         ];
     }
 
@@ -711,7 +739,7 @@ class MeterReadingController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function sheetRow(Subscription $subscription, Carbon $weekStart, User $actor): array
+    private function sheetRow(Subscription $subscription, Carbon $weekStart, User $actor, bool $printing = false): array
     {
         $reading = $subscription->meterReadings->first(fn (MeterReading $r) => $r->week_start->equalTo($weekStart));
         $lastBefore = $subscription->meterReadings->first(fn (MeterReading $r) => $r->week_start->lessThan($weekStart));
@@ -720,6 +748,7 @@ class MeterReadingController extends Controller
             : [$subscription->standingDiscount?->method, $subscription->standingDiscount?->value, $subscription->standingDiscount?->segment];
 
         return [
+            ...($printing ? ['printDetails' => ['branchName' => $subscription->branch?->name, 'tariffName' => __($subscription->tariff->category->label()), 'breakerAmpere' => $subscription->circuitBreaker?->ampere, 'notes' => $reading?->notes]] : []),
             'id' => $subscription->id,
             'accountNumber' => $subscription->account_number,
             'fullName' => $subscription->displayName(),
@@ -770,7 +799,7 @@ class MeterReadingController extends Controller
             'canApprove' => $reading !== null && $actor->can('approve', $reading),
             'canEdit' => $reading
                 ? ! $subscription->has_later_week && $actor->can('update', $reading)
-                : ! $subscription->has_later_week && $actor->can('create', [MeterReading::class, $weekStart]),
+                : ! $subscription->has_later_week && $actor->can('createOnReadingDay', [MeterReading::class, $weekStart]),
         ];
     }
 

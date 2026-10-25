@@ -32,7 +32,7 @@ class AuditTransferSearch
         $search = trim((string) $request->query('transfer_search', ''));
         $state = (string) $request->query('transfer_state', '');
         $dates = $request->validate([
-            'transfer_date_basis' => ['sometimes', 'in:recorded,paid'],
+            'transfer_date_basis' => ['sometimes', 'in:recorded,paid,bank'],
             'transfer_from' => ['nullable', 'required_with:transfer_to', 'date_format:Y-m-d'],
             'transfer_to' => ['nullable', 'required_with:transfer_from', 'date_format:Y-m-d', 'after_or_equal:transfer_from'],
         ]);
@@ -44,6 +44,8 @@ class AuditTransferSearch
             $query->whereHas('transaction', function (Builder $payment) use ($from, $until, $dates, $basis): void {
                 if ($basis === 'recorded') {
                     $payment->where('created_at', '>=', $from)->where('created_at', '<', $until);
+                } elseif ($basis === 'bank') {
+                    $payment->whereBetween('bank_received_on', [$dates['transfer_from'], $dates['transfer_to']]);
                 } else {
                     $payment->where(fn (Builder $actual) => $actual->where('paid_on', '>=', $dates['transfer_from'])->where('paid_on', '<', $until->setTimezone(config('app.business_timezone'))->toDateString())
                         ->orWhere(fn (Builder $normal) => $normal->whereNull('paid_on')->where('created_at', '>=', $from)->where('created_at', '<', $until)));

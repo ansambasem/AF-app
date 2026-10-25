@@ -184,6 +184,7 @@ export default function PaymentReceipt({ subscription, receipt, printedBy }) {
                         </ReceiptLine>
                     )}
                     <ReceiptLine label={receipt.isClearing ? 'مقابل خدمة' : 'ملاحظات'}>{receipt.notes}</ReceiptLine>
+                    <ReceiptLine label="تاريخ وصول الحوالة إلى البنك" ltr>{receipt.bankReceivedOn}</ReceiptLine>
                     <ReceiptLine label="تاريخ الدفع الفعلي — تسجيل متأخر" ltr>{receipt.paidOn}</ReceiptLine>
                     <ReceiptLine label="سبب تأخر التسجيل">{receipt.lateReason}</ReceiptLine>
                     {receipt.balanceAfter != null && <ReceiptLine label={receipt.isClearing ? 'الرصيد بعد المقاصة' : 'الرصيد بعد الدفعة'}>{balanceOnPaper(receipt.balanceAfter)}</ReceiptLine>}

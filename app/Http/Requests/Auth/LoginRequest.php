@@ -4,10 +4,12 @@ namespace App\Http\Requests\Auth;
 
 use App\Models\User;
 use App\Support\BranchDomainContext;
+use App\Support\UserDeviceAccess;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -49,25 +51,35 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         $isStopped = false;
-        $signedIn = Auth::attemptWhen(
-            $this->only('username', 'password'),
-            function (User $user) use (&$isStopped): bool {
-                $isStopped = ! $user->is_active;
+        $signedIn = DB::transaction(function () use (&$isStopped): bool {
+            $signedIn = Auth::attemptWhen(
+                $this->only('username', 'password'),
+                function (User $user) use (&$isStopped): bool {
+                    $isStopped = ! $user->is_active;
 
-                $branch = BranchDomainContext::branch();
+                    $branch = BranchDomainContext::branch();
 
-                if ($isStopped) {
-                    return false;
-                }
+                    if ($isStopped) {
+                        return false;
+                    }
 
-                if ($branch !== null) {
-                    return $user->canEnterBranch($branch);
-                }
+                    $allowed = $branch !== null ? $user->canEnterBranch($branch)
+                        : (! config('powercollect.branch_domains_enabled') || $user->canUseCentralSite());
+                    if ($allowed) {
+                        app(UserDeviceAccess::class)->prepareWebLogin($user);
+                    }
 
-                return ! config('powercollect.branch_domains_enabled') || $user->canUseCentralSite();
-            },
-            $this->boolean('remember'),
-        );
+                    return $allowed;
+                },
+                $this->boolean('remember'),
+            );
+            if ($signedIn) {
+                $this->session()->regenerate();
+                app(UserDeviceAccess::class)->claimWeb($this, $this->user(), newLogin: true);
+            }
+
+            return $signedIn;
+        });
 
         if (! $signedIn) {
             RateLimiter::hit($this->throttleKey());

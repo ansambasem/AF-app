@@ -4,6 +4,7 @@ use App\Http\Middleware\AuthenticateMobileToken;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsureBranchDomainAccess;
 use App\Http\Middleware\EnsureFinancialAuditorAccess;
+use App\Http\Middleware\EnsureUserDeviceAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveBranchDomain;
 use App\Http\Middleware\SecurityHeaders;
@@ -33,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             EnsureBranchDomainAccess::class,
             EnsureAccountIsActive::class,
+            EnsureUserDeviceAccess::class,
             EnsureFinancialAuditorAccess::class,
             HandleInertiaRequests::class,
         ]);

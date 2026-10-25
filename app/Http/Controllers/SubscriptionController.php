@@ -8,6 +8,8 @@ use App\Http\Concerns\BuildsSubscriptionStatement;
 use App\Http\Concerns\DeletesRecords;
 use App\Http\Concerns\FiltersDataTable;
 use App\Http\Concerns\FiltersSubscriptionList;
+use App\Http\Concerns\ProvidesSubscriptionForm;
+use App\Http\Concerns\ReturnsToDashboard;
 use App\Http\Requests\StoreSubscriptionRequest;
 use App\Http\Requests\UpdateSubscriptionRequest;
 use App\Models\Branch;
@@ -34,7 +36,7 @@ use Inertia\Response as InertiaResponse;
 
 class SubscriptionController extends Controller
 {
-    use BuildsSubscriptionStatement, DeletesRecords, FiltersDataTable, FiltersSubscriptionList;
+    use BuildsSubscriptionStatement, DeletesRecords, FiltersDataTable, FiltersSubscriptionList, ProvidesSubscriptionForm, ReturnsToDashboard;
 
     /**
      * Display a listing of the resource.
@@ -54,14 +56,15 @@ class SubscriptionController extends Controller
             ->select('subscriptions.*')
             ->selectRaw("COALESCE(NULLIF(subscription_name, ''), full_name) as display_name")
             ->readableTo($actor)
-            ->with(['branch.area', 'branch.governorate', 'meterBox.subArea', 'tariff', 'tariffSegment', 'circuitBreaker', 'standingDiscount', 'registeredBy', 'meterReadings.recordedBy'])
+            ->with(['branch.area', 'branch.governorate', 'meterBox.subArea', 'tariff', 'tariffSegment', 'circuitBreaker', 'standingDiscount', 'registeredBy'])
+            ->with(['meterReadings' => fn ($readings) => $readings->chaperone()->withLaterReadingsCount()->with('recordedBy')])
             ->with(['profile' => fn ($query) => $query->withCount(['subscriptions' => fn ($subscriptions) => $subscriptions->readableTo($actor)])])
             ->withSum('transactions as outstanding_balance', 'amount')
             ->withExists(['transactions as has_subscription_fee' => fn (Builder $transactions) => $transactions->where('type', SubscriptionTransaction::TYPE_SUBSCRIPTION_FEE)]);
         $showArchived ? $query->whereNotNull('subscriptions.archived_at') : $query->whereNull('subscriptions.archived_at');
         $this->applySubscriptionListFilters($query, $request, includeArchived: true);
 
-        $canRecordReadings = $actor->can('create', MeterReading::class);
+        $canRecordReadings = $actor->can('createOnReadingDay', MeterReading::class);
 
         $subscriptions = fn () => $query->paginate($this->dataTablePerPage($request))
             ->withQueryString()
@@ -86,7 +89,7 @@ class SubscriptionController extends Controller
             // Only the Super Admin may enter a reading for an earlier week.
             'readingWeekOptions' => fn () => MeterReading::recentWeekOptionsFor($actor, $actor->isSuperAdmin() ? 8 : 1),
             'statement' => fn () => $this->requestedStatement($request, $actor),
-            ...$this->formOptions(),
+            ...$this->subscriptionFormOptions(),
         ]);
     }
 
@@ -97,7 +100,7 @@ class SubscriptionController extends Controller
     {
         $this->authorize('create', Subscription::class);
 
-        return Inertia::render('Subscriptions/Create', $this->formOptions());
+        return Inertia::render('Subscriptions/Create', $this->subscriptionFormOptions());
     }
 
     /**
@@ -141,7 +144,7 @@ class SubscriptionController extends Controller
 
         $actor->notify(new ActionCompleted('subscription-created', $subscription->displayName()));
 
-        return redirect()->route('subscriptions.index')->with('status', 'subscription-created');
+        return $this->redirectAfterSave($request, 'subscriptions.index', 'subscription-created');
     }
 
     /**
@@ -172,10 +175,10 @@ class SubscriptionController extends Controller
 
         return Inertia::render('Subscriptions/Edit', [
             'subscription' => [
-                ...$this->editableFields($subscription),
+                ...$this->subscriptionEditableFields($subscription),
                 'subscriptionCount' => $subscription->profile->subscriptions()->readableTo(auth()->user())->count(),
             ],
-            ...$this->formOptions(),
+            ...$this->subscriptionFormOptions(),
         ]);
     }
 
@@ -211,7 +214,7 @@ class SubscriptionController extends Controller
         });
         $request->user()->notify(new ActionCompleted('subscription-updated', $subscription->displayName()));
 
-        return redirect()->route('subscriptions.index')->with('status', 'subscription-updated');
+        return $this->redirectAfterSave($request, 'subscriptions.index', 'subscription-updated');
     }
 
     /**
@@ -234,7 +237,7 @@ class SubscriptionController extends Controller
         $latestReading = $readings->first();
 
         return [
-            ...$this->editableFields($subscription),
+            ...$this->subscriptionEditableFields($subscription),
             'branchName' => $subscription->branch->name,
             'governorateName' => $subscription->branch->governorate?->name,
             'areaName' => $subscription->branch->area?->name,
@@ -334,15 +337,6 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * Whether the actor may set a subscription's minimum charge by hand
-     * instead of taking the circuit breaker's.
-     */
-    private function canEditMinimumCharge(User $actor): bool
-    {
-        return $actor->hasPermission(PermissionKey::UpdateSubscriptionMinimumCharge);
-    }
-
-    /**
      * Without the dedicated permission, minimum_charge is never taken from
      * the request as-is — it always tracks the chosen circuit breaker's own
      * minimum_payment (or, on update with no circuit breaker chosen, stays
@@ -399,91 +393,6 @@ class SubscriptionController extends Controller
             : null;
 
         return $data;
-    }
-
-    /**
-     * The full set of a subscription's editable fields — used both for the
-     * dedicated edit page and for the edit modal's initial form data on
-     * the index page, so both stay backed by the same shape.
-     *
-     * @return array<string, mixed>
-     */
-    private function editableFields(Subscription $subscription): array
-    {
-        return [
-            'id' => $subscription->id,
-            'account_number' => $subscription->account_number,
-            'subscriber_number' => $subscription->profile?->subscriber_number,
-            'full_name' => $subscription->full_name,
-            'subscription_name' => $subscription->subscription_name,
-            'display_name' => $subscription->displayName(),
-            'national_id' => $subscription->national_id,
-            'phone' => $subscription->phone,
-            'subscription_phone' => $subscription->subscription_phone,
-            'contact_phone' => $subscription->contactPhone(),
-            'address' => $subscription->address,
-            'meter_box_id' => $subscription->meter_box_id,
-            // The box the subscription is on, for the form's drop-down to show it before any search.
-            'meter_box' => $subscription->meterBox ? [
-                'value' => (string) $subscription->meterBox->id,
-                'label' => $subscription->meterBox->label(),
-                'sub_area_id' => $subscription->meterBox->sub_area_id,
-            ] : null,
-            'tariff_id' => $subscription->tariff_id,
-            'tariff_segment_id' => $subscription->tariff_segment_id,
-            'branch_id' => $subscription->branch_id,
-            'status' => $subscription->status->value,
-            'accounting_type' => $subscription->accounting_type->value,
-            'circuit_breaker_id' => $subscription->circuit_breaker_id,
-            'minimum_charge' => $subscription->minimum_charge,
-            'kilowatt_price' => $subscription->kilowatt_price,
-            'initial_reading' => $subscription->initial_reading,
-            'subscription_fee' => $subscription->subscription_fee,
-            // Whether the fee is already on the account: if not, the edit form can still charge it.
-            // Whether the subscription has ever been active: then they can be disconnected but not put back to waiting.
-            'has_been_active' => $subscription->activated_at !== null,
-            'subscription_fee_charged' => (bool) ($subscription->has_subscription_fee ?? $subscription->hasSubscriptionFeeCharge()),
-            'subscription_date' => $subscription->subscription_date?->format('Y-m-d'),
-            'reconnected_at' => $subscription->reconnected_at?->format('Y-m-d'),
-            'notes' => $subscription->notes,
-        ];
-    }
-
-    /**
-     * The branch/tariff options for the create/edit forms, and whether the
-     * actor may choose the branch themselves. The meter boxes are not sent:
-     * the form finds them as the user types (MeterBoxOptionController),
-     * narrowed by branch and sub-area ("منطقة 2"), so the page does not
-     * grow with the number of boxes.
-     *
-     * @return array{branches: Collection, tariffs: Collection, segments: Collection, subAreas: Collection, circuitBreakers: Collection, canChooseBranch: bool, currentBranchAreaId: ?int, currentBranchAreaName: ?string, canEditMinimumCharge: bool, canEditKilowattPrice: bool}
-     */
-    private function formOptions(): array
-    {
-        $actor = auth()->user();
-        $canChooseBranch = $actor->isSuperAdmin();
-
-        $branches = fn () => $canChooseBranch ? Branch::with('area')->orderBy('name')->get() : collect();
-
-        $tariffs = fn () => Tariff::orderBy('category')->get()->map(fn (Tariff $tariff) => [
-            'id' => $tariff->id,
-            'categoryLabel' => __($tariff->category->label()),
-            'rate' => $tariff->rate,
-        ]);
-
-        return [
-            'branches' => $branches,
-            'tariffs' => $tariffs,
-            // Any subscription can be given any customer segment, whatever their tariff.
-            'segments' => fn () => TariffSegment::orderBy('name')->get(['id', 'name']),
-            'subAreas' => fn () => SubArea::orderBy('name')->get(),
-            'circuitBreakers' => fn () => CircuitBreaker::orderBy('ampere')->get(),
-            'canChooseBranch' => $canChooseBranch,
-            'currentBranchAreaId' => $canChooseBranch ? null : $actor->workBranch()?->area_id,
-            'currentBranchAreaName' => $canChooseBranch ? null : $actor->workBranch()?->area?->name,
-            'canEditMinimumCharge' => $this->canEditMinimumCharge($actor),
-            'canEditKilowattPrice' => $actor->hasPermission(PermissionKey::UpdateSubscriptionKilowattPrice),
-        ];
     }
 
     /**

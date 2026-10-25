@@ -148,6 +148,7 @@ test('the statement exports each shown line with its side, its state and the bal
             recordedByName: 'Mohammed',
             paidOn: '2026-08-25',
             lateReason: 'نسيان إدخال الوصل',
+            bankReceivedOn: '2026-08-26',
         },
     ]);
     const lines = csv.split('\r\n');
@@ -155,9 +156,9 @@ test('the statement exports each shown line with its side, its state and the bal
     assert.ok(csv.startsWith('\uFEFF'));
     assert.equal(lines.length, 3);
     assert.ok(lines[1].startsWith('"1","2026-08-20 09:15","","غرامة","\'=HYPERLINK(""x"")","غرامة","عليه","50","شيكل","1"'));
-    assert.ok(lines[1].endsWith('"50","عليه","ملغاة","سارة","",""'));
+    assert.ok(lines[1].endsWith('"50","عليه","ملغاة","سارة","","",""'));
     assert.ok(lines[2].includes('"4471"'));
-    assert.ok(lines[2].endsWith('"-24","له","تصحيح","Mohammed","2026-08-25","نسيان إدخال الوصل"'));
+    assert.ok(lines[2].endsWith('"-24","له","تصحيح","Mohammed","2026-08-25","نسيان إدخال الوصل","2026-08-26"'));
 });
 
 /** A weekly reading of 60 with a standing discount of 30, corrected to 60 again, then a payment cancelled outright. */

@@ -57,6 +57,9 @@ class ProfileTest extends TestCase
             ->assertRedirect('/profile')->assertSessionHasErrorsIn('deviceLogout', 'password');
         $this->assertDatabaseHas('sessions', ['id' => 'mine']);
         $this->assertDatabaseCount('mobile_access_tokens', 2);
+        foreach ([[$user, 'mine'], [$user, session()->getId()], [$other, 'not-mine']] as [$owner, $sessionId]) {
+            DB::table('user_login_devices')->insert(['user_id' => $owner->id, 'session_hash' => hash('sha256', $sessionId), 'expires_at' => now()->addHour(), 'created_at' => now(), 'updated_at' => now()]);
+        }
         $this->withCookie(config('session.cookie'), session()->getId());
 
         $this->delete('/profile/devices', ['type' => 'all', 'password' => 'password'])
@@ -68,6 +71,9 @@ class ProfileTest extends TestCase
         $this->assertDatabaseHas('sessions', ['id' => session()->getId(), 'user_id' => $user->id]);
         $this->assertAuthenticatedAs($user);
         $this->assertNotSame('old-remember-token', $user->fresh()->remember_token);
+        $this->assertDatabaseMissing('user_login_devices', ['user_id' => $user->id, 'session_hash' => hash('sha256', 'mine')]);
+        $this->assertDatabaseHas('user_login_devices', ['user_id' => $user->id, 'session_hash' => hash('sha256', session()->getId())]);
+        $this->assertDatabaseHas('user_login_devices', ['user_id' => $other->id, 'session_hash' => hash('sha256', 'not-mine')]);
     }
 
     public function test_one_mobile_device_can_be_signed_out_without_affecting_other_devices(): void
@@ -115,11 +121,14 @@ class ProfileTest extends TestCase
         $user = User::factory()->create();
         foreach (['selected', 'kept'] as $id) {
             DB::table('sessions')->insert(['id' => $id, 'user_id' => $user->id, 'payload' => '', 'last_activity' => now()->timestamp]);
+            DB::table('user_login_devices')->insert(['user_id' => $user->id, 'session_hash' => hash('sha256', $id), 'expires_at' => now()->addHour(), 'created_at' => now(), 'updated_at' => now()]);
         }
         $this->actingAs($user)->delete('/profile/devices', ['type' => 'session', 'id' => hash('sha256', 'selected'), 'password' => 'password'])
             ->assertRedirect('/profile')->assertSessionHasNoErrors();
         $this->assertDatabaseMissing('sessions', ['id' => 'selected']);
         $this->assertDatabaseHas('sessions', ['id' => 'kept']);
+        $this->assertDatabaseMissing('user_login_devices', ['user_id' => $user->id, 'session_hash' => hash('sha256', 'selected')]);
+        $this->assertDatabaseHas('user_login_devices', ['user_id' => $user->id, 'session_hash' => hash('sha256', 'kept')]);
     }
 
     private function useDatabaseSessions(): void

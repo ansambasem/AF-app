@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
-import { isActiveLink } from '@/lib/navigation';
+import { shouldPrefetchPage, isActiveLink } from '@/lib/navigation';
 
 /** The small lock on a page the user may not open; it still opens, to the no-access page. */
 export function LockMark() {
@@ -51,7 +51,7 @@ export default function MegaMenu({ group, url, badges, width, shift, leaving, on
                     {featured.length > 0 && (
                         <div className="mb-2 grid grid-cols-2 gap-2 px-1">
                             {featured.map((link) => (
-                                <Link key={link.href} href={link.href} prefetch={!link.locked} className="tn-feature" aria-current={isActiveLink(link, url) ? 'page' : undefined} tabIndex={leaving ? -1 : undefined}>
+                                <Link key={link.href} href={link.href} prefetch={!link.locked && shouldPrefetchPage(link.href)} className="tn-feature" aria-current={isActiveLink(link, url) ? 'page' : undefined} tabIndex={leaving ? -1 : undefined}>
                                     <span className="tn-feature-icon"><Icon name={link.icon} /></span>
                                     <span className="relative z-[1]">
                                         <b className="flex items-center gap-1.5 leading-normal">{link.label}{link.locked && <LockMark />}</b>
@@ -65,7 +65,7 @@ export default function MegaMenu({ group, url, badges, width, shift, leaving, on
                     <ul className={`grid gap-0.5 ${twoColumns ? 'grid-cols-2' : ''}`}>
                         {rest.map((link) => (
                             <li key={link.href}>
-                                <Link href={link.href} prefetch={!link.locked} className="tn-mega-link" aria-current={isActiveLink(link, url) ? 'page' : undefined} tabIndex={leaving ? -1 : undefined}>
+                                <Link href={link.href} prefetch={!link.locked && shouldPrefetchPage(link.href)} className="tn-mega-link" aria-current={isActiveLink(link, url) ? 'page' : undefined} tabIndex={leaving ? -1 : undefined}>
                                     <span className="tn-tile"><Icon name={link.icon} /></span>
                                     <span className="min-w-0">
                                         <b>{link.label}</b>

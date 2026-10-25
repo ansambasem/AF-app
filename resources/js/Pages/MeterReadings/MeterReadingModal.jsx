@@ -11,9 +11,9 @@ const APPROVE_NOW_NOTE = 'هذه القراءة معتمدة. سيُلغى مب�
 
 function Summary({ label, value, tone = 'text-gray-900' }) {
     return (
-        <div className="rounded-lg bg-gray-50 px-3 py-2">
+        <div className="min-w-0 rounded-lg bg-gray-50 px-3 py-2 text-center">
             <p className="text-xs text-gray-500">{label}</p>
-            <p className={`mt-1 text-base font-bold tabular-nums ${tone}`} dir="ltr">
+            <p className={`mt-1 break-words text-center font-display text-base font-bold tabular-nums ${tone}`} dir="ltr">
                 {value}
             </p>
         </div>
@@ -107,26 +107,37 @@ export default function MeterReadingModal({ show, onClose, reading, subscription
                 </>
             )}
 
-            <div>
-                <InputLabel htmlFor="current_reading" value="القراءة الحالية" />
-                <TextInput
-                    id="current_reading"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    dir="ltr"
-                    className="mt-1 block w-full"
-                    value={data.current_reading}
-                    autoFocus={isEdit}
-                    onChange={(e) => setData('current_reading', e.target.value)}
-                />
-                <InputError message={errors.current_reading} className="mt-2" />
+            <div className={`grid items-start gap-4 ${hasPrevious ? 'sm:grid-cols-2' : ''}`}>
+                {hasPrevious && <div>
+                    <InputLabel htmlFor="previous_reading" value="القراءة السابقة" className="text-center" />
+                    <TextInput
+                        id="previous_reading"
+                        dir="ltr"
+                        readOnly
+                        value={previousReading}
+                        className="mt-2 h-12 w-full bg-gray-50 !text-center font-display text-xl font-semibold text-gray-600"
+                    />
+                </div>}
+                <div>
+                    <InputLabel htmlFor="current_reading" value="القراءة الحالية" className="text-center" />
+                    <TextInput
+                        id="current_reading"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        dir="ltr"
+                        className="mt-2 h-12 w-full !text-center font-display text-xl font-semibold"
+                        value={data.current_reading}
+                        autoFocus={isEdit}
+                        onChange={(e) => setData('current_reading', e.target.value)}
+                    />
+                    <InputError message={errors.current_reading} className="mt-2" />
+                </div>
             </div>
 
             {hasPrevious && (
-                <div className="grid grid-cols-2 gap-3">
-                    <Summary label="القراءة السابقة" value={previousReading} />
+                <div>
                     <Summary
                         label="الاستهلاك (كيلو)"
                         value={consumption ?? '—'}

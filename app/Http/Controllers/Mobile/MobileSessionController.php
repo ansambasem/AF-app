@@ -9,9 +9,9 @@ use App\Models\Bank;
 use App\Models\CurrencyRate;
 use App\Models\MessageBatch;
 use App\Models\MeterReading;
-use App\Models\MobileAccessToken;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Support\UserDeviceAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -25,6 +25,7 @@ class MobileSessionController extends Controller
         $validated = $request->validate([
             'username' => ['required', 'string'],
             'password' => ['required', 'string'],
+            'remember' => ['sometimes', 'boolean'],
         ]);
 
         $rateLimitKey = Str::transliterate(Str::lower($validated['username']).'|'.$request->ip());
@@ -50,7 +51,7 @@ class MobileSessionController extends Controller
 
         return response()->json([
             'user' => $this->userData($user),
-            'token' => MobileAccessToken::issue($user),
+            'token' => app(UserDeviceAccess::class)->issueMobile($user, $request->bearerToken(), $request->boolean('remember')),
         ]);
     }
 
@@ -82,6 +83,8 @@ class MobileSessionController extends Controller
             'username' => $user->username,
             'branch_name' => $user->branch?->name,
             'can_record_readings' => $user->hasPermission(PermissionKey::RecordMeterReadings),
+            'can_distribute_readings' => $user->hasPermission(PermissionKey::ManageReadingAssignments),
+            'can_approve_reading_assignments' => $user->hasPermission(PermissionKey::ApproveReadingAssignments),
             'can_view_readings' => $user->can('viewAny', MeterReading::class),
             'can_record_collections' => $user->can('recordAnyPayment', Subscription::class),
             'can_adjust_balances' => $user->hasAnyPermission(PermissionKey::AddCharges, PermissionKey::AddDiscounts, PermissionKey::AddClearings),

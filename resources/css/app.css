@@ -1403,6 +1403,65 @@
     animation: modal-panel-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
+/* The page behind an open window keeps still (the gutter stays, so nothing shifts). */
+html[data-modal-open] {
+    overflow: hidden;
+}
+
+/*
+ * Glass windows: the page behind is dimmed and softly blurred, and the
+ * panel is a frosted sheet with a light rim. The panel stays nearly opaque
+ * so text on it reads as on any card. Without blur support, or when the
+ * viewer asks for less transparency, both fall back to solid colours.
+ */
+.modal-glass-backdrop {
+    background: rgb(var(--graphite-900) / 0.55);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    backdrop-filter: blur(10px) saturate(140%);
+}
+
+.modal-glass-panel {
+    border: 1px solid rgb(255 255 255 / 0.6);
+    background: rgb(var(--surface) / 0.9);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 2px 6px rgb(16 24 40 / 0.08),
+        0 36px 80px -24px rgb(16 24 40 / 0.55);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    backdrop-filter: blur(22px) saturate(160%);
+}
+
+.dark .modal-glass-panel {
+    border-color: rgb(255 255 255 / 0.09);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 36px 80px -24px rgb(0 0 0 / 0.8);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .modal-glass-backdrop {
+        background: rgb(var(--graphite-900) / 0.7);
+    }
+
+    .modal-glass-panel {
+        background: rgb(var(--surface));
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .modal-glass-backdrop {
+        background: rgb(var(--graphite-900) / 0.7);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    .modal-glass-panel {
+        background: rgb(var(--surface));
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+}
+
 /*
  * A dialog scrolls inside its own full-screen layer; a slim translucent
  * scrollbar keeps it from showing as a bright bar beside the dimmed page.
@@ -1519,6 +1578,76 @@
 
 .animate-glow-breathe {
     animation: glow-breathe 8s ease-in-out infinite;
+}
+
+/*
+ * Instant feedback: every control answers the press itself, with no grey
+ * flash or double-tap delay on phones. Small controls (the "!" notes, the
+ * row checkboxes, the page trail) keep their look but get a finger-sized
+ * target on touch screens.
+ */
+a,
+button,
+[role='button'],
+summary,
+label,
+input[type='checkbox'],
+input[type='radio'] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.tap-expand {
+    position: relative;
+}
+
+@media (pointer: coarse) {
+    .tap-expand::after {
+        content: '';
+        position: absolute;
+        inset: -10px;
+    }
+
+    main input[type='checkbox'],
+    .modal-scroll input[type='checkbox'] {
+        width: 22px;
+        height: 22px;
+    }
+
+    .tn-trail a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+    }
+}
+
+/* Dashboard rows that open a subscriber's statement: the whole row answers the pointer and the press. */
+.dashboard-row-link {
+    margin-inline: -10px;
+    padding-inline: 10px;
+    border-radius: 14px;
+    transition:
+        background-color 140ms ease,
+        transform 140ms ease;
+}
+
+.dashboard-row-link:hover {
+    background: rgb(var(--gray-50));
+}
+
+.dashboard-row-link:active {
+    transform: scale(0.99);
+}
+
+.dashboard-row-link:focus-within {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: -2px;
+}
+
+/* Quick actions: their titles wrap on a narrow card instead of being cut off. */
+.quick-action-title,
+.quick-action-subtitle {
+    overflow-wrap: anywhere;
 }
 
 /* Everything above stops for people who ask their device for less motion. */

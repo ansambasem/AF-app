@@ -1,3 +1,4 @@
+import BankReceivedDate from '@/Components/BankReceivedDate';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import RowActionsMenu from '@/Components/DataTable/RowActionsMenu';
@@ -484,6 +485,7 @@ function StatementRow({
                     {(isHistory || followsLineAbove(entry)) && <span className="me-1 text-blue-600">↲</span>}
                     <span className="ledger-struck">{withLtrDates(entry.description)}</span>
                 </div>
+                <BankReceivedDate value={entry.bankReceivedOn} />
                 {entry.details && <p className="ledger-description statement-description-details">{withLtrDates(entry.details)}</p>}
                 {!fullPaymentDetails && entry.lateReason && !entry.details?.includes(entry.lateReason) && (
                     <p className="ledger-description statement-description-details statement-screen-only">سبب التأخير: {entry.lateReason}</p>

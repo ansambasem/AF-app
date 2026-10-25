@@ -20,7 +20,7 @@ use Illuminate\Validation\ValidationException;
  * One bank transfer divided between several subscriptions: what the payer
  * sent in one piece, and the payments — one per subscription — it became.
  */
-#[Fillable(['reference_number', 'bank_name', 'sender_bank_name', 'sender_name', 'total_amount', 'notes', 'recorded_by'])]
+#[Fillable(['reference_number', 'bank_name', 'sender_bank_name', 'sender_name', 'total_amount', 'notes', 'recorded_by', 'bank_received_on'])]
 class SplitPayment extends Model
 {
     /** @use HasFactory<SplitPaymentFactory> */
@@ -30,6 +30,7 @@ class SplitPayment extends Model
     {
         return [
             'total_amount' => 'decimal:2',
+            'bank_received_on' => 'date:Y-m-d',
         ];
     }
 
@@ -95,6 +96,7 @@ class SplitPayment extends Model
 
             return [
                 'id' => $this->id,
+                'bank_received_on' => $this->bank_received_on?->toDateString(),
                 ...$this->only(['bank_name', 'sender_bank_name', 'sender_name', 'reference_number', 'notes', 'total_amount']),
                 'revision' => $this->editingRevision($parts),
                 'parts' => $active->map(fn (SubscriptionTransaction $part): array => [
@@ -129,8 +131,9 @@ class SplitPayment extends Model
                 $changes = [];
                 foreach ($fields as $field => $value) {
                     $value = filled($value) ? trim((string) $value) : null;
-                    if ((string) ($part->$field ?? '') !== (string) ($value ?? '')) {
-                        $changes[$field] = [$part->$field, $value];
+                    $oldValue = $field === 'bank_received_on' ? $part->bank_received_on?->toDateString() : $part->$field;
+                    if ((string) ($oldValue ?? '') !== (string) ($value ?? '')) {
+                        $changes[$field] = [$oldValue, $value];
                     }
                 }
                 if ($changes !== []) {
@@ -160,8 +163,8 @@ class SplitPayment extends Model
     /** @param Collection<int, SubscriptionTransaction> $parts */
     private function editingRevision(Collection $parts): string
     {
-        return hash('sha256', json_encode([$this->only(['bank_name', 'sender_bank_name', 'sender_name', 'reference_number', 'notes', 'total_amount']),
-            $parts->map(fn (SubscriptionTransaction $part): array => $part->only(['id', 'amount', 'bank_name', 'sender_bank_name', 'sender_name', 'reference_number', 'notes', 'cancelled_at']))->all(),
+        return hash('sha256', json_encode([$this->only(['bank_name', 'sender_bank_name', 'sender_name', 'reference_number', 'notes', 'total_amount', 'bank_received_on']),
+            $parts->map(fn (SubscriptionTransaction $part): array => $part->only(['id', 'amount', 'bank_name', 'sender_bank_name', 'sender_name', 'reference_number', 'notes', 'cancelled_at', 'bank_received_on']))->all(),
         ], JSON_THROW_ON_ERROR));
     }
 
@@ -182,6 +185,7 @@ class SplitPayment extends Model
             $split = self::create([
                 'reference_number' => trim($shared['reference_number']),
                 'bank_name' => $shared['bank_name'],
+                'bank_received_on' => $shared['bank_received_on'] ?? null,
                 'sender_bank_name' => $shared['sender_bank_name'] ?? null,
                 'sender_name' => trim($shared['sender_name']),
                 'total_amount' => $shared['total_amount'],
@@ -195,6 +199,7 @@ class SplitPayment extends Model
                     'currency' => 'ILS',
                     'payment_method' => 'bank_transfer',
                     'bank_name' => $split->bank_name,
+                    'bank_received_on' => $split->bank_received_on?->toDateString(),
                     'sender_bank_name' => $split->sender_bank_name,
                     'sender_name' => $split->sender_name,
                     'reference_number' => $split->reference_number,
