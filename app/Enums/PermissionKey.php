@@ -328,6 +328,7 @@ enum PermissionKey: string
                 'actions' => [
                     'view' => self::ViewCollections,
                     'record' => self::RecordCollections,
+                    'record_late' => self::RecordLatePayments,
                     'record_cash' => self::RecordCashPayments,
                     'record_transfer' => self::RecordTransferPayments,
                     'close_boxes' => self::CloseCashBoxes,
