@@ -17,6 +17,41 @@ export const PAPER_SIZES = {
 /** Vertical padding of a table cell, in px, for each row spacing. */
 export const DENSITY_PADDING = { compact: 2, normal: 5, relaxed: 9 };
 
+export const PRINT_FONTS = {
+    plex: { label: 'IBM Plex عربي', family: '"IBM Plex Sans Arabic", sans-serif' },
+    messiri: { label: 'المسيري', family: '"El Messiri", serif' },
+    alexandria: { label: 'الإسكندرية', family: 'Alexandria, sans-serif' },
+    arial: { label: 'Arial', family: 'Arial, sans-serif' },
+    times: { label: 'Times New Roman', family: '"Times New Roman", serif' },
+};
+
+export function printFont(key) {
+    return PRINT_FONTS[key]?.family ?? PRINT_FONTS.plex.family;
+}
+
+export const PRINT_PRESETS = [
+    { id: 'official', name: 'ترويسة الشركة', description: 'شعار في الوسط ونص على الجانبين', header: { layout: 'letterhead', logoPosition: 'center', ruleStyle: 'double' } },
+    { id: 'clearing', name: 'ورقة مقاصة', description: 'ترويسة رسمية وتوقيع الطرفين', header: { layout: 'letterhead', logoPosition: 'center', ruleStyle: 'double', title: 'ورقة مقاصة' }, footer: { signatures: ['توقيع الطرف الأول', 'توقيع الطرف الثاني'], notes: 'ملاحظات: ' } },
+    { id: 'collection', name: 'كشف تحصيل', description: 'جدول واضح وتوقيع المحصّل', header: { layout: 'letterhead', logoPosition: 'right', title: 'كشف تحصيل' }, footer: { signatures: ['توقيع المحصّل', 'توقيع الإدارة'] } },
+    { id: 'readings', name: 'كشف قراءات', description: 'صفوف واسعة للقراءة والمراجعة', header: { layout: 'letterhead', logoPosition: 'center', title: 'كشف قراءات العدادات' }, density: 'relaxed', footer: { signatures: ['قارئ العدادات', 'المراجع'] } },
+    { id: 'compact', name: 'تقرير مختصر', description: 'خط أصغر ومسافات مضغوطة', header: { layout: 'standard', centered: false, ruleStyle: 'single' }, fontSize: 10, density: 'compact' },
+    { id: 'centered', name: 'تقرير بترويسة وسطية', description: 'الشعار واسم الشركة فوق عنوان التقرير', header: { layout: 'standard', centered: true, titleAlign: 'center' } },
+];
+
+/** A starting design changes presentation, keeping the current report's data and columns. */
+export function applyPrintPreset(layout, id) {
+    const preset = PRINT_PRESETS.find((item) => item.id === id);
+    if (!preset) return layout;
+
+    return {
+        ...layout,
+        fontSize: preset.fontSize ?? layout.fontSize,
+        density: preset.density ?? 'normal',
+        header: { ...layout.header, ...(preset.header.layout === 'letterhead' ? { logoWidth: 36, logoHeight: 24 } : {}), ...preset.header },
+        footer: { ...layout.footer, ...preset.footer },
+    };
+}
+
 const LAYOUT_PREFIX = 'print-layout:';
 
 /**
@@ -30,6 +65,8 @@ export function defaultLayout({ columns, title = '', company = '' }) {
         orientation: columns.length > 6 ? 'landscape' : 'portrait',
         margin: 12,
         fontSize: 12,
+        fontFamily: 'plex',
+        lineHeight: 1.5,
         density: 'normal',
         header: {
             logo: true,
@@ -42,6 +79,30 @@ export function defaultLayout({ columns, title = '', company = '' }) {
             count: true,
             centered: false,
             repeatTitle: false,
+            layout: 'standard',
+            companyEnglish: '',
+            companyDetails: '',
+            logoPosition: 'center',
+            logoWidth: 24,
+            logoHeight: 13,
+            gap: 4,
+            verticalAlign: 'center',
+            companyAlign: 'right',
+            englishAlign: 'left',
+            titleAlign: 'center',
+            companyFont: 'plex',
+            englishFont: 'arial',
+            titleFont: 'plex',
+            companySize: 16,
+            englishSize: 14,
+            titleSize: 20,
+            subtitleSize: 12,
+            companyBold: true,
+            englishBold: false,
+            titleBold: true,
+            ruleStyle: 'single',
+            ruleWidth: 2,
+            ruleColor: '#A51D26',
         },
         columns: columns.map((column) => ({ key: column.key, label: column.label, extra: Boolean(column.extra), visible: !column.extra, align: 'auto', total: false })),
         // Up to three levels, `{ key, direction }`; empty keeps the table's own order.
@@ -97,7 +158,8 @@ export function fitLayout(saved, fresh) {
 
     return {
         ...fresh,
-        ...pick(present(saved), ['paper', 'orientation', 'margin', 'fontSize', 'density']),
+        ...pick(present(saved), ['paper', 'orientation', 'margin', 'fontSize', 'density', 'lineHeight']),
+        fontFamily: Object.hasOwn(PRINT_FONTS, saved.fontFamily) ? saved.fontFamily : fresh.fontFamily,
         header: { ...fresh.header, ...present(saved.header) },
         table: { ...fresh.table, ...present(saved.table) },
         footer: { ...fresh.footer, ...present(saved.footer), signatures: (saved.footer?.signatures ?? fresh.footer.signatures).map((label) => label ?? '') },
@@ -299,7 +361,7 @@ export function cssString(text) {
 export function pageCss(layout) {
     const paper = PAPER_SIZES[layout.paper] ? layout.paper : 'A4';
     const margin = Math.min(Math.max(Number(layout.margin) || 0, 0), 40);
-    const box = 'font-size: 9pt; color: #4b5563;';
+    const box = `font-size: 9pt; color: #4b5563; font-family: ${printFont(layout.fontFamily)};`;
     const boxes = [];
 
     if (layout.footer.pageNumbers) {

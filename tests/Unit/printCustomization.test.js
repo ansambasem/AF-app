@@ -89,3 +89,32 @@ test('column settings expose print-only fields, widths, handwriting and nested g
     const html = renderToStaticMarkup(createElement(Panel, { layout, onChange() {}, onReset() {}, scope: { allRows: true, total: 1, onChange() {} }, templates: { list: [], active: null, supported: true, canManage: false, errors: {}, actions: {} } }));
     for (const label of ['البحث في أعمدة الطباعة', 'العرض (مم)', 'خانة فارغة للكتابة', 'السطر الإضافي لعمود', 'إضافة عمود فارغ', 'إضافة مستوى تجميع', 'الهاتف']) assert.ok(html.includes(label), label);
 });
+
+test('letterhead renders independent text directions, logo placement and typography with escaped text', () => {
+    const layout = defaultLayout({ columns: [{ key: 'name', label: 'المشترك' }], company: 'شركة أبو زايد', title: 'ورقة مقاصة' });
+    Object.assign(layout.header, { layout: 'letterhead', companyEnglish: 'Fares <script>bad</script> Sons', companyDetails: 'إدارة الشركة', logoPosition: 'center', logoWidth: 40, titleSize: 24, titleFont: 'messiri', ruleStyle: 'double', ruleColor: '#A51D26' });
+    layout.fontFamily = 'alexandria';
+    const render = () => renderToStaticMarkup(createElement(Paper, { layout, table: { rows: [] }, summary: '', context: {}, zoom: 1 }));
+    const html = render();
+
+    assert.ok(html.includes('data-print-letterhead'));
+    assert.ok(html.includes('minmax(0, 1fr) auto minmax(0, 1fr)'));
+    assert.ok(html.includes('width:40mm'));
+    assert.ok(html.includes('font-size:24px'));
+    assert.ok(html.includes('Alexandria, sans-serif'));
+    assert.ok(html.includes('dir="ltr"'));
+    assert.ok(html.includes('dir="rtl"'));
+    assert.ok(html.includes('border-bottom:2px solid #A51D26'));
+    assert.ok(html.includes('&lt;script&gt;bad&lt;/script&gt;'));
+    assert.equal(html.includes('<script>'), false);
+    layout.header.logo = false;
+    assert.equal(render().includes('<img'), false);
+    assert.ok(render().includes('minmax(0, 1fr) auto minmax(0, 1fr)'));
+});
+
+test('print settings offer named starter designs and independent letterhead controls', () => {
+    const layout = defaultLayout({ columns: [{ key: 'name', label: 'المشترك' }] });
+    layout.header.layout = 'letterhead';
+    const html = renderToStaticMarkup(createElement(Panel, { layout, onChange() {}, onReset() {}, scope: { allRows: true, total: 1, onChange() {} }, templates: { list: [], active: null, supported: true, canManage: true, errors: {}, actions: {} } }));
+    for (const label of ['ورقة مقاصة', 'كشف تحصيل', 'اسم الشركة والتفاصيل بالإنجليزية', 'موضع الشعار', 'حجم النص العربي', 'محاذاة النص الإنجليزي', 'خط عنوان التقرير', 'عرض الشعار', 'خط محتوى التقرير']) assert.ok(html.includes(label), label);
+});

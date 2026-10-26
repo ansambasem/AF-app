@@ -20,10 +20,21 @@ const BUTTON =
 /**
  * The page an error (no permission, not found, expired, server trouble)
  * shows instead of the framework's plain English one, with a way back.
+ * A signed-in user opening a page they may not open (`blank`) sees it empty,
+ * the top bar still there to go elsewhere, with no word of the permission.
  */
-export default function Error({ status }) {
-    const { auth, branchContext } = usePage().props;
+export default function Error({ status, blank = false }) {
+    const { appName, auth, branchContext } = usePage().props;
     const signedIn = Boolean(auth?.user);
+
+    if (blank && signedIn) {
+        return (
+            <AuthenticatedLayout>
+                <Head title={appName} />
+            </AuthenticatedLayout>
+        );
+    }
+
     const message = MESSAGES[status] ?? MESSAGES[500];
     const RecoveryLink = branchContext?.recoveryUrl ? 'a' : Link;
 

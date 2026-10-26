@@ -65,6 +65,32 @@ void main() {
   });
   tearDown(() async => directory.delete(recursive: true));
 
+  testWidgets('remember me help opens only when its information icon is tapped',
+      (tester) async {
+    const explanation =
+        'ابقَ مسجّل الدخول على هذا الجهاز لمدة تصل إلى 30 يومًا.';
+    await tester.pumpWidget(PowerCollectApp(
+        apiClient: SessionApi(), fieldStore: SessionMemoryStore()));
+    await tester.pumpAndSettle();
+    expect(find.text('تذكرني'), findsOneWidget);
+    expect(find.text(explanation), findsNothing);
+
+    await tester.tap(find.byTooltip('معلومات تذكرني'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(explanation), findsOneWidget);
+    expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+        false);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text(explanation), findsNothing);
+    await tester.tap(find.text('تذكرني'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+        true);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   test(
       'remembered credentials live in the secure vault and never in offline JSON',
       () async {

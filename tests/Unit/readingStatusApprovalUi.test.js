@@ -32,6 +32,12 @@ before(async () => {
 const row = { id: 1, fullName: 'أحمد', previousReading: 0, canApprove: true, canEdit: true, unitPrice: '0.5', minimumPayment: '0', reading: { id: 7, currentReading: 23, consumption: 23, amountDue: '11.50', readingFee: '11.50', status: 'pending' } };
 const renderRow = (overrides = {}, props = {}) => renderToStaticMarkup(createElement(SheetRow, { row: { ...row, ...overrides }, approvable: true, week: '2026-10-16', selected: false, onApprove() {}, onToggleSelected() {}, ...props }));
 
+test('an initial baseline including zero offers the previous-reading pencil only when permitted', () => {
+    const initialReading = { isInitial: true, weekStart: '2026-10-16', previousReading: 0, canEdit: true, previewUrl: '/subscriptions/1/reading-baseline/preview', saveUrl: '/subscriptions/1/reading-baseline' };
+    assert.match(renderRow({ reading: null, canApprove: false, initialReading }), /aria-label="تعديل القراءة السابقة لـ أحمد"/);
+    assert.doesNotMatch(renderRow({ reading: null, canApprove: false, initialReading: { ...initialReading, canEdit: false } }), /aria-label="تعديل القراءة السابقة لـ أحمد"/);
+});
+
 test('the saved pending status is an approval button without removing its selection checkbox', () => {
     const html = renderRow();
     assert.match(html, /<button[^>]*aria-label="اعتماد قراءة أحمد"/);

@@ -149,6 +149,7 @@ class FieldReadingSync
             now()->gt($cycle->syncDeadline()) => 'late_sync',
             $subscription->meterReadings()->whereDate('week_start', $cycle->week_start->toDateString())->exists() => 'already_read',
             $subscription->meterReadings()->whereDate('week_start', '>', $cycle->week_start->toDateString())->exists() => 'later_week_read',
+            ! $cycle->week_start->equalTo(MeterReading::latestEndedWeekStart($subscription->branch_id)) => 'week_locked',
             $currentReading < $subscription->previousReadingBefore($cycle->week_start) => 'below_previous',
             MeterReading::isImpossibleConsumption(MeterReading::consumptionBetween($subscription->previousReadingBefore($cycle->week_start), $currentReading)) => 'impossible_consumption',
             default => null,
@@ -157,8 +158,8 @@ class FieldReadingSync
 
     /**
      * A supervisor's decision to save a held reading as the week's reading,
-     * after checking again that the subscription has no reading for that
-     * week or a later one and that the value fits. Returns why it cannot be
+     * after checking again that the week is still open, the subscription has
+     * no reading for that week or a later one, and the value fits. Returns why it cannot be
      * saved, or null once it is.
      */
     public function accept(ReadingSubmission $submission, User $reviewer, ?string $note): ?string
@@ -174,6 +175,7 @@ class FieldReadingSync
             $weekStart = $held->cycle->week_start;
             $previous = $subscription->previousReadingBefore($weekStart);
             $why = match (true) {
+                ! $weekStart->equalTo(MeterReading::latestEndedWeekStart($subscription->branch_id)) => ReadingSubmission::ISSUES['week_locked'],
                 $subscription->status !== SubscriptionStatus::Active => ReadingSubmission::ISSUES['not_on_box'],
                 $subscription->meterReadings()->whereDate('week_start', '>=', $weekStart->toDateString())->exists() => ReadingSubmission::ISSUES['already_read'],
                 $held->current_reading < $previous => ReadingSubmission::ISSUES['below_previous'],

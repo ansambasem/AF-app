@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Link, router, usePage } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
 import ActivityBell from '@/Components/ActivityBell';
-import { shouldPrefetchPage, HOME_LINK, currentGroup, isActiveLink, topBarItems } from '@/lib/navigation';
+import { shouldPrefetchPage, HOME_LINK, currentGroup, groupLandingLink, isActiveLink, topBarItems } from '@/lib/navigation';
 import MegaMenu, { megaWidth } from './MegaMenu';
 import AccountMenu from './AccountMenu';
 import { pageWindowOpen } from './shortcuts';
@@ -25,7 +25,9 @@ function badgeOf(group, badges) {
  * scrolled away, `where` ({ section, page }) takes the branch's place under
  * the name, and the page's name sits beside the logo on phones, so the user
  * still sees where they are. A section's pages open in one panel under it
- * that reshapes itself as the pointer moves between sections.
+ * that reshapes itself as the pointer moves between sections; a mouse click
+ * on a section opens its first page, while touch and the keyboard, with no
+ * hover, open the panel.
  */
 export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDrawer, drawerOpen, layerOpen, onShowShortcuts, onStartTour }) {
     const { props, url } = usePage();
@@ -52,6 +54,7 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
     const panelRef = useRef(null);
     const timers = useRef({ open: null, close: null, leaving: new Set() });
     const focusedPanel = useRef(null);
+    const pointerType = useRef(null);
     const panelsRef = useRef([]);
     panelsRef.current = panels;
     const state = useRef({ openId: null, pinned: false, popover: null, popoverY: 0 });
@@ -367,8 +370,14 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
         }, 220);
     }
 
-    function onSectionClick(event, id) {
-        if (openId === id && !pinned && event.detail) {
+    function onSectionClick(event, group) {
+        const id = group.id;
+        const landing = groupLandingLink(group);
+
+        if (event.detail && pointerType.current === 'mouse' && landing) {
+            closeMega();
+            router.visit(landing.href);
+        } else if (openId === id && !pinned && event.detail) {
             openMega(id, { pin: true });
         } else if (openId === id) {
             closeMega();
@@ -524,7 +533,8 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
                                     aria-controls="tn-mega"
                                     aria-current={isCurrent ? 'true' : undefined}
                                     title={`${item.group.label} · Alt+${index + 1}`}
-                                    onClick={(event) => onSectionClick(event, item.group.id)}
+                                    onPointerDown={(event) => { pointerType.current = event.pointerType; }}
+                                    onClick={(event) => onSectionClick(event, item.group)}
                                     onKeyDown={(event) => onSectionKeyDown(event, item)}
                                 >
                                     <Icon name={item.group.icon} className="tn-section-icon" />

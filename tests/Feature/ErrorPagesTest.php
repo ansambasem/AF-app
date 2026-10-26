@@ -29,22 +29,30 @@ class ErrorPagesTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page->component('Error')->where('status', 404));
     }
 
-    public function test_no_permission_is_an_arabic_403_page_rather_than_the_default_english_one(): void
+    public function test_opening_a_page_without_permission_shows_it_blank_rather_than_the_default_english_403(): void
     {
         $collector = User::factory()->collector()->create();
 
         $response = $this->actingAs($collector)->get('/users')->assertForbidden();
 
-        $response->assertInertia(fn (AssertableInertia $page) => $page->component('Error')->where('status', 403));
+        $response->assertInertia(fn (AssertableInertia $page) => $page->component('Error')->where('status', 403)->where('blank', true));
         $this->assertStringNotContainsString('This action is unauthorized', $response->getContent());
+    }
+
+    public function test_a_forbidden_action_still_says_it_is_not_permitted(): void
+    {
+        $collector = User::factory()->collector()->create();
+
+        $this->actingAs($collector)->post('/users', [])->assertForbidden()
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('Error')->where('status', 403)->where('blank', false));
     }
 
     /**
      * The top bar shows every page to everyone (lib/navigation.js), so each
-     * one opens the no-access page, in the app's layout, for those who may
-     * not open it, rather than a broken or empty screen.
+     * one opens blank, in the app's layout, for those who may not open it,
+     * rather than a broken screen.
      */
-    public function test_every_page_in_the_top_bar_opens_the_no_access_page_for_a_user_without_its_permission(): void
+    public function test_every_page_in_the_top_bar_opens_blank_for_a_user_without_its_permission(): void
     {
         $user = User::factory()->collector()->create();
         $user->permissions()->sync([]);
@@ -54,7 +62,7 @@ class ErrorPagesTest extends TestCase
             '/subscriptions', '/meter-readings', '/reading-cycles', '/disconnection-lists', '/messages', '/users', '/settings/payments', '/branches', '/tariffs',
             '/circuit-breakers', '/meter-boxes', '/governorates', '/settings/permissions', '/settings/reading-schedule', '/settings/print-templates', '/settings/sms'] as $path) {
             $this->get($path)->assertForbidden()
-                ->assertInertia(fn (AssertableInertia $page) => $page->component('Error')->where('status', 403)->has('auth.user'));
+                ->assertInertia(fn (AssertableInertia $page) => $page->component('Error')->where('status', 403)->where('blank', true)->has('auth.user'));
         }
     }
 

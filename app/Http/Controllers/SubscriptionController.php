@@ -86,8 +86,8 @@ class SubscriptionController extends Controller
             'statusOptions' => SubscriptionStatus::options(),
             'filters' => $this->dataTableState($request, 'display_name'),
             'filterOptions' => fn () => $this->filterOptions($actor, $request),
-            // Only the Super Admin may enter a reading for an earlier week.
-            'readingWeekOptions' => fn () => MeterReading::recentWeekOptionsFor($actor, $actor->isSuperAdmin() ? 8 : 1),
+            // New reading forms offer only the latest week of each branch.
+            'readingWeekOptions' => fn () => MeterReading::recentWeekOptionsFor($actor, 1),
             'statement' => fn () => $this->requestedStatement($request, $actor),
             ...$this->subscriptionFormOptions(),
         ]);
@@ -235,6 +235,10 @@ class SubscriptionController extends Controller
     {
         $readings = $subscription->meterReadings->sortByDesc('week_start')->values();
         $latestReading = $readings->first();
+        $entryWeek = MeterReading::latestEndedWeekStart($subscription->branch_id);
+        $entryReading = $readings->first(fn (MeterReading $reading): bool => $reading->week_start->equalTo($entryWeek));
+        $hasPreviousReading = $readings->contains(fn (MeterReading $reading): bool => $reading->week_start->lessThan($entryWeek));
+        $hasLaterReading = $readings->contains(fn (MeterReading $reading): bool => $reading->week_start->greaterThan($entryWeek));
 
         return [
             ...$this->subscriptionEditableFields($subscription),
@@ -270,7 +274,14 @@ class SubscriptionController extends Controller
             'lastReading' => $latestReading?->requires_reentry ? $latestReading->previous_reading : ($latestReading?->nextPreviousReading() ?? (float) ($subscription->initial_reading ?? 0)),
             'lastReadingWeekStart' => $latestReading?->week_start->format('Y-m-d'),
             'editableLastReadingId' => $this->editableLastReadingId($subscription, $readings, $actor),
-            'canRecordReading' => $canRecordReadings && $subscription->status === SubscriptionStatus::Active,
+            'initialReading' => ! $hasPreviousReading ? [
+                'isInitial' => true, 'weekStart' => $entryWeek->toDateString(),
+                'value' => $entryReading?->previous_reading ?? (float) ($subscription->initial_reading ?? 0),
+                'previewUrl' => route('subscriptions.reading-baseline.preview', $subscription),
+                'saveUrl' => route('subscriptions.reading-baseline.update', $subscription),
+                'canEdit' => ! $hasLaterReading && $actor->can('adjustInitialReading', [$subscription, $entryWeek]),
+            ] : null,
+            'canRecordReading' => $canRecordReadings && ! $hasLaterReading && $subscription->status === SubscriptionStatus::Active,
             'canUpdate' => $actor->can('update', $subscription),
             'canDelete' => $actor->can('delete', $subscription),
             'canRecordPayment' => $actor->can('recordPayment', $subscription),
@@ -319,6 +330,7 @@ class SubscriptionController extends Controller
             'consumption' => $reading->consumption,
             'amountDue' => $reading->amount_due,
             'discountAmount' => $reading->discount_amount,
+            'discount' => $reading->discount_method ? ['method' => $reading->discount_method->value, 'value' => $reading->discount_value] : null,
             'unitPrice' => $reading->unit_price,
             'minimumPayment' => $reading->minimum_payment,
             'status' => $reading->status->value,

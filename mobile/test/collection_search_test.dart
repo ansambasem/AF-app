@@ -81,7 +81,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('الإجراءات السريعة'), findsOneWidget);
+    expect(find.text('مهامك'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });

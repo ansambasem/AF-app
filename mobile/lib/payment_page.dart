@@ -41,8 +41,19 @@ const _currencies = [
   ('JOD', 'JD', 'دينار'),
 ];
 
+/// The company's exchange rates from the website's payment settings, by
+/// currency code, as the server sends them (`user.currencies`). A currency
+/// with no rate set there is left out, so it cannot be taken in the app.
+Map<String, double> exchangeRatesFrom(Object? currencies) => {
+      if (currencies is List)
+        for (final currency in currencies)
+          if (currency is Map &&
+              (double.tryParse('${currency['rate']}') ?? 0) > 0)
+            '${currency['code']}': double.parse('${currency['rate']}'),
+    };
+
 /// Record a payment the way the website's payment form does: the amount in
-/// shekels, dollars or dinars (at an exchange rate), paid in cash or by a
+/// shekels, dollars or dinars (at the company's exchange rate), paid in cash or by a
 /// transfer to one of the company's banks or e-wallets, with who sent it
 /// and its reference. A transfer receipt can be read on the phone to fill
 /// in its numbers.
@@ -52,6 +63,7 @@ class PaymentPage extends StatefulWidget {
       required this.subscriber,
       this.transferBanks = defaultTransferBanks,
       this.paymentMethods = const ['cash', 'bank_transfer'],
+      this.exchangeRates = const {},
       this.receiptScanner = const ReceiptScanner(),
       this.receiptReader = const DeviceReceiptTextReader(),
       super.key});
@@ -59,6 +71,9 @@ class PaymentPage extends StatefulWidget {
   final Map<String, dynamic> subscriber;
   final List<String> transferBanks;
   final List<String> paymentMethods;
+
+  /// See [exchangeRatesFrom]: the only rates a payment can be taken at.
+  final Map<String, double> exchangeRates;
   final ReceiptScanner receiptScanner;
   final ReceiptTextReader receiptReader;
   @override
@@ -67,7 +82,6 @@ class PaymentPage extends StatefulWidget {
 
 class _PaymentPageState extends State<PaymentPage> {
   final amount = TextEditingController();
-  final rate = TextEditingController();
   final sender = TextEditingController();
   final reference = TextEditingController();
   final notes = TextEditingController();
@@ -94,7 +108,7 @@ class _PaymentPageState extends State<PaymentPage> {
   bool get throughBank => method == 'bank_transfer';
   bool get isShekel => currency == 'ILS';
   double get value => double.tryParse(amount.text) ?? 0;
-  double? get rateValue => isShekel ? 1 : double.tryParse(rate.text);
+  double? get rateValue => isShekel ? 1 : widget.exchangeRates[currency];
   double? get inShekels => rateValue == null || rateValue! <= 0
       ? null
       : (value * rateValue! * 100).roundToDouble() / 100;
@@ -118,14 +132,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   void dispose() {
-    for (final controller in [
-      amount,
-      rate,
-      sender,
-      reference,
-      notes,
-      voucher
-    ]) {
+    for (final controller in [amount, sender, reference, notes, voucher]) {
       controller.dispose();
     }
     super.dispose();
@@ -158,7 +165,7 @@ class _PaymentPageState extends State<PaymentPage> {
   /// starting from the balance the last one left, as the website's
   /// «دفعة جديدة» does.
   void startAnother(double newBalance) => setState(() {
-        for (final controller in [amount, rate, reference, notes, voucher]) {
+        for (final controller in [amount, reference, notes, voucher]) {
           controller.clear();
         }
         balance = newBalance;
@@ -238,7 +245,9 @@ class _PaymentPageState extends State<PaymentPage> {
     if (!widget.paymentMethods.contains(method))
       return 'لا تملك صلاحية تسجيل هذه الدفعة.';
     if (!(value > 0) || !value.isFinite) return 'أدخل مبلغًا أكبر من صفر.';
-    if (inShekels == null) return 'أدخل سعر الصرف لتحويل المبلغ إلى شيكل.';
+    if (inShekels == null) {
+      return 'لم يُحدَّد سعر صرف ${currencyLook.$3} في إعدادات الموقع.';
+    }
     if (throughBank) {
       if (bank == null) return 'اختر البنك أو المحفظة التي حُوّل إليها المبلغ.';
       if (sender.text.trim().isEmpty) {
@@ -269,7 +278,7 @@ class _PaymentPageState extends State<PaymentPage> {
         'subscription_id': widget.subscriber['id'],
         'amount': amount.text.trim().replaceFirst(RegExp(r'\.$'), ''),
         'currency': currency,
-        if (!isShekel) 'exchange_rate': rate.text.trim(),
+        if (!isShekel) 'exchange_rate': '$rateValue',
         'payment_method': method,
         if (throughBank) ...{
           'bank_name': bank,
@@ -505,81 +514,64 @@ class _PaymentPageState extends State<PaymentPage> {
                 in _currencies.indexed) ...[
               if (index > 0) const SizedBox(width: 4),
               Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(11),
-                  onTap:
-                      editable ? () => setState(() => currency = code) : null,
-                  child: Container(
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                        color: currency == code
-                            ? AppIdentity.surface
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(11),
-                        boxShadow:
-                            currency == code ? AppIdentity.shadow : null),
-                    child: Text('$symbol $name',
-                        style: AppIdentity.body(13.5,
-                            weight: FontWeight.w700,
-                            color: currency == code
-                                ? AppIdentity.ink
-                                : AppIdentity.muted)),
+                child: Opacity(
+                  opacity: code == 'ILS' || widget.exchangeRates[code] != null
+                      ? 1
+                      : .4,
+                  child: InkWell(
+                    key: ValueKey('payment-currency-$code'),
+                    borderRadius: BorderRadius.circular(11),
+                    onTap: editable &&
+                            (code == 'ILS' ||
+                                widget.exchangeRates[code] != null)
+                        ? () => setState(() => currency = code)
+                        : null,
+                    child: Container(
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          color: currency == code
+                              ? AppIdentity.surface
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(11),
+                          boxShadow:
+                              currency == code ? AppIdentity.shadow : null),
+                      child: Text('$symbol $name',
+                          style: AppIdentity.body(13.5,
+                              weight: FontWeight.w700,
+                              color: currency == code
+                                  ? AppIdentity.ink
+                                  : AppIdentity.muted)),
+                    ),
                   ),
                 ),
               ),
             ],
           ]),
         ),
+        if (_currencies.any((look) =>
+            look.$1 != 'ILS' && widget.exchangeRates[look.$1] == null))
+          Padding(
+            key: const ValueKey('payment-currency-unpriced'),
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+                'لا يمكن الدفع بـ${_currencies.where((look) => look.$1 != 'ILS' && widget.exchangeRates[look.$1] == null).map((look) => look.$3).join(' أو ')} حتى يُحدَّد سعر صرفه في إعدادات الموقع.',
+                style: AppIdentity.body(12.5, color: AppIdentity.faint)),
+          ),
         if (!isShekel)
           Padding(
+              key: const ValueKey('payment-rate'),
               padding: const EdgeInsets.only(top: 12),
               child: Row(children: [
-                Text('سعر الصرف',
-                    style: AppIdentity.body(13.5, color: AppIdentity.muted)),
-                const SizedBox(width: 8),
-                SizedBox(
-                    width: 90,
-                    height: 40,
-                    child: TextField(
-                        key: const ValueKey('payment-rate'),
-                        controller: rate,
-                        enabled: editable,
-                        onTap: () => setState(() => showKeypad = false),
-                        onChanged: (_) => setState(() {}),
-                        onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d{0,4}(\.\d{0,4})?'))
-                        ],
-                        textDirection: TextDirection.ltr,
-                        textAlign: TextAlign.center,
-                        style: AppIdentity.number(15),
-                        decoration: InputDecoration(
-                            isDense: true,
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 6),
-                            hintText: currency == 'USD' ? '3.70' : '5.20',
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                    color: AppIdentity.line, width: 1.5)),
-                            enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                    color: AppIdentity.line, width: 1.5))))),
-                const SizedBox(width: 8),
                 Expanded(
-                    child: Text(
-                        inShekels == null
-                            ? 'كم شيكل يساوي 1 ${currencyLook.$3}'
-                            : '= ${AppIdentity.grouped(inShekels)} ₪',
-                        style: AppIdentity.body(13.5,
-                            weight: FontWeight.w700, color: AppIdentity.ink))),
+                  child: Text(
+                      'سعر الصرف ${AppIdentity.grouped(rateValue ?? 0)} من إعدادات الشركة',
+                      style: AppIdentity.body(13.5, color: AppIdentity.muted)),
+                ),
+                const SizedBox(width: 8),
+                Text('= ${AppIdentity.grouped(inShekels ?? 0)} ₪',
+                    style: AppIdentity.body(13.5,
+                        weight: FontWeight.w700, color: AppIdentity.ink)),
               ])),
         Container(
           margin: const EdgeInsets.only(top: 12),
@@ -758,10 +750,12 @@ class _PaymentPageState extends State<PaymentPage> {
               child: Container(
                   padding: const EdgeInsets.fromLTRB(4, 10, 4, 8),
                   decoration: BoxDecoration(
-                      color: AppIdentity.surface,
+                      color: selected
+                          ? AppIdentity.brandSoft
+                          : AppIdentity.surface,
                       border: Border.all(
                           color: selected
-                              ? AppIdentity.selected
+                              ? AppIdentity.brand
                               : AppIdentity.lineSoft,
                           width: selected ? 2.5 : 1.5),
                       borderRadius: BorderRadius.circular(16)),
@@ -1005,11 +999,12 @@ class _PaymentPageState extends State<PaymentPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
               decoration: BoxDecoration(
-                  color: AppIdentity.surface,
+                  color: method == key
+                      ? AppIdentity.brandSoft
+                      : AppIdentity.surface,
                   border: Border.all(
-                      color: method == key
-                          ? AppIdentity.selected
-                          : AppIdentity.line,
+                      color:
+                          method == key ? AppIdentity.brand : AppIdentity.line,
                       width: method == key ? 2.5 : 1.5),
                   borderRadius: BorderRadius.circular(18)),
               child: Column(children: [
@@ -1021,7 +1016,10 @@ class _PaymentPageState extends State<PaymentPage> {
                 Text(title,
                     textAlign: TextAlign.center,
                     style: AppIdentity.body(13.5,
-                        weight: FontWeight.w700, color: AppIdentity.ink2))
+                        weight: FontWeight.w700,
+                        color: method == key
+                            ? AppIdentity.brand
+                            : AppIdentity.ink2))
               ]),
             )),
       );
@@ -1031,14 +1029,17 @@ class _PaymentPageState extends State<PaymentPage> {
         double.tryParse('${receipt?['amount_in_shekels']}') ?? inShekels ?? 0;
     final newBalance = balanceAfter(recordedInShekels);
     final recordedAmount = receipt?['amount'] ?? amount.text;
+    final recordedReference = receipt?['reference_number'] ?? reference.text;
+    final recordedVoucher = receipt?['voucher_number'] ?? '—';
     return AppSuccess(
       title: 'تم تسجيل الدفعة',
       message:
           '${AppIdentity.money(recordedAmount)} ${currencyLook.$3} من $subscriberName · سُجّلت مباشرة في السجل المالي.',
       facts: [
         (
-          'رقم السند',
-          AppFact('${receipt?['voucher_number'] ?? '—'}', number: true)
+          throughBank ? 'رقم المرجع' : 'رقم السند',
+          AppFact('${throughBank ? recordedReference : recordedVoucher}',
+              number: true)
         ),
         (
           'المبلغ',
@@ -1051,6 +1052,17 @@ class _PaymentPageState extends State<PaymentPage> {
             AppFact('${AppIdentity.grouped(recordedInShekels)} ₪', number: true)
           ),
         ('الطريقة', AppFact(methodText)),
+        if (throughBank) ...[
+          ('البنك المستلم', AppFact('${receipt?['bank_name'] ?? bank ?? '—'}')),
+          if ((receipt?['sender_bank_name'] ?? senderBank) != null)
+            (
+              'البنك المرسل',
+              AppFact('${receipt?['sender_bank_name'] ?? senderBank}')
+            ),
+          ('اسم المحوّل', AppFact('${receipt?['sender_name'] ?? sender.text}')),
+        ],
+        if ('${receipt?['notes'] ?? notes.text}'.trim().isNotEmpty)
+          ('ملاحظات', AppFact('${receipt?['notes'] ?? notes.text}')),
         if (receipt?['bank_received_on'] != null)
           (
             'وصول البنك',

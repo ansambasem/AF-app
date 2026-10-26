@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:power_collect/api_client.dart';
 import 'package:power_collect/app_identity.dart';
 import 'package:power_collect/main.dart';
 
@@ -12,6 +13,12 @@ class AppearanceApi extends OfflineApi {
   Future<void> logout() async {
     token = null;
   }
+}
+
+class NoInternetApi extends OfflineApi {
+  @override
+  Future<void> logout() async => throw const ApiException(
+      'لا يوجد اتصال بالإنترنت. تحقّق من الاتصال وحاول مجددًا.', 0);
 }
 
 class FailingAppearanceStore extends MemoryStore {
@@ -85,6 +92,31 @@ void main() {
     expect(store.user, isNull);
     expect(store.state['appearance'], 'dark');
     expect(AppIdentity.dark, true);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+      'signing out without internet still ends the session on the phone and asks for a normal sign-in',
+      (tester) async {
+    final api = NoInternetApi()..token = 'test-token';
+    final store = MemoryStore()
+      ..state = {'token': 'test-token', 'user': user, 'remember_session': true};
+    await tester.pumpWidget(PowerCollectApp(apiClient: api, fieldStore: store));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حسابي'));
+    await tester.pumpAndSettle();
+    final logout = find.text('تسجيل الخروج');
+    await tester.ensureVisible(logout);
+    await tester.tap(logout);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('تسجيل الخروج').last);
+    await tester.pumpAndSettle();
+
+    expect(api.token, isNull);
+    expect(store.token, isNull);
+    expect(store.user, isNull);
+    expect(find.text('تطبيق الميدان'), findsOneWidget);
+    expect(find.text('سجّل الدخول للبدء'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

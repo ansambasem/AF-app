@@ -28,7 +28,8 @@ class SubscriberApi extends ApiClient {
     loads++;
     if (failures > 0) {
       failures--;
-      throw const ApiException('لا يمكن الوصول إلى خادم Laravel.', 0);
+      throw const ApiException(
+          'لا يوجد اتصال بالإنترنت. تحقّق من الاتصال وحاول مجددًا.', 0);
     }
     return {
       'subscription': {
@@ -296,7 +297,8 @@ void main() {
     final api = SubscriberApi(failures: 1);
     await openSubscriber(tester, api);
 
-    expect(find.text('لا يمكن الوصول إلى خادم Laravel.'), findsOneWidget);
+    expect(find.text('لا يوجد اتصال بالإنترنت. تحقّق من الاتصال وحاول مجددًا.'),
+        findsOneWidget);
     expect(find.text('\u2066100 ₪\u2069 عليه'), findsOneWidget,
         reason: 'the balance from the search shows until the page loads');
     final record = tester.widget<AppAction>(
@@ -312,7 +314,8 @@ void main() {
                 find.byKey(const ValueKey('subscriber-record-payment')))
             .onPressed,
         isNotNull);
-    expect(find.text('لا يمكن الوصول إلى خادم Laravel.'), findsNothing);
+    expect(find.text('لا يوجد اتصال بالإنترنت. تحقّق من الاتصال وحاول مجددًا.'),
+        findsNothing);
     expect(find.text('\u2066120 ₪\u2069 عليه'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });

@@ -15,6 +15,7 @@ use App\Http\Requests\UpdateMeterReadingRequest;
 use App\Http\Requests\UpdateReadingPricingRequest;
 use App\Models\Area;
 use App\Models\Branch;
+use App\Models\MessageBatch;
 use App\Models\MeterBox;
 use App\Models\MeterReading;
 use App\Models\ReadingEntrySetting;
@@ -58,13 +59,15 @@ class MeterReadingController extends Controller
     {
         $this->authorize('viewAny', MeterReading::class);
 
+        $request->validate(['filter.subscription_status' => ['nullable', 'in:all,active,suspended,disconnected']]);
+
         $actor = auth()->user();
         $weekBranchId = $this->sheetBranchId($request, $actor);
         $canBrowseWeeks = $actor->can('browseWeeks', MeterReading::class);
         $weekStart = $this->selectedWeek($request, $weekBranchId, $canBrowseWeeks);
         $week = $weekStart->toDateString();
 
-        $query = $this->subscriptionsInScope($actor)
+        $query = $this->subscriptionsInScope($actor, $request)
             ->with([
                 'tariff',
                 'circuitBreaker',
@@ -114,7 +117,7 @@ class MeterReadingController extends Controller
             return Inertia::render('Print/ReadingReport', ['printData' => fn (): array => ReadingPrintData::sheet($rows(), $context, $this->seesWhoRecorded($actor))]);
         }
 
-        $scope = $this->subscriptionsInScope($actor);
+        $scope = $this->subscriptionsInScope($actor, $request);
         $canApprove = $actor->can('approveAny', MeterReading::class);
 
         return Inertia::render('MeterReadings/Index', [
@@ -134,11 +137,13 @@ class MeterReadingController extends Controller
             ],
             'canRecord' => $actor->can('createOnReadingDay', MeterReading::class),
             'canApprove' => $canApprove,
+            'canSendReadingMessages' => $canApprove && $actor->can('create', MessageBatch::class),
+            'messageBranchId' => $weekBranchId,
             'seesWhoRecorded' => $this->seesWhoRecorded($actor),
             'statusSummary' => fn () => $this->statusSummary($summaryQuery, $week),
             'pendingApproval' => fn () => $canApprove ? $this->pendingApprovalSummary($request, $actor, $week) : null,
             // The actor could record now, just not in this earlier week.
-            'weekIsViewOnly' => $actor->can('createOnReadingDay', MeterReading::class) && ! $actor->can('createOnReadingDay', [MeterReading::class, $weekStart]),
+            'weekIsViewOnly' => $actor->can('createOnReadingDay', MeterReading::class) && ! $actor->can('createOnReadingDay', [MeterReading::class, $weekStart, $weekBranchId]),
             'entryWindow' => $this->entryWindow($actor),
             'filters' => $this->dataTableState($request, 'full_name', 'asc', 25),
             'filterOptions' => fn () => $this->filterOptions($actor, $request),
@@ -488,7 +493,7 @@ class MeterReadingController extends Controller
      */
     private function pendingInSheet(Request $request, User $actor, string $week): Builder
     {
-        $subscriptions = $this->subscriptionsInScope($actor);
+        $subscriptions = $this->subscriptionsInScope($actor, $request);
         $this->applyDataTableFilters($subscriptions, $request, ['full_name', 'subscription_name', 'account_number', 'phone', 'subscription_phone'], [], 'full_name');
         $this->applyDataTableFilterSelects($subscriptions, $request, ['branch_id', 'meter_box_id', 'tariff_id']);
         $this->applyMeterBoxNameFilter($subscriptions, $request);
@@ -523,15 +528,17 @@ class MeterReadingController extends Controller
     }
 
     /**
-     * Active subscriptions the actor may see readings for.
+     * Subscriptions matching the selected status, active by default.
      *
      * @return Builder<Subscription>
      */
-    private function subscriptionsInScope(User $actor): Builder
+    private function subscriptionsInScope(User $actor, Request $request): Builder
     {
+        $status = (string) $request->input('filter.subscription_status', SubscriptionStatus::Active->value);
+
         return Subscription::query()
             ->visibleTo($actor)
-            ->where('status', SubscriptionStatus::Active);
+            ->when($status !== 'all', fn (Builder $query) => $query->where('status', SubscriptionStatus::tryFrom($status) ?? SubscriptionStatus::Active));
     }
 
     /**
@@ -795,11 +802,19 @@ class MeterReadingController extends Controller
                 'status' => $lastBefore->status->value,
                 'canEdit' => ! $subscription->has_later_week && $actor->can('adjustLastReading', $lastBefore),
             ] : null,
+            'initialReading' => $lastBefore === null ? [
+                'isInitial' => true,
+                'weekStart' => $weekStart->toDateString(),
+                'previousReading' => 0,
+                'previewUrl' => route('subscriptions.reading-baseline.preview', $subscription),
+                'saveUrl' => route('subscriptions.reading-baseline.update', $subscription),
+                'canEdit' => ! $subscription->has_later_week && $actor->can('adjustInitialReading', [$subscription, $weekStart]),
+            ] : null,
             'hasLaterWeek' => (bool) $subscription->has_later_week,
             'canApprove' => $reading !== null && $actor->can('approve', $reading),
             'canEdit' => $reading
                 ? ! $subscription->has_later_week && $actor->can('update', $reading)
-                : ! $subscription->has_later_week && $actor->can('createOnReadingDay', [MeterReading::class, $weekStart]),
+                : $subscription->status === SubscriptionStatus::Active && ! $subscription->has_later_week && $actor->can('createOnReadingDay', [MeterReading::class, $weekStart, $subscription->branch_id]),
         ];
     }
 
@@ -811,6 +826,11 @@ class MeterReadingController extends Controller
     private function filterOptions(User $actor, Request $request): array
     {
         $groups = [];
+
+        $groups[] = $this->filterGroup('subscription_status', 'حالة المشترك (النشط افتراضيًا)', [
+            ['value' => 'all', 'label' => 'كل الحالات'],
+            ...SubscriptionStatus::options(),
+        ]);
 
         if ($actor->isSuperAdmin()) {
             $groups[] = $this->branchFilterGroup();

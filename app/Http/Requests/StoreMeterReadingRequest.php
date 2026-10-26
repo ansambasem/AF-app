@@ -55,7 +55,7 @@ class StoreMeterReadingRequest extends FormRequest
 
     /**
      * Readings must be entered week after week, once the week has ended:
-     * only for the latest week (any week for the Super Admin), one per
+     * only for the latest week for every role, one per
      * subscription per week, never before a week already recorded, and never
      * lower than the reading the week starts from.
      *
@@ -78,7 +78,7 @@ class StoreMeterReadingRequest extends FormRequest
                     return;
                 }
 
-                if (! $this->user()->can($this->creationAbility(), [MeterReading::class, $weekStart])) {
+                if (! $this->user()->can($this->creationAbility(), [MeterReading::class, $weekStart, $subscription->branch_id])) {
                     $validator->errors()->add('week_start', 'يمكن إدخال قراءات الأسبوع الأخير فقط؛ الأسابيع السابقة للعرض فقط.');
 
                     return;

@@ -328,7 +328,13 @@ class ReadingAdjustmentTest extends TestCase
         $lastBefore = $last->getAttributes();
         $transactionsBefore = $subscription->transactions()->get()->map->getAttributes()->all();
 
+        $this->assertTrue($actor->can('update', $current));
+        $this->assertTrue($actor->can('adjustLastReading', $last));
+
         $this->travelTo('2026-10-01 10:00:00');
+
+        $this->assertFalse($actor->can('update', $current));
+        $this->assertFalse($actor->can('adjustLastReading', $last));
 
         $this->actingAs($actor)->put(route('meter-readings.adjust-last', $last), [
             'adjustment_type' => 'meter_change', 'current_reading' => 0, 'expected_reading' => 210,

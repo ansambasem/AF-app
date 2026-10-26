@@ -22,6 +22,7 @@ class MobileReadingController extends Controller
         $validated = $request->validate([
             'week' => ['nullable', 'date_format:Y-m-d'],
             'search' => ['nullable', 'string', 'max:100'],
+            'subscription_status' => ['nullable', 'in:all,active,suspended,disconnected'],
             'page' => ['sometimes', 'integer', 'min:1'],
         ]);
         $branchId = $request->user()->branch_id;
@@ -36,7 +37,7 @@ class MobileReadingController extends Controller
             ->visibleTo($request->user())
             ->when(! $request->user()->hasPermission(PermissionKey::ViewMeterReadings), fn ($query) => $query->whereIn('meter_box_id',
                 ReadingAssignment::query()->forMobileReader($request->user())->whereHas('cycle', fn ($cycles) => $cycles->whereDate('week_start', $week))->select('meter_box_id')))
-            ->where('status', SubscriptionStatus::Active)
+            ->when(($validated['subscription_status'] ?? 'active') !== 'all', fn ($query) => $query->where('status', $validated['subscription_status'] ?? SubscriptionStatus::Active))
             ->with([
                 'meterBox:id,box_number',
                 'meterReadings' => fn ($query) => $query->visibleTo($request->user())
@@ -56,6 +57,8 @@ class MobileReadingController extends Controller
                 return [
                     'id' => $subscription->id,
                     'full_name' => $subscription->displayName(),
+                    'subscription_status' => $subscription->status->value,
+                    'subscription_status_label' => __($subscription->status->label()),
                     'account_number' => $subscription->account_number,
                     'meter_box_number' => $subscription->meterBox?->box_number,
                     'previous_reading' => $reading?->previous_reading ?? $latest?->current_reading ?? $subscription->initial_reading,

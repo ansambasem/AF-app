@@ -23,8 +23,8 @@ class UpdateSubscriptionPersonalDetailsRequest extends FormRequest
     {
         return [
             'full_name' => ['required', 'string', 'max:255'],
-            'national_id' => ['required', 'string', 'regex:/^\d{9}$/', 'not_regex:/^0+$/', Rule::unique('subscriber_profiles', 'national_id')->ignore($this->route('subscription')->subscriber_profile_id)],
-            'phone' => ['required', 'string', 'regex:/\A05[69][0-9]{7}\z/'],
+            'national_id' => ['nullable', 'string', 'regex:/^\d{9}$/', 'not_regex:/^0+$/', Rule::unique('subscriber_profiles', 'national_id')->ignore($this->route('subscription')->subscriber_profile_id)],
+            'phone' => ['nullable', 'string', 'regex:/\A05[69][0-9]{7}\z/'],
             'address' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -49,9 +49,9 @@ class UpdateSubscriptionPersonalDetailsRequest extends FormRequest
     {
         $digits = ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9'];
 
-        $this->merge([
-            'national_id' => preg_replace('/[\s-]+/', '', strtr((string) $this->input('national_id'), $digits)),
-            'phone' => preg_replace('/[\s-]+/', '', strtr((string) $this->input('phone'), $digits)),
-        ]);
+        // Left empty, they stay empty (null), so records without them never collide on the unique identity number.
+        $plain = fn (string $field): ?string => preg_replace('/[\s-]+/', '', strtr((string) $this->input($field), $digits)) ?: null;
+
+        $this->merge(['national_id' => $plain('national_id'), 'phone' => $plain('phone')]);
     }
 }

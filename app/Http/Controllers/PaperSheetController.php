@@ -63,7 +63,7 @@ class PaperSheetController extends Controller
 
         $request->user()->notify(new ActionCompleted('paper-sheet-created', $sheet->sheet_number));
 
-        return redirect()->route('paper-sheets.show', $sheet)->with('status', 'paper-sheet-created');
+        return redirect()->route('paper-sheets.show', [$sheet, 'print' => 1])->with('status', 'paper-sheet-created');
     }
 
     /**

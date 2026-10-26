@@ -60,7 +60,7 @@ class MessageTest extends TestCase
 
     public function test_the_weekly_reading_preview_lists_only_subscriptions_with_an_approved_reading_that_week(): void
     {
-        $this->freezeTime();
+        $this->travelTo('2026-09-24 10:00:00');
         $branchAdmin = User::factory()->branchAdmin()->create();
         $approved = Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id, 'full_name' => 'Approved Reading']);
         $pending = Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id]);
@@ -70,6 +70,7 @@ class MessageTest extends TestCase
             'previous_reading' => 100,
             'current_reading' => 150.5,
             'consumption' => 50.5,
+            'unit_price' => 1.75,
             'amount_due' => 75,
         ]);
         MeterReading::factory()->for($pending)->create(['week_start' => $this->weekStart()]);
@@ -82,7 +83,41 @@ class MessageTest extends TestCase
                 ->where('recipients.0.variables.القراءة_السابقة', '100')
                 ->where('recipients.0.variables.القراءة_الحالية', '150.5')
                 ->where('recipients.0.variables.الاستهلاك', '50.5')
-                ->where('recipients.0.variables.قيمة_القراءة', '75')));
+                ->where('recipients.0.variables.قيمة_القراءة', '75')
+                ->where('recipients.0.variables.سعر_الكيلو', '1.75')
+                ->where('recipients.0.variables.تاريخ_القراءة', '24/9/2026')
+                ->where('recipients.0.variables.يوم_القراءة', 'الخميس')));
+    }
+
+    public function test_three_thousand_approved_readings_are_personalized_and_queued_in_one_send(): void
+    {
+        $this->travelTo('2026-09-24 10:00:00');
+        $actor = User::factory()->branchAdmin()->create();
+        $sample = Subscription::factory()->create(['branch_id' => $actor->branch_id]);
+        $subscriptions = Subscription::factory()->count(3000)->has(
+            MeterReading::factory()->approved()->state([
+                'week_start' => '2026-09-18', 'week_end' => '2026-09-24', 'recorded_by' => $actor->id,
+                'previous_reading' => 100, 'current_reading' => 125, 'consumption' => 25, 'unit_price' => 1.75,
+            ]), 'meterReadings',
+        )->create([
+            'branch_id' => $actor->branch_id, 'meter_box_id' => $sample->meter_box_id,
+            'tariff_id' => $sample->tariff_id, 'circuit_breaker_id' => $sample->circuit_breaker_id,
+            'registered_by' => $actor->id, 'phone' => '0599000001',
+        ]);
+        Queue::fake([SendSubscriptionMessage::class]);
+
+        $this->actingAs($actor)->postJson(route('messages.store'), [
+            'kind' => 'weekly_reading', 'channel' => 'sms', 'approved_only' => true,
+            'week_start' => '2026-09-18', 'subscription_ids' => $subscriptions->modelKeys(),
+            'body' => '{الاسم}: {القراءة_السابقة} → {القراءة_الحالية}، الفرق {الاستهلاك}، سعر الكيلو {سعر_الكيلو}، {يوم_القراءة} {تاريخ_القراءة}',
+        ])->assertRedirect();
+
+        $this->assertDatabaseCount('subscription_messages', 3000);
+        $this->assertDatabaseHas('subscription_messages', [
+            'subscription_id' => $subscriptions->last()->id,
+            'body' => $subscriptions->last()->displayName().': 100 → 125، الفرق 25، سعر الكيلو 1.75، الخميس 24/9/2026',
+        ]);
+        Queue::assertPushed(SendSubscriptionMessage::class, 3000);
     }
 
     public function test_the_balance_reminder_preview_lists_only_subscriptions_owing_more_than_the_minimum(): void

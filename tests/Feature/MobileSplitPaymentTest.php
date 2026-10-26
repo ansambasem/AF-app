@@ -47,7 +47,8 @@ class MobileSplitPaymentTest extends TestCase
         $response = $this->postJson(route('mobile.split-payments.store'), $payload)
             ->assertCreated()->assertJsonCount(2, 'parts')->assertJsonPath('parts.0.balance_after', '60.00')->assertJsonPath('parts.1.balance_after', '40.00');
         $this->postJson(route('mobile.split-payments.store'), [...$payload, 'total_amount' => '999'])
-            ->assertCreated()->assertJsonPath('id', $response->json('id'))->assertJsonPath('total_amount', '100.00');
+            ->assertCreated()->assertJsonPath('id', $response->json('id'))->assertJsonPath('total_amount', '100.00')
+            ->assertJsonPath('reference_number', 'SPLIT-MOBILE-1')->assertJsonPath('bank_name', 'بنك فلسطين')->assertJsonPath('sender_name', 'محمد');
 
         $this->assertDatabaseCount('split_payments', 1);
         $this->assertSame(2, SubscriptionTransaction::where('type', SubscriptionTransaction::TYPE_PAYMENT)->count());

@@ -188,10 +188,12 @@ class _ReadingReviewState extends State<ReadingReview> {
           child: RefreshIndicator(
               onRefresh: widget.onRefresh,
               color: AppIdentity.brand,
-              child: ListView.builder(
+              child: ListView.separated(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
                   itemCount: matching.length + 1,
+                  separatorBuilder: (_, index) =>
+                      SizedBox(height: index == 0 ? 16 : 2),
                   itemBuilder: (context, index) {
                     if (index > 0) {
                       final reading = matching[index - 1];

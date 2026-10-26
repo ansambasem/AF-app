@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
-import { shouldPrefetchPage, HOME_LINK, isActiveLink } from '@/lib/navigation';
+import { shouldPrefetchPage, HOME_LINK, isActiveLink, lockedLinkProps } from '@/lib/navigation';
 import { LockMark } from './MegaMenu';
 
 /** Where the page sits: home, its section, then the page. */
@@ -66,7 +66,7 @@ export function SectionPages({ trail, url, badges }) {
             className="tn-subnav tn-rise mb-6 flex gap-1 overflow-x-auto rounded-2xl border border-gray-200/70 bg-surface/70 p-1.5 shadow-card backdrop-blur [scrollbar-width:none]"
         >
             {links.map((link) => (
-                <Link key={link.href} href={link.href} prefetch={!link.locked && shouldPrefetchPage(link.href)} aria-current={isActiveLink(link, url) ? 'page' : undefined}>
+                <Link key={link.href} href={link.href} prefetch={!link.locked && shouldPrefetchPage(link.href)} aria-current={isActiveLink(link, url) ? 'page' : undefined} {...lockedLinkProps(link)}>
                     <Icon name={link.icon} />
                     {link.label}
                     {link.locked && <LockMark />}

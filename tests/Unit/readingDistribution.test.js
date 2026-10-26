@@ -4,18 +4,22 @@ import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { rolldown } from 'rolldown';
-import { distributionAreas } from '../../resources/js/lib/readingBoard.js';
+import { distributionAreas, distributionAreaBreakdown } from '../../resources/js/lib/readingBoard.js';
 
 let DistributionTable;
 let DistributionAreas;
+let DistributionSummaryModal;
+let DistributionActionModal;
+let DistributionAreaBreakdown;
 async function loadComponent(name) {
     const bundle = await rolldown({
         input: path.resolve(import.meta.dirname, `../../resources/js/Pages/ReadingCycles/${name}.jsx`),
         platform: 'node', transform: { jsx: 'react-jsx' },
         resolve: { alias: { '@': path.resolve(import.meta.dirname, '../../resources/js') } },
         plugins: [{ name: 'distribution', resolveId(id) {
+            if (id === '@/Components/Modal') return '\0modal';
             if (/^react(?:-dom)?(?:\/|$)/.test(id)) return { id: import.meta.resolve(id), external: true };
-        } }],
+        }, load(id) { if (id === '\0modal') return 'export default function Modal({ children }) { return children; }'; } }],
     });
     try {
         const { output } = await bundle.generate({ format: 'esm' });
@@ -23,7 +27,7 @@ async function loadComponent(name) {
     } finally { await bundle.close(); }
 }
 before(async () => {
-    [DistributionTable, DistributionAreas] = await Promise.all([loadComponent('DistributionTable'), loadComponent('DistributionAreas')]);
+    [DistributionTable, DistributionAreas, DistributionSummaryModal, DistributionActionModal, DistributionAreaBreakdown] = await Promise.all(['DistributionTable', 'DistributionAreas', 'DistributionSummaryModal', 'DistributionActionModal', 'DistributionAreaBreakdown'].map(loadComponent));
 });
 
 const box = { id: 1, number: 'B1', name: 'السوق', subAreaId: 7, subAreaName: 'الحي الشرقي', subscribers: 12, read: 3, column: 'reader:5', status: 'approved', recurringUserId: 5, recurringChannel: 'mobile' };
@@ -78,4 +82,32 @@ test('the unassigned sidebar provides status filters and shows the remaining box
     assert.doesNotMatch(html, /الحي الغربي/);
     assert.match(html, /1 طبلون مطابق · 5 مشترك/);
     assert.match(html, /إجمالي المنطقة: 1 موزع، 1 غير موزع/);
+});
+
+test('expanded summary lists retain full meter box names, suffixes and separate numbers', () => {
+    const boxes = [{ ...box, name: 'المخيم 1', number: '110301' }, { ...box, id: 2, name: 'أبو ذر 5', number: '110302' }];
+    const html = renderToStaticMarkup(createElement(DistributionAreaBreakdown, { areas: distributionAreaBreakdown(boxes, boxes) }));
+
+    assert.match(html, /المخيم 1 <bdi[^>]*>\(110301\)<\/bdi>/);
+    assert.match(html, /أبو ذر 5 <bdi[^>]*>\(110302\)<\/bdi>/);
+    assert.match(html, /كاملة/);
+});
+
+test('summary distinguishes created and printed sheets and limits approval to authorized users', () => {
+    const props = { boards: [{ ...box, status: 'draft' }], readers: [{ id: 5, name: 'أحمد' }], cycle: { branchName: 'المخيم', readingDate: '2026-10-29' }, paperSheets: [{ id: 1, boxes: 3, printCount: 2 }, { id: 2, boxes: 3, printCount: 0 }], abilities: { approve: true, printSheets: true }, errors: {} };
+    const html = renderToStaticMarkup(createElement(DistributionSummaryModal, props));
+
+    assert.match(html, /2 كشف منشأ: 1 مطبوع، 1 لم يُطبع/);
+    assert.match(html, /اعتماد كل الجاهز \(1\)/);
+    assert.doesNotMatch(renderToStaticMarkup(createElement(DistributionSummaryModal, { ...props, abilities: {} })), /اعتماد كل الجاهز/);
+});
+
+test('action dialog preserves hidden selection warning and print-only permission boundaries', () => {
+    const props = { boards: [box], selectedBoxes: [box], readers: [], abilities: { printSheets: true }, errors: {}, target: '', hiddenSelected: 1 };
+    const html = renderToStaticMarkup(createElement(DistributionActionModal, props));
+
+    assert.match(html, /1 طبلون خارج النتائج الظاهرة/);
+    assert.match(html, /متابعة التحديد/);
+    assert.match(html, /إنشاء الكشف يتطلب/);
+    assert.doesNotMatch(html, /حفظ التوزيع|distribution-mode|distribution-reader/);
 });

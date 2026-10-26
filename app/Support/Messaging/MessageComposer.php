@@ -35,6 +35,8 @@ class MessageComposer
         'الفرع' => null,
         'الرصيد' => null,
         'تاريخ_القراءة' => [MessageKind::WeeklyReading],
+        'يوم_القراءة' => [MessageKind::WeeklyReading],
+        'سعر_الكيلو' => [MessageKind::WeeklyReading],
         'القراءة_السابقة' => [MessageKind::WeeklyReading],
         'القراءة_الحالية' => [MessageKind::WeeklyReading],
         'الاستهلاك' => [MessageKind::WeeklyReading],
@@ -104,6 +106,8 @@ class MessageComposer
 
             $variables += [
                 'تاريخ_القراءة' => ($reading?->week_end ?? $reading?->week_start)?->format('j/n/Y') ?? '',
+                'يوم_القراءة' => ($reading?->week_end ?? $reading?->week_start)?->copy()->locale('ar')->dayName ?? '',
+                'سعر_الكيلو' => $reading ? self::number((float) $reading->unit_price) : '',
                 'القراءة_السابقة' => $reading ? self::number($reading->previous_reading) : '',
                 'القراءة_الحالية' => $reading ? self::number($reading->current_reading) : '',
                 'الاستهلاك' => $reading ? self::number($reading->consumption) : '',

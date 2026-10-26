@@ -38,7 +38,7 @@ const STATUS_DOTS = {
  * The fields the server requires of every subscription; a Super Admin also
  * picks the branch, and an active subscription needs their starting reading.
  */
-const REQUIRED_FIELDS = ['full_name', 'national_id', 'phone', 'status', 'tariff_id', 'minimum_charge'];
+const REQUIRED_FIELDS = ['full_name', 'status', 'tariff_id', 'minimum_charge'];
 
 // A value the form shows but never lets the user edit directly (it's
 // derived from another selection, like the branch's area).
@@ -349,9 +349,8 @@ export default function SubscriptionForm({
                     />
                 </FormField>
 
-                <FormField id="national_id" label="رقم الهوية" required error={errors.national_id}>
+                <FormField id="national_id" label="رقم الهوية" error={errors.national_id}>
                     <TextInput
-                        required
                         dir="ltr"
                         inputMode="numeric"
                         maxLength={9}
@@ -366,9 +365,8 @@ export default function SubscriptionForm({
                     />
                 </FormField>
 
-                <FormField id={phoneField} label="رقم الجوال" required error={errors[phoneField]}>
+                <FormField id={phoneField} label="رقم الجوال" error={errors[phoneField]}>
                     <TextInput
-                        required
                         type="tel"
                         dir="ltr"
                         inputMode="numeric"

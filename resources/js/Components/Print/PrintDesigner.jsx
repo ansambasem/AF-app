@@ -215,6 +215,7 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
 
     const templateActions = {
         apply: applyTemplate,
+        startNew: () => setActiveTemplateId(null),
         saveNew: (name, isDefault, onSuccess) => {
             pendingTemplateName.current = name;
             router.post('/print-templates', { page: pageKey, name, layout, is_default: isDefault }, { ...templateVisit, onSuccess });

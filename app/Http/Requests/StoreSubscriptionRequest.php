@@ -51,8 +51,9 @@ class StoreSubscriptionRequest extends FormRequest
         $rules = [
             'full_name' => ['required', 'string', 'max:255'],
             'subscription_name' => ['nullable', 'string', 'max:255'],
-            'national_id' => ['required', 'string', 'regex:/^\d{9}$/', 'not_regex:/^0+$/', Rule::unique('subscriber_profiles', 'national_id')->ignore($this->route('subscription')?->subscriber_profile_id)],
-            'phone' => ['required', 'string', 'regex:/\A05[69][0-9]{7}\z/'],
+            // Optional, for old records brought in without one; when given, a real and unused number.
+            'national_id' => ['nullable', 'string', 'regex:/^\d{9}$/', 'not_regex:/^0+$/', Rule::unique('subscriber_profiles', 'national_id')->ignore($this->route('subscription')?->subscriber_profile_id)],
+            'phone' => ['nullable', 'string', 'regex:/\A05[69][0-9]{7}\z/'],
             'subscription_phone' => ['nullable', 'string', 'regex:/\A05[69][0-9]{7}\z/'],
             'address' => ['nullable', 'string', 'max:1000'],
             // A subscription is on a box of its own branch: the user's, or the one a Super Admin chose.

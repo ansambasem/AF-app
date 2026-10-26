@@ -45,24 +45,24 @@ function MethodTile({ value, checked, onChange, icon, title, hint }) {
     return (
         <label
             className={`relative flex cursor-pointer items-center gap-3 rounded-[18px] border-[1.5px] bg-surface px-4 py-3.5 transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gray-900 ${
-                checked ? 'border-gray-900 shadow-[0_0_0_4px_rgb(var(--gray-900)/0.07)]' : 'border-gray-200 hover:border-gray-300'
+                checked ? 'border-brand-500 bg-brand-500/[0.06] shadow-[0_0_0_4px_rgb(var(--brand-500)/0.12)]' : 'border-gray-200 hover:border-gray-300'
             }`}
         >
             <input type="radio" name="payment_method" value={value} checked={checked} onChange={() => onChange(value)} className="sr-only" />
             <span
                 className={`flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[13px] transition ${
-                    checked ? 'bg-graphite-gradient text-white' : 'bg-gray-100 text-gray-700'
+                    checked ? 'bg-brand-gradient text-white' : 'bg-gray-100 text-gray-700'
                 }`}
             >
                 <Icon name={icon} className="h-[18px] w-[18px]" strokeWidth={1.8} />
             </span>
             <span className="min-w-0">
-                <b className="block text-[15.5px] text-gray-900">{title}</b>
+                <b className={`block text-[15.5px] ${checked ? 'text-brand-600' : 'text-gray-900'}`}>{title}</b>
                 <small className="block text-[13px] text-gray-500">{hint}</small>
             </span>
             <span
                 className={`ms-auto flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition ${
-                    checked ? 'border-gray-900 bg-gray-900' : 'border-gray-300'
+                    checked ? 'border-brand-500 bg-brand-500' : 'border-gray-300'
                 }`}
                 aria-hidden="true"
             >
@@ -93,24 +93,22 @@ export function BankMark({ bank, className = 'h-10 w-10 rounded-xl' }) {
 /** A bank or e-wallet as a radio row: brand mark, name, kind, and the choice indicator. */
 export function BankRow({ bank, checked, name, onChange, required = false }) {
     const look = useBankLook(bank);
-    const color = look?.color;
 
     return (
         <label
-            className={`relative flex min-h-[58px] cursor-pointer items-center gap-3 rounded-[14px] border-[1.5px] bg-surface px-3 py-2 transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gray-900 ${
-                checked ? (color ? '' : 'border-gray-900') : 'border-gray-100 hover:border-gray-300'
+            className={`relative flex min-h-[58px] cursor-pointer items-center gap-3 rounded-[14px] border-[1.5px] px-3 py-2 transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gray-900 ${
+                checked ? 'border-brand-500 bg-brand-500/[0.06] shadow-[0_0_0_3px_rgb(var(--brand-500)/0.12)]' : 'border-gray-100 bg-surface hover:border-gray-300'
             }`}
-            style={checked && color ? { borderColor: color, boxShadow: `0 0 0 3px ${color}29`, backgroundColor: `${color}0d` } : undefined}
         >
             <input type="radio" name={name} value={bank} required={required} checked={checked} onChange={() => onChange(bank)} className="sr-only" />
             <BankMark bank={bank} />
             <span className="min-w-0">
-                <b className="block truncate text-[14.5px] text-gray-900">{bank}</b>
+                <b className={`block truncate text-[14.5px] ${checked ? 'text-brand-600' : 'text-gray-900'}`}>{bank}</b>
                 <small className="block text-xs font-medium text-gray-500">{look?.kind ?? 'تحويل'}</small>
             </span>
             <span
                 className={`ms-auto flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition ${
-                    checked ? 'border-gray-900 bg-gray-900' : 'border-gray-300'
+                    checked ? 'border-brand-500 bg-brand-500' : 'border-gray-300'
                 }`}
                 aria-hidden="true"
             >
@@ -346,7 +344,7 @@ function PaymentReceipt({ receipt, subscriptionName, title, onAnother, onDone })
             </span>
             <h3 className="font-luxe text-[26px] font-bold text-gray-900">{title}</h3>
             <p className="mt-1.5 text-gray-600">
-                {formatMoney(receipt.amount)} شيكل من {subscriptionName} · الرصيد الجديد {balanceText(after)}
+                {formatMoney(receipt.currency === 'ILS' ? receipt.amount : receipt.inShekels)} شيكل من {subscriptionName} · الرصيد الجديد {balanceText(after)}
             </p>
             <dl className="mx-auto mt-6 w-full max-w-[420px] rounded-[20px] border border-gray-100 bg-gray-50 px-[18px] py-1.5 text-start">
                 {rows.map(([label, value]) => (

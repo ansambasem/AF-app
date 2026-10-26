@@ -796,6 +796,11 @@ html.tn-locked {
     color: rgb(255 255 255 / 0.55);
 }
 
+/* A locked page's link opens nothing. */
+:is(.tn-mega-link, .tn-feature, .tn-subnav a, .tn-drawer-link)[aria-disabled='true'] {
+    cursor: not-allowed;
+}
+
 .tn-mega-link:hover .tn-go {
     opacity: 1;
     transform: none;

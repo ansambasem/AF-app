@@ -86,6 +86,37 @@ Future<void> typeReading(WidgetTester tester, String digits) async {
 }
 
 void main() {
+  testWidgets('system back keeps the reader search while hiding its keyboard',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+        PowerCollectApp(apiClient: OfflineApi(), fieldStore: readerStore()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('إدخال القراءات').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Subscriber One');
+    tester.view.viewInsets = const FakeViewPadding(bottom: 250);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Subscriber One');
+
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('إدخال القراءات'), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
       'readings with more than two decimal places explain the error before saving',
       (tester) async {

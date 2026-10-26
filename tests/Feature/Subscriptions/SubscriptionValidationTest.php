@@ -18,13 +18,23 @@ class SubscriptionValidationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_national_id_is_required(): void
+    public function test_old_subscribers_are_registered_without_a_national_id_or_mobile_number(): void
     {
         $payload = $this->validPayload();
-        unset($payload['national_id']);
 
-        $this->post(route('subscriptions.store'), $payload)
-            ->assertSessionHasErrors('national_id');
+        $this->post(route('subscriptions.store'), [...$payload, 'national_id' => '', 'phone' => ''])->assertSessionHasNoErrors();
+        $this->post(route('subscriptions.store'), [...$payload, 'full_name' => 'Second Old Customer', 'national_id' => null, 'phone' => null])->assertSessionHasNoErrors();
+
+        $this->assertSame([[null, null], [null, null]], Subscription::query()->orderBy('id')->get()->map(fn (Subscription $subscription): array => [$subscription->national_id, $subscription->contactPhone()])->all());
+        $this->assertDatabaseCount('subscriber_profiles', 2);
+    }
+
+    public function test_a_mobile_number_given_must_still_be_a_valid_one(): void
+    {
+        $payload = $this->validPayload();
+
+        $this->post(route('subscriptions.store'), [...$payload, 'phone' => '0512345678'])
+            ->assertSessionHasErrors('phone');
 
         $this->assertDatabaseCount('subscriptions', 0);
     }
@@ -75,7 +85,7 @@ class SubscriptionValidationTest extends TestCase
         ]);
     }
 
-    public function test_editing_needs_only_the_mobile_number_the_form_shows_when_the_person_has_none_of_their_own(): void
+    public function test_editing_a_subscriber_with_no_mobile_number_keeps_it_empty_until_one_is_given(): void
     {
         $payload = $this->validPayload();
         $subscription = Subscription::factory()->create([
@@ -86,8 +96,10 @@ class SubscriptionValidationTest extends TestCase
         ]);
 
         $this->put(route('subscriptions.update', $subscription), [...$payload, 'phone' => '', 'subscription_phone' => ''])
-            ->assertSessionHasErrors(['subscription_phone' => 'أدخل رقم الجوال.'])
-            ->assertSessionDoesntHaveErrors('phone');
+            ->assertSessionHasNoErrors();
+        $this->assertNull($subscription->fresh()->contactPhone());
+        $this->put(route('subscriptions.update', $subscription), [...$payload, 'phone' => '', 'subscription_phone' => '0512345678'])
+            ->assertSessionHasErrors('subscription_phone');
 
         $this->put(route('subscriptions.update', $subscription), [...$payload, 'phone' => '', 'subscription_phone' => '0599123456'])
             ->assertSessionHasNoErrors();
@@ -279,14 +291,15 @@ class SubscriptionValidationTest extends TestCase
         ]);
     }
 
-    public function test_update_requires_both_registration_fields(): void
+    public function test_update_requires_the_initial_reading_but_not_the_national_id(): void
     {
         $payload = $this->validPayload();
         $subscription = Subscription::factory()->create(['branch_id' => auth()->user()->branch_id]);
         unset($payload['national_id'], $payload['initial_reading']);
 
         $this->put(route('subscriptions.update', $subscription), $payload)
-            ->assertSessionHasErrors(['national_id', 'initial_reading']);
+            ->assertSessionHasErrors('initial_reading')
+            ->assertSessionDoesntHaveErrors('national_id');
 
         $this->assertDatabaseHas('subscriptions', [
             'id' => $subscription->id,

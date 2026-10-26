@@ -336,7 +336,7 @@ class MobileCollectionController extends Controller
      * The amount is in the currency it was paid in; `amount_in_shekels` is
      * what it took off the balance.
      *
-     * @return array{id: int, subscription: string, amount: string, currency: string, exchange_rate: ?string, amount_in_shekels: string, payment_method: string, bank_name: ?string, sender_bank_name: ?string, status: string, recorded_at: string, voucher_number: ?string}
+     * @return array{id: int, subscription: string, amount: string, currency: string, exchange_rate: ?string, amount_in_shekels: string, payment_method: string, bank_name: ?string, bank_received_on: ?string, sender_bank_name: ?string, status: string, recorded_at: string, voucher_number: ?string, reference_number: ?string, sender_name: ?string, notes: ?string}
      */
     private function collectionData(SubscriptionTransaction $transaction): array
     {
@@ -354,6 +354,9 @@ class MobileCollectionController extends Controller
             'status' => 'recorded',
             'recorded_at' => $transaction->created_at->toIso8601String(),
             'voucher_number' => $transaction->printedVoucherNumber(),
+            'reference_number' => $transaction->reference_number,
+            'sender_name' => $transaction->sender_name,
+            'notes' => $transaction->notes,
         ];
     }
 }
