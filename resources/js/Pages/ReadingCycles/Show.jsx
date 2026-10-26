@@ -13,6 +13,8 @@ import PageHeader from '@/Components/PageHeader';
 import DateInput from '@/Components/DateInput';
 import DistributionTable from './DistributionTable';
 import DistributionAreas from './DistributionAreas';
+import DistributionSummaryModal from './DistributionSummaryModal';
+import DistributionActionModal from './DistributionActionModal';
 import SearchableSelect from '@/Components/SearchableSelect';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
 import PrintButton from '@/Components/PrintButton';
@@ -52,7 +54,7 @@ function AllocationReport({ result, onConfirmDownloaded, onClose }) {
             <div className="flex items-start justify-between gap-3">
                 <p className="font-bold text-gray-900">
                     {result.action === 'approve' ? 'اعتُمد' : result.action === 'copy' ? 'نُسخ من الدورة السابقة' : 'نُقل'} {formatNumber(result.moved)} طبلون
-                    {result.conflicts.length > 0 && <> · لم يُطبَّق على {formatNumber(result.conflicts.length)}</>}
+                    {result.conflicts.length > 0 && <> · راجع الطبلونات التي تعذّر تحديثها أدناه</>}
                 </p>
                 <button type="button" onClick={onClose} aria-label="إغلاق التقرير" className="rounded-control p-1.5 text-gray-500 hover:bg-gray-100">
                     <Icon name="close" className="h-4 w-4" />
@@ -116,6 +118,8 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
     const [result, setResult] = useState(null);
     const [lastMove, setLastMove] = useState(null);
     const [editingDay, setEditingDay] = useState(false);
+    const [summaryOpen, setSummaryOpen] = useState(false);
+    const [actionsOpen, setActionsOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const [recurring, setRecurring] = useState(true);
     const [assignmentFilter, setAssignmentFilter] = useState('');
@@ -136,10 +140,6 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
     const totalPages = Math.max(1, Math.ceil(visibleBoxes.length / perPage));
     const currentPage = Math.min(page, totalPages);
     const pageBoxes = visibleBoxes.slice((currentPage - 1) * perPage, currentPage * perPage);
-    const targetOptions = columns.map((column) => {
-        const totals = columnTotals(boards.filter((box) => box.column === column.key));
-        return { value: column.key, label: column.key === 'available' ? 'إلغاء التخصيص' : column.label, hint: `${formatNumber(totals.boxes)} طبلون · ${formatNumber(totals.subscribers)} مشترك` };
-    });
     const stage = STAGES[cycle.stage];
 
     useEffect(() => {
@@ -170,22 +170,29 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
     function move(boxIds, column, confirmDownloaded = false, repeat = recurring) {
         const ids = boxIds;
 
-        if (ids.length === 0) {
+        if (busy || ids.length === 0 || ids.length > 1000) {
             return;
         }
 
         setBusy(true);
+        setResult(null);
         const saveRecurring = abilities.approve && repeat;
         setLastMove({ boxIds: ids, column, recurring: saveRecurring });
         router.post(`/reading-cycles/${cycle.id}/assignments`, { ...movePayload(ids, column, boards, confirmDownloaded), recurring: saveRecurring, publish: abilities.approve }, {
             preserveScroll: true,
-            onSuccess: () => setSelected(column.key === 'paper' ? new Set(ids) : new Set()),
+            onSuccess: () => {
+                setSelected(column.key === 'paper' ? new Set(ids) : new Set());
+                setActionsOpen(false);
+                setSummaryOpen(true);
+            },
             onFinish: () => setBusy(false),
         });
     }
 
     function approve(data) {
-        router.post(`/reading-cycles/${cycle.id}/assignments/approve`, data, { preserveScroll: true });
+        if (busy) return;
+        setBusy(true);
+        router.post(`/reading-cycles/${cycle.id}/assignments/approve`, data, { preserveScroll: true, onFinish: () => setBusy(false) });
     }
 
     function assignSelected() {
@@ -197,11 +204,27 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
     }
 
     function createSheet() {
+        if (busy) return;
         const ids = [...selected].filter((id) => {
             const box = boards.find((candidate) => candidate.id === id);
             return box?.column === 'paper' && box.status === 'approved';
         });
-        router.post(`/reading-cycles/${cycle.id}/paper-sheets`, { box_ids: ids });
+        if (ids.length === 0 || ids.length > 200) return;
+        setBusy(true);
+        router.post(`/reading-cycles/${cycle.id}/paper-sheets`, { box_ids: ids }, { onFinish: () => setBusy(false) });
+    }
+
+    function openActions(boxes, defaultTarget = '') {
+        setSelected(new Set(boxes.map((box) => box.id)));
+        setTarget(defaultTarget);
+        if (defaultTarget === 'paper') setRecurring(false);
+        setSummaryOpen(false);
+        setActionsOpen(true);
+    }
+
+    function showPaperSheets() {
+        setSummaryOpen(false);
+        requestAnimationFrame(() => document.getElementById('sheets-title')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     }
 
     const selectedPaperApproved = [...selected].filter((id) => {
@@ -209,6 +232,7 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
 
         return box?.column === 'paper' && box.status === 'approved';
     }).length;
+    const allocationReport = result && <AllocationReport result={result} onClose={() => setResult(null)} onConfirmDownloaded={abilities.manage && lastMove ? () => move(lastMove.boxIds, lastMove.column, true, lastMove.recurring) : null} />;
 
     return (
         <AuthenticatedLayout
@@ -221,6 +245,7 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
                         meta={<>أسبوع القراءة <span dir="ltr">{cycle.weekStart}</span> — <span dir="ltr">{cycle.weekEnd}</span> · إتاحة المهام <span dir="ltr">{cycle.availableOn}</span>{cycle.readingDate !== cycle.weekEnd && ' · يوم القراءة مؤجل لهذه الدورة'}</>}
                     />
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <SecondaryButton disabled={busy} onClick={() => setSummaryOpen(true)}>ملخّص توزيع الفرع</SecondaryButton>
                         <PrintButton title={`توزيع القراءات — ${cycle.branchName}`} base="/reading-cycles/print" params={{ cycle: cycle.id, search, area_ids: subAreaIds, box_id: boxId, assignment: assignmentFilter, print_page: currentPage, per_page: perPage }} selectedIds={[...selected]} selectionPage="/reading-cycles/print" />
                         {abilities.review && (
                             <Link href={`/reading-cycles/${cycle.id}/submissions`} className={secondaryButtonClass}>
@@ -236,9 +261,9 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
                             </button>
                         )}
                         {abilities.approve && counters.draft > 0 && (
-                            <PrimaryButton onClick={() => approve({})}>
+                            <PrimaryButton disabled={busy} onClick={() => setSummaryOpen(true)}>
                                 <Icon name="check" className="h-4 w-4" />
-                                اعتماد كل الجاهز ({formatNumber(counters.draft)})
+                                مراجعة واعتماد ({formatNumber(counters.draft)})
                             </PrimaryButton>
                         )}
                     </div>
@@ -247,15 +272,20 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
         >
             <Head title={`توزيع القراءات — ${cycle.readingDate}`} />
 
-            {result && <AllocationReport result={result} onClose={() => setResult(null)} onConfirmDownloaded={abilities.manage && lastMove ? () => { setResult(null); move(lastMove.boxIds, lastMove.column, true, lastMove.recurring); } : null} />}
+            {!actionsOpen && allocationReport}
             {(errors.box_ids || errors.approve || errors.copy) && !result && <p className="mb-4 rounded-control bg-red-500/10 px-4 py-2 text-sm text-red-700">{errors.box_ids ?? errors.approve ?? errors.copy}</p>}
 
             <DistributionSummary boxes={visibleBoxes} />
 
             <div className="grid items-start gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]">
                 <DistributionAreas areas={areas} chosen={subAreaIds} onChange={(ids) => { setSubAreaIds(ids); setPage(1); }} disabled={busy}
+                    onDistribute={abilities.manage || abilities.printSheets ? () => openActions(visibleBoxes) : null} distributionCount={visibleBoxes.length}
                     filter={assignmentFilter} counts={{ all: boards.length, assigned: counters.mobile + counters.paper, available: counters.available }} onFilterChange={(value) => { setAssignmentFilter(value); setPage(1); }} />
                 <div className="flex min-w-0 flex-col gap-4">
+                    {selectedBoxes.length > 0 && <section aria-label="الطبلونات المحددة" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-brand-500/30 bg-surface p-4">
+                        <div><p role="status" className="text-sm text-gray-700"><b className="font-display text-lg text-brand-600">{formatNumber(selectedTotals.boxes)}</b> طبلون محدد · {formatNumber(selectedTotals.subscribers)} مشترك</p>{hiddenSelected > 0 && <p className="mt-1 text-xs text-amber-700">منها {formatNumber(hiddenSelected)} خارج النتائج الظاهرة.</p>}</div>
+                        <div className="flex flex-wrap items-center gap-3"><button type="button" disabled={busy} onClick={() => setSelected(new Set())} className="text-xs font-semibold text-gray-500 hover:underline">إلغاء التحديد كله</button><PrimaryButton disabled={busy} onClick={() => setActionsOpen(true)}>{abilities.manage ? 'توزيع المحدد' : 'إجراء على المحدد'} ({formatNumber(selectedTotals.boxes)})</PrimaryButton></div>
+                    </section>}
                     <div>
                         <DataTableToolbar search={search} onSearchChange={(value) => { setSearch(value); setPage(1); }} placeholder="ابحث باسم المنطقة أو الطبلون أو رقمه..." perPage={perPage} onPerPageChange={(size) => { setPerPage(size); setPage(1); }} total={visibleBoxes.length} printable={false}
                             filterMenu={<div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3">
@@ -286,37 +316,11 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
 
                     {remainingBoxes.length > 0 && abilities.manage && <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-gray-700">
                         <span>{formatNumber(remainingBoxes.length)} طبلون غير موزع ضمن النتائج الحالية.</span>
-                        <button type="button" disabled={busy} onClick={() => { setSelected((current) => new Set([...current, ...remainingBoxes.map((box) => box.id)])); setTarget('paper'); setRecurring(false); }} className="font-semibold text-brand-600 hover:underline">تحديد المتبقي للكشوف الورقية</button>
+                        <button type="button" disabled={busy} onClick={() => openActions(remainingBoxes, 'paper')} className="font-semibold text-brand-600 hover:underline">تحديد المتبقي للكشوف الورقية</button>
                     </div>}
 
                 </div>
             </div>
-
-            {selectedBoxes.length > 0 && <section aria-label="توزيع الطبلونات المحددة" className="fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[calc(100%-2rem)] max-w-4xl flex-col gap-3 rounded-card border border-brand-500/30 bg-surface p-4 shadow-lg">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-sm text-gray-700" role="status"><b className="font-display text-lg text-brand-600">{formatNumber(selectedTotals.boxes)}</b> طبلون محدد · {formatNumber(selectedTotals.subscribers)} مشترك</p>
-                    <button type="button" disabled={busy} onClick={() => setSelected(new Set())} className="text-xs font-semibold text-gray-500 hover:underline">إلغاء التحديد كله</button>
-                </div>
-                {hiddenSelected > 0 && <div className="flex flex-wrap items-center gap-3 text-xs text-amber-700" role="status">
-                    <span>يشمل التحديد {formatNumber(hiddenSelected)} طبلون خارج النتائج الظاهرة، وسيشملها الحفظ أيضًا.</span>
-                    <button type="button" disabled={busy} onClick={() => setSelected(new Set(visibleBoxes.filter((box) => selected.has(box.id)).map((box) => box.id)))} className="font-semibold underline">إلغاء تحديد المخفي</button>
-                </div>}
-                {!abilities.manage && abilities.printSheets && <SecondaryButton disabled={busy || selectedPaperApproved === 0 || selectedPaperApproved > 200} onClick={createSheet}>إنشاء كشف للطباعة ({formatNumber(selectedPaperApproved)})</SecondaryButton>}
-                {selectedPaperApproved > 200 && <p className="text-sm text-amber-700">يمكن وضع 200 طبلون في الكشف الواحد. حدّد منطقة أصغر لإنشاء الكشف.</p>}
-                {abilities.manage && <div className="flex flex-wrap items-end gap-3">
-                    <div className="min-w-[12rem] flex-1">
-                        <label htmlFor="board-target" className="mb-1 block text-xs font-semibold text-gray-600">توزيع المحدد إلى</label>
-                        <SearchableSelect id="board-target" value={target} onChange={setTarget} disabled={busy} options={targetOptions} portal placeholder="اختر القارئ أو الكشف الورقي" searchPlaceholder="ابحث عن قارئ..." />
-                    </div>
-                    <PrimaryButton onClick={assignSelected} disabled={busy || !target || selectedBoxes.length > 1000}>{abilities.approve ? 'حفظ التوزيع' : 'حفظ للمراجعة'}</PrimaryButton>
-                    {abilities.printSheets && selectedPaperApproved > 0 && <SecondaryButton disabled={busy || selectedPaperApproved > 200} onClick={createSheet}>إنشاء كشف للطباعة ({formatNumber(selectedPaperApproved)})</SecondaryButton>}
-                    {abilities.approve && <label className="flex w-full items-center gap-2 border-t border-gray-100 pt-3 text-sm text-gray-700">
-                        <input type="checkbox" checked={recurring} disabled={busy} onChange={(event) => setRecurring(event.target.checked)} className="rounded border-gray-300 text-brand-600" />
-                        {recurring ? 'حفظ هذا التوزيع للقراءات القادمة أيضًا' : 'تعديل لهذه القراءة فقط؛ يبقى التوزيع الثابت للقراءات التالية'}
-                    </label>}
-                    {selectedBoxes.length > 1000 && <p className="w-full text-sm text-amber-700">يمكن توزيع 1,000 طبلون في المرة الواحدة. قلّل التحديد ووزّع البقية بعدها.</p>}
-                </div>}
-            </section>}
 
             {(abilities.printSheets || paperSheets.length > 0) && (
                 <section className="mt-6 rounded-card border border-gray-100 bg-surface p-5 shadow-card" aria-labelledby="sheets-title">
@@ -342,7 +346,7 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
                                     <span className="text-xs text-gray-500">
                                         {sheet.printCount > 0 ? `طُبع ${formatNumber(sheet.printCount)} مرة · آخرها ${sheet.lastPrintedAt} (${sheet.lastPrintedBy})` : 'لم يُطبع بعد'}
                                     </span>
-                                    {abilities.printSheets && <Link href={`/paper-sheets/${sheet.id}`} className="text-sm font-semibold text-brand-600 hover:underline">فتح للطباعة</Link>}
+                                    {abilities.printSheets && <Link href={`/paper-sheets/${sheet.id}?print=1`} className="text-sm font-semibold text-brand-600 hover:underline">طباعة وتخصيص</Link>}
                                 </li>
                             ))}
                         </ul>
@@ -350,7 +354,8 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
                 </section>
             )}
 
-            {selectedBoxes.length > 0 && <div aria-hidden="true" className="h-80" />}
+            {summaryOpen && <DistributionSummaryModal cycle={cycle} boards={boards} readers={readers} paperSheets={paperSheets} abilities={abilities} busy={busy} errors={errors} result={result} onClose={() => setSummaryOpen(false)} onApprove={() => approve({})} onPaper={showPaperSheets} onPreparePaper={() => openActions(boards.filter((box) => box.column === 'paper'), 'paper')} onRemaining={() => openActions(boards.filter((box) => box.column === 'available'), 'paper')} />}
+            {actionsOpen && <DistributionActionModal boards={boards} selectedBoxes={selectedBoxes} readers={readers} abilities={abilities} busy={busy} errors={errors} target={target} onTargetChange={setTarget} recurring={recurring} onRecurringChange={setRecurring} hiddenSelected={hiddenSelected} onRemoveHidden={() => setSelected(new Set(selectedBoxes.filter((box) => visibleIds.has(box.id)).map((box) => box.id)))} onClose={() => setActionsOpen(false)} onAssign={assignSelected} onCreateSheet={createSheet} allocationReport={errors.box_ids ? allocationReport : null} />}
             {editingDay && <ReadingDayModal cycle={cycle} onClose={() => setEditingDay(false)} />}
         </AuthenticatedLayout>
     );

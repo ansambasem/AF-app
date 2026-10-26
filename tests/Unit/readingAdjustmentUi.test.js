@@ -98,3 +98,19 @@ test('each pricing pencil follows its own permission', () => {
     assert.match(renderToStaticMarkup(createElement(Pricing, { reading, field: 'unit_price' })), /aria-label="تعديل سعر الكيلو"/);
     assert.doesNotMatch(renderToStaticMarkup(createElement(Pricing, { reading, field: 'minimum_payment' })), /<button/);
 });
+
+test('history exposes the initial baseline editor with the same permission even when new entry is closed', () => {
+    const subscription = {
+        id: 1, display_name: 'أحمد', lastReading: 0, meterReadings: [], kilowattPrice: 0.5, weeklyMinimumPayment: 0,
+        initialReading: { isInitial: true, value: 0, canEdit: true, weekStart: '2026-09-18', previewUrl: '/subscriptions/1/reading-baseline/preview', saveUrl: '/subscriptions/1/reading-baseline' },
+    };
+    const readingWeekOptions = [{ value: '2026-09-18', end: '2026-09-24' }];
+    const render = (overrides) => renderToStaticMarkup(createElement(History, { subscription: { ...subscription, ...overrides }, readingWeekOptions, onClose() {} }));
+    assert.match(render({ canRecordReading: true }), /aria-label="تعديل القراءة السابقة"/);
+    assert.match(render({ canRecordReading: false }), /aria-label="تعديل القراءة السابقة"/);
+    assert.doesNotMatch(render({ canRecordReading: false }), /aria-label="القراءة الجديدة"/);
+    assert.doesNotMatch(render({ initialReading: { ...subscription.initialReading, canEdit: false } }), /aria-label="تعديل القراءة السابقة"/);
+    const readOnlyCurrent = render({ canRecordReading: false, meterReadings: [{ id: 7, weekStart: '2026-09-18', weekEnd: '2026-09-24', previous_reading: 0, current_reading: 20, consumption: 20, amountDue: 10, status: 'approved', statusLabel: 'معتمدة', canUpdate: false }] });
+    assert.match(readOnlyCurrent, /aria-label="تعديل القراءة السابقة"/);
+    assert.doesNotMatch(readOnlyCurrent, /aria-label="القراءة الجديدة"/);
+});

@@ -331,6 +331,50 @@ class ReadingCycleTest extends TestCase
         $this->assertSame(150.0, MeterReading::query()->sole()->current_reading);
     }
 
+    public function test_even_the_super_admin_cannot_accept_a_held_mobile_reading_after_its_week_is_locked(): void
+    {
+        $cycle = $this->cycle();
+        $box = $this->boxes(1)->first();
+        $reader = $this->reader('أحمد');
+        $this->allocate($this->branchAdmin, $cycle, [$box], 'mobile', $reader);
+        $this->actingAs($this->branchAdmin)->post(route('reading-cycles.assignments.approve', $cycle), []);
+        $this->travelTo(Carbon::parse('2026-10-22 10:00', 'Asia/Gaza'));
+        $download = $this->mobile($reader)->getJson(route('mobile.reading-assignments.index'))->json('assignments.0');
+        $this->travelTo(Carbon::parse('2026-10-29 10:00', 'Asia/Gaza'));
+        $this->mobile($reader)->postJson(route('mobile.reading-assignments.sync'), ['readings' => [[
+            'operation_id' => (string) Str::uuid(), 'assignment_id' => $download['id'], 'authorization' => $download['authorization'],
+            'subscription_id' => $box->subscriptions()->value('id'), 'current_reading' => 150,
+            'captured_at' => Carbon::parse('2026-10-22 11:00', 'Asia/Gaza')->toIso8601String(),
+        ]]])->assertJsonPath('results.0.status', 'needs_review');
+        $held = ReadingSubmission::query()->sole();
+
+        $this->actingAs(User::factory()->superAdmin()->create())->post(route('reading-submissions.review', $held), ['decision' => 'accept'])
+            ->assertSessionHasErrors(['decision' => ReadingSubmission::ISSUES['week_locked']]);
+
+        $this->assertSame(ReadingSubmissionStatus::NeedsReview, $held->fresh()->status);
+        $this->assertDatabaseCount('meter_readings', 0);
+        $this->assertDatabaseCount('subscription_transactions', 0);
+    }
+
+    public function test_postponing_a_mobile_cycle_does_not_reopen_an_older_week_for_automatic_sync(): void
+    {
+        $cycle = $this->cycle(['reading_date' => '2026-10-29']);
+        $box = $this->boxes(1)->first();
+        $reader = $this->reader('أحمد');
+        $this->allocate($this->branchAdmin, $cycle, [$box], 'mobile', $reader);
+        $this->actingAs($this->branchAdmin)->post(route('reading-cycles.assignments.approve', $cycle), []);
+        $this->travelTo(Carbon::parse('2026-10-29 10:00', 'Asia/Gaza'));
+        $download = $this->mobile($reader)->getJson(route('mobile.reading-assignments.index'))->json('assignments.0');
+
+        $this->mobile($reader)->postJson(route('mobile.reading-assignments.sync'), ['readings' => [[
+            'operation_id' => (string) Str::uuid(), 'assignment_id' => $download['id'], 'authorization' => $download['authorization'],
+            'subscription_id' => $box->subscriptions()->value('id'), 'current_reading' => 150,
+            'captured_at' => now()->subHour()->toIso8601String(),
+        ]]])->assertJsonPath('results.0.status', 'needs_review')->assertJsonPath('results.0.issue', 'week_locked');
+
+        $this->assertDatabaseCount('meter_readings', 0);
+    }
+
     public function test_a_second_final_reading_for_the_same_week_is_held_not_saved(): void
     {
         $cycle = $this->cycle(['reading_date' => '2026-10-20']);
@@ -361,9 +405,10 @@ class ReadingCycleTest extends TestCase
         $this->actingAs($this->branchAdmin)->post(route('reading-cycles.paper-sheets.store', $cycle), ['box_ids' => $boxes->pluck('id')->all()])
             ->assertSessionHasErrors('box_ids');
         $this->actingAs($this->branchAdmin)->post(route('reading-cycles.assignments.approve', $cycle), ['paper' => true]);
-        $this->actingAs($this->branchAdmin)->post(route('reading-cycles.paper-sheets.store', $cycle), ['box_ids' => $boxes->pluck('id')->all()]);
+        $created = $this->actingAs($this->branchAdmin)->post(route('reading-cycles.paper-sheets.store', $cycle), ['box_ids' => $boxes->pluck('id')->all()]);
 
         $sheet = PaperSheet::query()->sole();
+        $created->assertRedirect(route('paper-sheets.show', [$sheet, 'print' => 1]));
         $this->actingAs($this->branchAdmin)->get(route('paper-sheets.show', $sheet))
             ->assertInertia(fn ($page) => $page->component('ReadingCycles/PaperSheet')->has('boxes', 3)->where('boxes.0.subscriptions.0.previousReading', 100)->where('boxes.0.subscriptions.0.phone', '0599000001'));
         $this->actingAs($this->branchAdmin)->postJson(route('paper-sheets.printed', $sheet))->assertOk()->assertJsonPath('printed', true);

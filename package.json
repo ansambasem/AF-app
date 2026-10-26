@@ -5,7 +5,15 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "test": "node --test tests/Unit/*.test.js"
+        "test": "node --test tests/Unit/*.test.js",
+        "test:browser": "node tests/Browser/run.mjs",
+        "test:print": "node tests/Browser/run.mjs --print",
+        "test:readings": "node tests/Browser/run.mjs --readings",
+        "check:release": "npm run check -- --apk && npm run test:browser && npm run test:print && npm run test:readings",
+        "check": "node .claude/automation/check.mjs --full",
+        "check:changed": "node .claude/automation/check.mjs --changed",
+        "check:watch": "node .claude/automation/watch.mjs",
+        "check:status": "node .claude/automation/check.mjs --status"
     },
     "devDependencies": {
         "@tailwindcss/forms": "^0.5.2",

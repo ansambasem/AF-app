@@ -3,8 +3,10 @@
 namespace App\Policies;
 
 use App\Enums\PermissionKey;
+use App\Models\MeterReading;
 use App\Models\Subscription;
 use App\Models\User;
+use Carbon\CarbonInterface;
 
 class SubscriptionPolicy
 {
@@ -63,6 +65,15 @@ class SubscriptionPolicy
         }
 
         return $user->hasPermission(PermissionKey::UpdateSubscriptions) && $subscription->branch_id === $user->workBranchId();
+    }
+
+    /** The latest sheet's initial baseline uses the previous-reading correction permission. */
+    public function adjustInitialReading(User $user, Subscription $subscription, ?CarbonInterface $weekStart = null): bool
+    {
+        return $subscription->archived_at === null
+            && $user->hasPermission(PermissionKey::CorrectLastMeterReadings)
+            && ($user->isSuperAdmin() || $subscription->branch_id === $user->workBranchId())
+            && ($weekStart === null || $weekStart->equalTo(MeterReading::latestEndedWeekStart($subscription->branch_id)));
     }
 
     /**

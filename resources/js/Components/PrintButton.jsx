@@ -18,7 +18,7 @@ export function readingPrintUrl(title, base, params = {}) {
 }
 
 /** Only the small print launcher loads with a list. The designer loads in its own tab. */
-export default function PrintButton({ title, base, params = {}, selectedIds = [], selectionPage = null }) {
+export default function PrintButton({ title, base, params = {}, selectedIds = [], selectionPage = null, buttonClassName = '' }) {
     const { can } = usePage().props;
     const http = useHttp();
     const [error, setError] = useState('');
@@ -49,8 +49,8 @@ export default function PrintButton({ title, base, params = {}, selectedIds = []
     }
 
     return <div className="flex flex-wrap items-center gap-2">
-        <a href={href} target="_blank" rel="noopener noreferrer" className={`${secondaryButtonClass} tone-print`}><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص</a>
-        {selectionPage && selectedIds.length > 0 && <button type="button" className={secondaryButtonClass} disabled={http.processing} onClick={printSelected}>طباعة المحدد ({selectedIds.length})</button>}
+        <a href={href} target="_blank" rel="noopener noreferrer" className={`${secondaryButtonClass} tone-print ${buttonClassName}`}><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص</a>
+        {selectionPage && selectedIds.length > 0 && <button type="button" className={`${secondaryButtonClass} ${buttonClassName}`} disabled={http.processing} onClick={printSelected}>طباعة المحدد ({selectedIds.length})</button>}
         {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
     </div>;
 }

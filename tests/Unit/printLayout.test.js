@@ -1,12 +1,42 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { arrangeRows, cellNumber, columnTotal, compareCells, cssString, defaultLayout, fitLayout, moveColumn, pageCss } from '../../resources/js/lib/printLayout.js';
+import { applyPrintPreset, arrangeRows, cellNumber, columnTotal, compareCells, cssString, defaultLayout, fitLayout, moveColumn, pageCss, PRINT_PRESETS, printFont } from '../../resources/js/lib/printLayout.js';
 
 const columns = [
     { key: 'name', label: 'الاسم' },
     { key: 'box', label: 'رقم الطبلون' },
     { key: 'balance', label: 'الرصيد' },
 ];
+
+test('named starting designs keep the report columns and fit back into saved layouts', () => {
+    const fresh = defaultLayout({ columns, title: 'الصندوق المالي', company: 'شركة أبو زايد' });
+    fresh.columns[0].visible = false;
+    fresh.header.companyEnglish = 'Fares Abu Zayed Sons';
+    const clearing = applyPrintPreset(fresh, 'clearing');
+    const saved = fitLayout(JSON.parse(JSON.stringify(clearing)), defaultLayout({ columns }));
+
+    assert.equal(PRINT_PRESETS.length, 6);
+    assert.equal(saved.header.title, 'ورقة مقاصة');
+    assert.equal(saved.header.layout, 'letterhead');
+    assert.equal(saved.header.logoPosition, 'center');
+    assert.equal(saved.header.companyEnglish, 'Fares Abu Zayed Sons');
+    assert.equal(saved.columns[0].visible, false);
+    assert.deepEqual(saved.footer.signatures, ['توقيع الطرف الأول', 'توقيع الطرف الثاني']);
+    assert.equal(fresh.header.layout, 'standard');
+    assert.equal(fresh.footer.signatures.length, 0);
+    assert.equal(applyPrintPreset(fresh, 'missing'), fresh);
+});
+
+test('legacy templates get usable header defaults and font choices cannot inject CSS', () => {
+    const layout = fitLayout({ header: { centered: true }, fontFamily: 'x; } body { color:red' }, defaultLayout({ columns }));
+    assert.equal(layout.header.centered, true);
+    assert.equal(layout.header.layout, 'standard');
+    assert.equal(layout.header.logoHeight, 13);
+    assert.equal(layout.fontFamily, 'plex');
+    assert.equal(printFont('unknown'), '"IBM Plex Sans Arabic", sans-serif');
+    layout.fontFamily = 'messiri';
+    assert.ok(pageCss(layout).includes('font-family: "El Messiri", serif'));
+});
 
 test('custom blank columns and secondary lines survive template loading without restoring removed data fields', () => {
     const fresh = defaultLayout({ columns });

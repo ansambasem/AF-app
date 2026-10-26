@@ -115,10 +115,9 @@ export default function PersonalDetailsModal({ subscription, onClose }) {
                 </Field>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <Field id="personal_national_id" label="رقم الهوية" required error={form.errors.national_id}>
+                    <Field id="personal_national_id" label="رقم الهوية" error={form.errors.national_id}>
                         <TextInput
                             id="personal_national_id"
-                            required
                             dir="ltr"
                             inputMode="numeric"
                             maxLength={9}
@@ -132,10 +131,9 @@ export default function PersonalDetailsModal({ subscription, onClose }) {
                         />
                     </Field>
 
-                    <Field id="personal_phone" label="رقم الجوال" required error={form.errors.phone}>
+                    <Field id="personal_phone" label="رقم الجوال" error={form.errors.phone}>
                         <TextInput
                             id="personal_phone"
-                            required
                             type="tel"
                             dir="ltr"
                             inputMode="numeric"

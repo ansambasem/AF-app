@@ -83,6 +83,21 @@ class MobileApiTest extends TestCase
         $this->assertDatabaseHas('meter_readings', ['subscription_id' => $subscription->id, 'current_reading' => 130]);
     }
 
+    public function test_super_admin_mobile_entry_cannot_fill_in_a_previous_week(): void
+    {
+        $this->travelTo('2026-09-24 10:00:00');
+        $actor = User::factory()->superAdmin()->create();
+        $subscription = Subscription::factory()->create(['initial_reading' => 100]);
+
+        $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($actor))
+            ->postJson(route('mobile.readings.store'), [
+                'subscription_id' => $subscription->id, 'week_start' => '2026-09-11',
+                'current_reading' => 125, 'mobile_operation_id' => (string) Str::uuid(),
+            ])->assertUnprocessable()->assertJsonValidationErrors(['week_start' => 'يمكن إدخال قراءات الأسبوع الأخير فقط؛ الأسابيع السابقة للعرض فقط.']);
+
+        $this->assertDatabaseCount('meter_readings', 0);
+    }
+
     public function test_weekly_reading_view_requires_permission_and_does_not_grant_write_access(): void
     {
         $this->getJson(route('mobile.readings.index'))->assertUnauthorized();
@@ -145,6 +160,40 @@ class MobileApiTest extends TestCase
             ->assertJsonPath('data.0.current_reading', 120)
             ->assertJsonPath('data.0.status', 'approved');
         $this->getJson(route('mobile.readings.index', ['search' => 'HIDDEN-99']))->assertJsonPath('total', 0);
+    }
+
+    public function test_weekly_readings_filter_subscription_status_within_the_visible_branch(): void
+    {
+        $user = User::factory()->branchAdmin()->create();
+        Subscription::factory()->create(['branch_id' => $user->branch_id]);
+        $disconnected = Subscription::factory()->create(['branch_id' => $user->branch_id, 'status' => 'disconnected']);
+        Subscription::factory()->create(['status' => 'disconnected']);
+        $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($user));
+
+        $this->getJson(route('mobile.readings.index'))->assertJsonPath('total', 1)->assertJsonPath('data.0.subscription_status', 'active');
+        $this->getJson(route('mobile.readings.index', ['subscription_status' => 'disconnected']))
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $disconnected->id)->assertJsonPath('data.0.subscription_status', 'disconnected');
+        $this->getJson(route('mobile.readings.index', ['subscription_status' => 'all']))->assertJsonPath('total', 2);
+        $this->getJson(route('mobile.readings.index', ['subscription_status' => 'invalid']))->assertUnprocessable()->assertJsonValidationErrors('subscription_status');
+    }
+
+    public function test_bank_transfer_receipt_returns_the_reference_and_saved_payment_details_on_retry(): void
+    {
+        $collector = $this->collectorWithPermission(...self::TAKES_PAYMENTS);
+        $subscription = Subscription::factory()->create(['branch_id' => $collector->branch_id]);
+        $payload = [
+            'mobile_operation_id' => (string) Str::uuid(), 'collector_confirmed' => true,
+            'subscription_id' => $subscription->id, 'amount' => '25', 'currency' => 'ILS',
+            'payment_method' => 'bank_transfer', 'bank_name' => 'بنك فلسطين', 'sender_name' => 'Sender',
+            'reference_number' => 'BANK-0042', 'notes' => 'Transfer details',
+        ];
+        $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($collector));
+
+        $first = $this->postJson(route('mobile.collections.store'), $payload)->assertCreated();
+        $this->postJson(route('mobile.collections.store'), $payload)->assertCreated()
+            ->assertJsonPath('id', $first->json('id'))->assertJsonPath('reference_number', 'BANK-0042')
+            ->assertJsonPath('bank_name', 'بنك فلسطين')->assertJsonPath('sender_name', 'Sender')->assertJsonPath('notes', 'Transfer details');
+        $this->assertDatabaseCount('subscription_transactions', 1);
     }
 
     public function test_weekly_reading_list_is_paginated_and_rejects_invalid_filters(): void

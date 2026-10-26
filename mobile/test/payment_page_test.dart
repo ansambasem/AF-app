@@ -24,6 +24,9 @@ class RecordingApi extends ApiClient {
       'currency': collection['currency'],
       'amount_in_shekels': collection['currency'] == 'USD' ? '74.00' : null,
       'voucher_number': 'P-77',
+      'reference_number': collection['reference_number'],
+      'bank_name': collection['bank_name'],
+      'sender_name': collection['sender_name'],
       'bank_received_on': collection['bank_received_on'],
       if (balanceAfter != null) 'balance_after': balanceAfter,
     };
@@ -32,13 +35,15 @@ class RecordingApi extends ApiClient {
 
 void main() {
   Future<Finder> openPayment(WidgetTester tester, ApiClient api,
-      {String amount = '25'}) async {
+      {String amount = '25',
+      Map<String, double> exchangeRates = const {}}) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(MaterialApp(
         theme: AppIdentity.theme,
         home: PaymentPage(
           api: api,
+          exchangeRates: exchangeRates,
           subscriber: const {
             'id': 42,
             'full_name': 'Subscriber',
@@ -154,34 +159,68 @@ void main() {
     expect(api.requests.last.containsKey('exchange_rate'), isFalse);
     expect(api.requests.last.containsKey('sender_bank_name'), isFalse);
     expect(find.text('تم تسجيل الدفعة'), findsOneWidget);
-    expect(find.text('P-77'), findsOneWidget);
     expect(find.text('تحويل إلى البنك الوطني الإسلامي'), findsOneWidget);
+    expect(find.text('P-77'), findsNothing);
+    expect(find.text('رقم المرجع'), findsOneWidget);
+    expect(find.text('TRANSFER-42'), findsOneWidget);
+    expect(find.text('رقم السند'), findsNothing);
     expect(find.text('\u206675 ₪\u2069 عليه'), findsOneWidget);
   });
 
-  testWidgets('a dollar payment needs an exchange rate and counts in shekels',
+  testWidgets(
+      'a dollar payment is counted at the company rate from the website settings, which the collector cannot change',
       (tester) async {
     final api = RecordingApi();
-    final scrollable = await openPayment(tester, api, amount: '20');
+    final scrollable = await openPayment(tester, api,
+        amount: '20',
+        exchangeRates: exchangeRatesFrom([
+          {'code': 'ILS', 'rate': '1.0000'},
+          {'code': 'USD', 'rate': '3.7000'},
+          {'code': 'JOD', 'rate': null},
+        ]));
     await tester.tap(find.text('\$ دولار'));
     await tester.pumpAndSettle();
     await tapInList(
         tester, scrollable, find.byKey(const ValueKey('payment-method-cash')));
-    await confirmAndSubmit(tester, scrollable);
-    expect(api.requests, isEmpty);
-    expect(find.text('أدخل سعر الصرف لتحويل المبلغ إلى شيكل.'), findsOneWidget);
 
-    await enterInList(tester, scrollable, 'payment-rate', '3.7');
+    await reveal(
+        tester, scrollable, find.byKey(const ValueKey('payment-rate')));
+    expect(find.text('سعر الصرف 3.70 من إعدادات الشركة'), findsOneWidget);
     expect(find.text('= 74.00 ₪'), findsOneWidget);
+    expect(
+        find.byType(TextField).evaluate().where((field) =>
+            (field.widget as TextField).decoration?.hintText == '3.70'),
+        isEmpty);
+    await reveal(tester, scrollable, find.text('\u206626 ₪\u2069 عليه'));
     expect(find.text('\u206626 ₪\u2069 عليه'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('payment-submit')));
-    await tester.pumpAndSettle();
+    await confirmAndSubmit(tester, scrollable);
 
     expect(api.requests.single, containsPair('currency', 'USD'));
     expect(api.requests.single, containsPair('exchange_rate', '3.7'));
     expect(api.requests.single, containsPair('payment_method', 'cash'));
     expect(find.text('بالشيكل'), findsOneWidget);
     expect(find.text('74.00 ₪'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a currency without a rate in the website settings cannot be chosen',
+      (tester) async {
+    final api = RecordingApi();
+    final scrollable = await openPayment(tester, api,
+        amount: '20', exchangeRates: const {'USD': 3.7});
+    expect(
+        find.text(
+            'لا يمكن الدفع بـدينار حتى يُحدَّد سعر صرفه في إعدادات الموقع.'),
+        findsOneWidget);
+    await tester.tap(find.text('JD دينار'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('payment-rate')), findsNothing);
+    await tapInList(
+        tester, scrollable, find.byKey(const ValueKey('payment-method-cash')));
+    await confirmAndSubmit(tester, scrollable);
+
+    expect(api.requests.single, containsPair('currency', 'ILS'));
+    expect(api.requests.single.containsKey('exchange_rate'), isFalse);
   });
 
   testWidgets(

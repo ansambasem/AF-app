@@ -19,6 +19,7 @@ class CollectionView extends StatefulWidget {
       this.canRecordPayments = true,
       this.paymentMethods = const [],
       this.initiallyShowingToday = false,
+      this.focusSearch = false,
       this.onWeeklyReadings,
       this.onRefresh,
       super.key});
@@ -36,6 +37,9 @@ class CollectionView extends StatefulWidget {
   final bool canRecordPayments;
   final List<String> paymentMethods;
   final bool initiallyShowingToday;
+
+  /// Opens with the keyboard on the search box, as the home search asks.
+  final bool focusSearch;
   final VoidCallback? onWeeklyReadings;
   final Future<void> Function()? onRefresh;
   @override
@@ -111,6 +115,7 @@ class _CollectionViewState extends State<CollectionView> {
                 controller: widget.search,
                 hint: 'الاسم أو رقم الحساب أو الطبلون',
                 maxLength: 100,
+                autofocus: widget.focusSearch,
                 onChanged: (_) => widget.onSearchChanged(),
                 onSubmitted: (_) => widget.onSearch(),
                 onClear: () {

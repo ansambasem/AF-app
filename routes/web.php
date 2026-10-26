@@ -58,6 +58,7 @@ use App\Http\Controllers\SubscriptionMessageController;
 use App\Http\Controllers\SubscriptionPaymentController;
 use App\Http\Controllers\SubscriptionPersonalDetailsController;
 use App\Http\Controllers\SubscriptionPhoneController;
+use App\Http\Controllers\SubscriptionReadingBaselineController;
 use App\Http\Controllers\SubscriptionStandingDiscountController;
 use App\Http\Controllers\SubscriptionStatementController;
 use App\Http\Controllers\SubscriptionTransactionController;
@@ -167,6 +168,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/meter-readings/{meter_reading}/last-reading-preview', [MeterReadingController::class, 'previewLastReading'])->name('meter-readings.last-reading-preview');
     Route::post('/meter-readings/{meter_reading}/adjustment-preview', [MeterReadingController::class, 'previewAdjustment'])->name('meter-readings.adjustment-preview');
     Route::put('/meter-readings/{meter_reading}/last-reading', [MeterReadingController::class, 'adjustLastReading'])->name('meter-readings.adjust-last');
+    Route::post('/subscriptions/{subscription}/reading-baseline/preview', [SubscriptionReadingBaselineController::class, 'preview'])->name('subscriptions.reading-baseline.preview');
+    Route::put('/subscriptions/{subscription}/reading-baseline', [SubscriptionReadingBaselineController::class, 'update'])->name('subscriptions.reading-baseline.update');
     Route::put('/meter-readings/{meter_reading}/pricing', [MeterReadingController::class, 'updatePricing'])->name('meter-readings.pricing');
     Route::resource('areas', AreaController::class)->only(['create', 'store', 'edit', 'update', 'destroy']);
     Route::resource('sub-areas', SubAreaController::class)->only(['create', 'store', 'edit', 'update', 'destroy']);

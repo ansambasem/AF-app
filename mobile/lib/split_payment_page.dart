@@ -424,15 +424,25 @@ class _SplitPaymentPageState extends State<SplitPaymentPage> {
             style: AppIdentity.body(16, weight: FontWeight.w700)),
         Text('الإجمالي: ${receipt!['total_amount']} شيكل',
             style: AppIdentity.body(16)),
+        const SizedBox(height: 8),
+        Text('البنك المستلم: ${receipt!['bank_name'] ?? bank ?? '—'}',
+            style: AppIdentity.body(14)),
+        if ((receipt!['sender_bank_name'] ?? senderBank) != null)
+          Text('البنك المرسل: ${receipt!['sender_bank_name'] ?? senderBank}',
+              style: AppIdentity.body(14)),
+        Text('اسم المحوّل: ${receipt!['sender_name'] ?? sender.text}',
+            style: AppIdentity.body(14)),
+        if ('${receipt!['notes'] ?? notes.text}'.trim().isNotEmpty)
+          Text('ملاحظات: ${receipt!['notes'] ?? notes.text}',
+              style: AppIdentity.body(14)),
         if (receipt!['bank_received_on'] != null)
           Text(
               'وصول الحوالة إلى البنك: ${'${receipt!['bank_received_on']}'.split('-').reversed.join('/')}',
               style: AppIdentity.body(14)),
-        const AppSection('السندات والأرصدة بعد التسجيل'),
+        const AppSection('الاشتراكات والأرصدة بعد التسجيل'),
         ...((receipt!['parts'] as List?) ?? []).map((part) => ListTile(
             title: Text('${part['subscription']}'),
-            subtitle: Text(
-                'السند: ${part['voucher_number']} · الرصيد: ${part['balance_after']}'),
+            subtitle: Text('الرصيد بعد الدفعة: ${part['balance_after']}'),
             trailing: Text('${part['amount']} ₪'))),
         const SizedBox(height: 16),
         AppAction(label: 'تم', onPressed: close),

@@ -30,17 +30,17 @@ class MeterReadingPolicy
      * Determine whether the user can create models — for `$weekStart`,
      * when given, which must be a week still open to them.
      */
-    public function create(User $user, ?CarbonInterface $weekStart = null): bool
+    public function create(User $user, ?CarbonInterface $weekStart = null, ?int $branchId = null): bool
     {
         return $this->canRecord($user)
             && $this->entryIsOpenFor($user)
-            && ($weekStart === null || $this->weekIsOpenFor($user, $weekStart, $user->workBranchId()));
+            && ($weekStart === null || $this->weekIsOpenFor($weekStart, $branchId ?? $user->workBranchId()));
     }
 
     /** New website entries follow the reading day without changing correction permissions. */
-    public function createOnReadingDay(User $user, ?CarbonInterface $weekStart = null): bool
+    public function createOnReadingDay(User $user, ?CarbonInterface $weekStart = null, ?int $branchId = null): bool
     {
-        return $this->create($user, $weekStart)
+        return $this->create($user, $weekStart, $branchId)
             && ($user->isSuperAdmin() || ReadingEntrySetting::forBranch($user->workBranchId())->isOpenOnReadingDay());
     }
 
@@ -174,13 +174,11 @@ class MeterReadingPolicy
     }
 
     /**
-     * New readings belong to the latest week of the branch, except when
-     * the Super Admin enters a missing historical reading. This exception
-     * does not authorize corrections to existing historical readings.
+     * New readings belong to the branch's latest week for every role.
      */
-    private function weekIsOpenFor(User $user, CarbonInterface $weekStart, ?int $branchId): bool
+    private function weekIsOpenFor(CarbonInterface $weekStart, ?int $branchId): bool
     {
-        return $user->isSuperAdmin() || MeterReading::weekStartFor($weekStart, $branchId)->equalTo(MeterReading::latestEndedWeekStart($branchId));
+        return MeterReading::weekStartFor($weekStart, $branchId)->equalTo(MeterReading::latestEndedWeekStart($branchId));
     }
 
     /**

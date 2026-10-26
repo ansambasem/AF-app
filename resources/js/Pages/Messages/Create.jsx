@@ -138,6 +138,7 @@ export default function Create({
     // Each branch reads on its own weeks: those of the branch messaged, or else of the branch the page starts on.
     const weekBranchKey = String(criteria.branch_id !== '' ? criteria.branch_id : weekBranchId);
     const branchWeekOptions = weekOptions[weekBranchKey] ?? [];
+    const previousWeekBranchKey = useRef(weekBranchKey);
     const isStale = recipients !== null && loadedKey !== requestKey;
 
     // Keep the list loaded here: a template save reloads the page without it.
@@ -152,9 +153,9 @@ export default function Create({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadedRecipients]);
 
-    // Opened for one subscription (from the subscriptions list): show them straight away.
+    // A subscription or weekly-reading shortcut opens its recipients straight away.
     useEffect(() => {
-        if (criteria.subscription_ids.length > 0) {
+        if (criteria.subscription_ids.length > 0 || initialCriteria.kind === 'weekly_reading') {
             loadRecipients();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,6 +163,10 @@ export default function Create({
 
     // Another branch has other weeks: move to its latest one when the chosen week isn't one of them.
     useEffect(() => {
+        if (previousWeekBranchKey.current === weekBranchKey) {
+            return;
+        }
+        previousWeekBranchKey.current = weekBranchKey;
         if (branchWeekOptions.length > 0 && !branchWeekOptions.some((option) => option.value === criteria.week_start)) {
             setCriterion('week_start', branchWeekOptions[0].value);
         }
@@ -298,6 +303,9 @@ export default function Create({
                                             onChange={(e) => setCriterion('week_start', e.target.value)}
                                             className="block w-full text-sm"
                                         >
+                                            {!branchWeekOptions.some((option) => option.value === criteria.week_start) && (
+                                                <option value={criteria.week_start}>الأسبوع ابتداءً من {criteria.week_start}</option>
+                                            )}
                                             {branchWeekOptions.map((option) => (
                                                 <option key={option.value} value={option.value}>
                                                     {option.label}

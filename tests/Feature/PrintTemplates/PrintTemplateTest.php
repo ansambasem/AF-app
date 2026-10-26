@@ -50,6 +50,55 @@ class PrintTemplateTest extends TestCase
         $this->get(route('settings.print-templates.index'))->assertRedirect(route('login'));
     }
 
+    public function test_named_letterheads_keep_their_fonts_and_alignment_when_saved_and_copied(): void
+    {
+        $manager = $this->manager();
+        $layout = $this->layout([
+            'fontFamily' => 'alexandria', 'lineHeight' => 1.8,
+            'header' => [
+                'layout' => 'letterhead', 'company' => 'شركة أبو زايد',
+                'companyEnglish' => "Company for General Trade\nFares Abu Zayed Sons",
+                'companyDetails' => 'إدارة الشركة', 'title' => 'ورقة مقاصة',
+                'logoPosition' => 'center', 'logoWidth' => 36, 'logoHeight' => 24,
+                'gap' => 4, 'verticalAlign' => 'center', 'companyAlign' => 'right',
+                'englishAlign' => 'left', 'titleAlign' => 'center',
+                'companyFont' => 'plex', 'englishFont' => 'arial', 'titleFont' => 'messiri',
+                'companySize' => 18, 'englishSize' => 14, 'titleSize' => 24, 'subtitleSize' => 12,
+                'companyBold' => true, 'englishBold' => false, 'titleBold' => true,
+                'ruleStyle' => 'double', 'ruleWidth' => 1, 'ruleColor' => '#A51D26',
+            ],
+        ]);
+
+        foreach (['ورقة مقاصة', 'كشف تحصيل', 'كشف قراءات', 'تقرير مختصر', 'ترويسة الشركة', 'تقرير وسطي'] as $name) {
+            $this->actingAs($manager)->post(route('print-templates.store'), [
+                'page' => '/ledger', 'name' => $name, 'layout' => $layout,
+            ])->assertSessionHasNoErrors();
+        }
+
+        $template = PrintTemplate::where('name', 'ورقة مقاصة')->sole();
+        $this->assertSame($layout, $template->layout);
+        $this->post(route('print-templates.duplicate', $template))->assertSessionHas('status', 'print-template-created');
+        $this->assertSame($layout, PrintTemplate::where('name', 'ورقة مقاصة (نسخة)')->sole()->layout);
+        $this->assertDatabaseCount('print_templates', 7);
+    }
+
+    public function test_invalid_letterhead_fonts_dimensions_and_colours_are_not_saved(): void
+    {
+        $this->actingAs($this->manager())->post(route('print-templates.store'), [
+            'page' => '/ledger', 'name' => 'تصميم غير صالح',
+            'layout' => $this->layout([
+                'fontFamily' => 'remote-font', 'lineHeight' => 8,
+                'header' => ['layout' => 'html', 'logoWidth' => 500, 'logoHeight' => 0,
+                    'logoPosition' => 'absolute', 'titleSize' => 300, 'ruleColor' => 'red; background: url(x)'],
+            ]),
+        ])->assertSessionHasErrors([
+            'layout.fontFamily', 'layout.lineHeight', 'layout.header.layout', 'layout.header.logoWidth',
+            'layout.header.logoHeight', 'layout.header.logoPosition', 'layout.header.titleSize', 'layout.header.ruleColor',
+        ]);
+
+        $this->assertDatabaseCount('print_templates', 0);
+    }
+
     public function test_a_user_without_the_permission_cannot_open_or_change_templates(): void
     {
         $branchAdmin = User::factory()->branchAdmin()->create();

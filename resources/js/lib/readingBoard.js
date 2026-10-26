@@ -90,6 +90,46 @@ export function columnTotals(boxes) {
     );
 }
 
+/** Compare an allocation with the whole branch, rather than a filtered page. */
+export function distributionAreaBreakdown(boards, boxes) {
+    const totals = new Map(distributionAreas(boards).map((area) => [area.id, area.boxes]));
+    const groups = new Map();
+    boxes.forEach((box) => {
+        const id = String(box.subAreaId ?? 'none');
+        if (!groups.has(id)) groups.set(id, { id, name: box.subAreaName ?? 'بدون منطقة 2', items: [], total: totals.get(id) ?? 0 });
+        groups.get(id).items.push(box);
+    });
+    return [...groups.values()].map((area) => ({
+        ...area,
+        complete: area.items.length === area.total,
+        ...columnTotals(area.items),
+        items: [...area.items].sort((a, b) => `${a.name} ${a.number}`.localeCompare(`${b.name} ${b.number}`, 'ar', { numeric: true })),
+    })).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+}
+
+/** Include idle and unavailable readers so no assigned work disappears. */
+export function branchDistributionSummary(boards, readers) {
+    const columns = boardColumns(readers);
+    const known = new Set(columns.map((column) => column.key));
+    boards.forEach((box) => {
+        if (!known.has(box.column)) {
+            known.add(box.column);
+            columns.push({ key: box.column, label: 'القارئ غير متاح', unavailable: true });
+        }
+    });
+    return columns.map((column) => {
+        const boxes = boards.filter((box) => box.column === column.key);
+        return { ...column, ...columnTotals(boxes), areas: distributionAreaBreakdown(boards, boxes) };
+    });
+}
+
+/** Already assigned selections do not increase the target's workload twice. */
+export function distributionTargetPreview(boards, selectedBoxes, target) {
+    const before = columnTotals(boards.filter((box) => box.column === target));
+    const added = columnTotals(selectedBoxes.filter((box) => box.column !== target));
+    return { before, after: { boxes: before.boxes + added.boxes, subscribers: before.subscribers + added.subscribers } };
+}
+
 /**
  * The boxes a drag carries: every chosen box when the dragged one is
  * chosen, otherwise just the dragged one.

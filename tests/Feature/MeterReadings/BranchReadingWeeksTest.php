@@ -197,12 +197,30 @@ class BranchReadingWeeksTest extends TestCase
         $this->actingAs(User::factory()->superAdmin()->create())->get(route('subscriptions.index'))->assertInertia(fn ($page) => $page
             ->where('readingWeekOptions.'.$this->saturdays->id.'.0.value', '2026-09-13')
             ->where('readingWeekOptions.'.$this->thursdays->id.'.0.value', '2026-09-18')
-            ->has('readingWeekOptions.'.$this->saturdays->id, 8));
+            ->has('readingWeekOptions.'.$this->saturdays->id, 1));
 
         $this->actingAs($this->staff($this->saturdays))->get(route('subscriptions.index'))->assertInertia(fn ($page) => $page
             ->has('readingWeekOptions', 1)
             ->has('readingWeekOptions.'.$this->saturdays->id, 1)
             ->where('readingWeekOptions.'.$this->saturdays->id.'.0.value', '2026-09-13'));
+    }
+
+    public function test_super_admin_entry_uses_the_subscriptions_branch_week_without_a_historical_exception(): void
+    {
+        $actor = User::factory()->superAdmin()->create();
+        $subscription = Subscription::factory()->for($this->saturdays)->create(['initial_reading' => 100]);
+        $this->actingAs($actor)->get(route('meter-readings.index', ['filter' => ['branch_id' => $this->saturdays->id]]))
+            ->assertInertia(fn ($page) => $page->where('week', '2026-09-13')->where('weekIsViewOnly', false)->where('rows.data.0.canEdit', true));
+
+        $this->post(route('meter-readings.store'), [
+            'subscription_id' => $subscription->id, 'week_start' => '2026-09-06', 'current_reading' => 125,
+        ])->assertSessionHasErrors('week_start');
+        $this->post(route('meter-readings.store'), [
+            'subscription_id' => $subscription->id, 'week_start' => '2026-09-13', 'current_reading' => 125,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('meter_readings', ['subscription_id' => $subscription->id, 'week_start' => '2026-09-13 00:00:00', 'current_reading' => 125]);
+        $this->assertDatabaseCount('meter_readings', 1);
     }
 
     public function test_a_message_about_a_weekly_reading_starts_on_the_branchs_latest_week(): void

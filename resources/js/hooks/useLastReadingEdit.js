@@ -3,7 +3,7 @@ import { router, useHttp } from '@inertiajs/react';
 import { steppedReading } from '@/lib/readings';
 
 /** Pick the purpose before changing a baseline; the current reading stays a separate table entry. */
-export function useLastReadingEdit({ readingId, savedValue, floor }) {
+export function useLastReadingEdit({ readingId, savedValue, floor, previewUrl, saveUrl, weekStart, isInitial = false }) {
     const saved = String(savedValue);
     const [phase, setPhase] = useState(null);
     const [adjustmentType, setAdjustmentType] = useState('');
@@ -34,7 +34,7 @@ export function useLastReadingEdit({ readingId, savedValue, floor }) {
     }
 
     function payload() {
-        return { current_reading: value, expected_reading: saved, adjustment_type: adjustmentType, reason };
+        return { current_reading: value, expected_reading: saved, adjustment_type: adjustmentType, reason, ...(weekStart ? { week_start: weekStart } : {}) };
     }
 
     function review() {
@@ -55,7 +55,7 @@ export function useLastReadingEdit({ readingId, savedValue, floor }) {
         setSaving(true);
         setError(null);
         previewRequest.transform(payload);
-        previewRequest.post(`/meter-readings/${readingId}/adjustment-preview`, {
+        previewRequest.post(previewUrl ?? `/meter-readings/${readingId}/adjustment-preview`, {
             onError: (errors) => setError(Object.values(errors)[0] ?? 'تعذّر حساب التعديل.'),
         }).then((loaded) => {
             if (loaded) {
@@ -69,7 +69,7 @@ export function useLastReadingEdit({ readingId, savedValue, floor }) {
     function confirm({ confirmUnusual = false } = {}) {
         if (busy.current || phase !== 'review' || !preview || !canContinue) { return; }
         busy.current = true;
-        router.put(`/meter-readings/${readingId}/last-reading`, {
+        router.put(saveUrl ?? `/meter-readings/${readingId}/last-reading`, {
             ...payload(), confirm_unusual: confirmUnusual,
         }, {
             preserveScroll: true, preserveState: true,
@@ -84,7 +84,7 @@ export function useLastReadingEdit({ readingId, savedValue, floor }) {
     }
 
     return {
-        phase, adjustmentType, value, savedValue: saved, floor, reason, error, saving, preview, canContinue,
+        phase, adjustmentType, value, savedValue: saved, floor, reason, error, saving, preview, canContinue, isInitial,
         open, cancel: close, review, confirm,
         chooseType: (type) => { setAdjustmentType(type); setPreview(null); setError(null); },
         setReason: (text) => { setReason(text); setError(null); },

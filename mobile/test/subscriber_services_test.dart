@@ -214,14 +214,16 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('collectors have action shortcuts and no offline reading page',
+  testWidgets(
+      'collectors reach payments and split transfers through one subscriber search',
       (tester) async {
     final store = MemoryStore();
     store.state = {
       'token': 'test-token',
       'user': {'id': 2}
     };
-    final api = CollectorServicesApi();
+    final api = CollectorServicesApi()
+      ..permissionDetails = {'record_split_payment': true};
     await tester.pumpWidget(PowerCollectApp(apiClient: api, fieldStore: store));
     await tester.pumpAndSettle();
     expect(
@@ -239,12 +241,21 @@ void main() {
     expect(find.text('الدفعات المسجّلة'), findsOneWidget);
     await tester.tap(find.text('الرئيسية'));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('collector-split-payment')), findsNothing);
+    expect(find.byKey(const ValueKey('subscriber-statements-service')),
+        findsNothing);
+    expect(find.text('الدفعة والحوالة المقسّمة وكشف الحساب من صفحة المشترك'),
+        findsOneWidget);
     await tester
-        .ensureVisible(find.byKey(const ValueKey('collector-split-payment')));
-    await tester.tap(find.byKey(const ValueKey('collector-split-payment')));
+        .ensureVisible(find.byKey(const ValueKey('home-subscriber-search')));
+    await tester.tap(find.byKey(const ValueKey('home-subscriber-search')));
     await tester.pumpAndSettle();
-    expect(find.text('اختر أول مشترك للحوالة المقسّمة'), findsOneWidget);
+    expect(tester.testTextInput.isVisible, isTrue);
     await tester.tap(find.text('أحمد علي'));
+    await tester.pumpAndSettle();
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('subscriber-split-payment')));
+    await tester.tap(find.byKey(const ValueKey('subscriber-split-payment')));
     await tester.pumpAndSettle();
     expect(find.byType(SplitPaymentPage), findsOneWidget);
     expect(tester.takeException(), isNull);

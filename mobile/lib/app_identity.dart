@@ -10,7 +10,8 @@ import 'app_icons.dart';
 export 'app_icons.dart';
 
 bool dismissAppKeyboard(BuildContext context) {
-  if (MediaQuery.viewInsetsOf(context).bottom <= 0) return false;
+  if (MediaQuery.viewInsetsOf(context).bottom <= 0 &&
+      View.of(context).viewInsets.bottom <= 0) return false;
   FocusManager.instance.primaryFocus?.unfocus();
   return true;
 }
@@ -227,6 +228,15 @@ abstract final class AppIdentity {
         2 => 'قراءتان',
         <= 10 => '$count قراءات',
         _ => '$count قراءة',
+      };
+
+  /// How many payments, worded as Arabic counts them.
+  static String paymentsCount(int count) => switch (count) {
+        0 => 'لا دفعات',
+        1 => 'دفعة واحدة',
+        2 => 'دفعتان',
+        <= 10 => '$count دفعات',
+        _ => '$count دفعة',
       };
 
   /// A week's start date as day/month, the way the field staff say it.
@@ -718,7 +728,12 @@ class AppHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
         child: Row(children: [
           if (onBack != null) ...[
-            AppIconButton(icon: 'back', label: 'رجوع', onPressed: onBack!),
+            AppIconButton(
+                icon: 'back',
+                label: 'رجوع',
+                onPressed: () {
+                  if (!dismissAppKeyboard(context)) onBack!();
+                }),
             const SizedBox(width: 10),
           ],
           Expanded(
@@ -1260,6 +1275,7 @@ class AppSearchField extends StatelessWidget {
       this.onSubmitted,
       this.maxLength,
       this.fieldKey,
+      this.autofocus = false,
       super.key});
   final TextEditingController controller;
   final String hint;
@@ -1268,6 +1284,7 @@ class AppSearchField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   final int? maxLength;
   final Key? fieldKey;
+  final bool autofocus;
   @override
   Widget build(BuildContext context) => TextFieldTapRegion(
           child: Container(
@@ -1285,6 +1302,7 @@ class AppSearchField extends StatelessWidget {
             child: TextField(
               key: fieldKey,
               controller: controller,
+              autofocus: autofocus,
               onChanged: onChanged,
               onTapOutside: (_) => FocusScope.of(context).unfocus(),
               onSubmitted: onSubmitted,

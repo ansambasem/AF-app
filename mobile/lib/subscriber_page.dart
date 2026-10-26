@@ -21,6 +21,7 @@ class SubscriberPage extends StatefulWidget {
       this.transferBanks = defaultTransferBanks,
       this.senderBanks = const [],
       this.paymentMethods = const ['cash', 'bank_transfer'],
+      this.exchangeRates = const {},
       super.key});
   final ApiClient api;
 
@@ -29,6 +30,9 @@ class SubscriberPage extends StatefulWidget {
   final List<String> transferBanks;
   final List<String> senderBanks;
   final List<String> paymentMethods;
+
+  /// The company's exchange rates (see [exchangeRatesFrom]).
+  final Map<String, double> exchangeRates;
   @override
   State<SubscriberPage> createState() => _SubscriberPageState();
 }
@@ -175,6 +179,7 @@ class _SubscriberPageState extends State<SubscriberPage>
             api: widget.api,
             subscriber: subscriber,
             paymentMethods: paymentMethods,
+            exchangeRates: widget.exchangeRates,
             transferBanks: widget.transferBanks)));
     if (!mounted) return;
     if (submitted == true) {

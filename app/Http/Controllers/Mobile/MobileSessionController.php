@@ -71,7 +71,7 @@ class MobileSessionController extends Controller
      * The banks and e-wallets are the same lists the website's payment form
      * offers (to receive into, and to transfer from), so the app records transfers under names the server accepts.
      *
-     * @return array{id: int, name: string, username: string, branch_name: ?string, can_record_readings: bool, can_record_collections: bool, can_view_readings: bool, transfer_banks: array<int, string>, sender_banks: array<int, string>}
+     * @return array{id: int, name: string, username: string, branch_name: ?string, can_record_readings: bool, can_record_collections: bool, can_view_readings: bool, can_add_clearings: bool, transfer_banks: array<int, string>, sender_banks: array<int, string>}
      */
     private function userData(User $user): array
     {
@@ -88,6 +88,7 @@ class MobileSessionController extends Controller
             'can_view_readings' => $user->can('viewAny', MeterReading::class),
             'can_record_collections' => $user->can('recordAnyPayment', Subscription::class),
             'can_adjust_balances' => $user->hasAnyPermission(PermissionKey::AddCharges, PermissionKey::AddDiscounts, PermissionKey::AddClearings),
+            'can_add_clearings' => $user->hasPermission(PermissionKey::AddClearings),
             'can_view_subscriptions' => $user->can('viewAny', Subscription::class),
             'can_record_split_payments' => $user->can('recordSplitPayment', Subscription::class),
             'can_send_messages' => $user->can('create', MessageBatch::class),

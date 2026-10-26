@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assignmentMatches, boardColumns, boardCounters, boxMatches, columnTotals, distributionAreas, distributionBoxOptions, draggedBoxIds, movePayload, readingSearchMatches, toggleBoxSelection } from '../../resources/js/lib/readingBoard.js';
+import { assignmentMatches, boardColumns, boardCounters, boxMatches, columnTotals, distributionAreas, distributionAreaBreakdown, branchDistributionSummary, distributionTargetPreview, distributionBoxOptions, draggedBoxIds, movePayload, readingSearchMatches, toggleBoxSelection } from '../../resources/js/lib/readingBoard.js';
 
 const boards = [
     { id: 1, number: 'B-001', name: 'المدارس 1', subAreaId: 7, subscribers: 4, read: 1, version: 0, column: 'available', status: null },
@@ -111,4 +111,43 @@ test('assigning the last remaining box removes its area from the unassigned side
     assert.equal(assigned.assigned, 2);
     assert.equal(assigned.unassigned, 0);
     assert.equal(assigned.matchingBoxes, 2);
+});
+
+test('the whole branch summary reconciles readers, paper and remaining boxes', () => {
+    const boxes = Array.from({ length: 100 }, (_, i) => ({ ...boards[0], id: i + 1, subAreaId: Math.floor(i / 20), subAreaName: `منطقة ${Math.floor(i / 20)}`, column: i < 20 ? 'reader:1' : i < 40 ? 'reader:2' : i < 70 ? 'reader:3' : i < 90 ? 'paper' : 'available' }));
+    const summary = branchDistributionSummary(boxes, [{ id: 1, name: 'محمد' }, { id: 2, name: 'عمر' }, { id: 3, name: 'خليل' }]);
+    assert.deepEqual(summary.map((column) => column.boxes), [10, 20, 20, 20, 30]);
+    assert.equal(summary.reduce((sum, column) => sum + column.subscribers, 0), 400);
+    const khalil = summary.find((column) => column.key === 'reader:3');
+    assert.deepEqual(khalil.areas.map((area) => [area.boxes, area.total, area.complete]), [[20, 20, true], [10, 20, false]]);
+});
+
+test('area completeness uses identities and branch totals, including uncategorized boxes', () => {
+    const all = [
+        { ...boards[0], subAreaName: 'نفس الاسم' }, { ...boards[1], subAreaName: 'نفس الاسم' },
+        { ...boards[2], subAreaName: 'نفس الاسم' }, { ...boards[0], id: 4, subAreaId: null },
+    ];
+    const groups = distributionAreaBreakdown(all, [all[0], all[1], all[3]]);
+    assert.equal(groups.length, 3);
+    assert.equal(groups.find((area) => area.id === '7').complete, false);
+    assert.equal(groups.find((area) => area.id === '8').complete, true);
+    assert.equal(groups.find((area) => area.id === 'none').total, 1);
+    assert.equal(groups.find((area) => area.id === '7').items[0].name, 'المدارس 1');
+});
+
+test('idle and unavailable readers are retained without losing any assigned work', () => {
+    const summary = branchDistributionSummary(boards, [{ id: 9, name: 'قارئ جديد' }]);
+    assert.equal(summary.find((column) => column.key === 'reader:9').boxes, 0);
+    assert.equal(summary.find((column) => column.key === 'reader:5').unavailable, true);
+    assert.equal(summary.reduce((sum, column) => sum + column.boxes, 0), boards.length);
+    assert.deepEqual(branchDistributionSummary([], []).map((column) => column.boxes), [0, 0]);
+});
+
+test('target workload preview counts selected boxes already at the destination only once', () => {
+    const original = structuredClone(boards);
+    const preview = distributionTargetPreview(boards, boards, 'reader:5');
+    assert.equal(preview.before.boxes, 1);
+    assert.deepEqual(preview.after, { boxes: 3, subscribers: 13 });
+    assert.deepEqual(distributionTargetPreview(boards, [], 'paper').after, { boxes: 1, subscribers: 3 });
+    assert.deepEqual(boards, original);
 });

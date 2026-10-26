@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAIN_LINKS, SETTINGS_LINKS, allowedNavigationGroups, isActiveLink, navigationGroups, isInsideAnyLink, pageTrail, topBarItems, shouldPrefetchPage } from '../../resources/js/lib/navigation.js';
+import { MAIN_LINKS, SETTINGS_LINKS, allowedNavigationGroups, groupLandingLink, isActiveLink, lockedLinkProps, navigationGroups, isInsideAnyLink, pageTrail, topBarItems, shouldPrefetchPage } from '../../resources/js/lib/navigation.js';
 
 test('hover navigation avoids background requests for financial and reading pages', () => {
     for (const href of ['/dashboard', '/subscriptions?sort=name', '/meter-readings', '/reading-cycles', '/reports', '/ledger', '/payments/summary', '/disconnection-lists', '/unknown']) {
@@ -117,6 +117,37 @@ test('the top bar shows home and one button per section, or a single section\'s 
     assert.equal(single.every((item) => item.link && !item.group), true);
     assert.deepEqual(several.map((item) => item.key), ['home', 'daily', 'finance', 'administration']);
     assert.equal(several[0].link.href, '/dashboard');
+});
+
+test('clicking a section opens its first page the user may open, or nothing when all are locked', () => {
+    const everything = Object.fromEntries([...MAIN_LINKS, ...SETTINGS_LINKS].filter((link) => link.can).map((link) => [link.can, true]));
+    const landing = (groups) => Object.fromEntries(groups.map((group) => [group.id, groupLandingLink(group)?.href ?? null]));
+
+    assert.deepEqual(landing(navigationGroups(everything)), {
+        daily: '/subscriptions',
+        finance: '/payments',
+        reports: '/reports',
+        infrastructure: '/branches',
+        administration: '/users',
+    });
+    assert.deepEqual(landing(navigationGroups({ viewOwnCashBoxes: true, viewMeterReadings: true })), {
+        daily: '/meter-readings',
+        finance: '/payments/summary',
+        reports: null,
+        infrastructure: null,
+        administration: '/settings/mobile-app',
+    });
+});
+
+test('a locked page\'s link opens nothing while an open one is left alone', () => {
+    const [locked, open] = [{ href: '/users', locked: true }, { href: '/subscriptions', locked: false }];
+    const event = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+
+    lockedLinkProps(locked).onClick(event);
+
+    assert.equal(lockedLinkProps(locked)['aria-disabled'], true);
+    assert.equal(event.defaultPrevented, true);
+    assert.deepEqual(lockedLinkProps(open), {});
 });
 
 test('the page trail names the section and page, also from a page inside it', () => {

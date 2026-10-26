@@ -33,7 +33,7 @@ class MobileAdjustmentTest extends TestCase
         $data = ['mobile_operation_id' => (string) Str::uuid(), 'action' => $action, 'type' => $type, 'amount' => 25, 'method' => 'shekel', 'value' => 25, 'notes' => 'خدمة موثّقة'];
         $url = route('mobile.collections.subscriptions.adjustments', $subscription);
 
-        $this->getJson(route('mobile.me'))->assertJsonPath('user.can_adjust_balances', true)->assertJsonPath('user.can_record_collections', false);
+        $this->getJson(route('mobile.me'))->assertJsonPath('user.can_adjust_balances', true)->assertJsonPath('user.can_add_clearings', $action === 'clearing')->assertJsonPath('user.can_record_collections', false);
         $this->getJson(route('mobile.collections.subscriptions'))->assertJsonPath('data.0.id', $subscription->id);
         $this->getJson(route('mobile.collections.subscriptions.show', $subscription))
             ->assertJsonPath('permissions.add_charge', $action === 'charge')

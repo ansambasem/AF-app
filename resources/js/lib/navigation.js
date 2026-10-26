@@ -109,6 +109,16 @@ export function topBarItems(groups) {
     return [home, ...groups.map((group) => ({ key: group.id, group }))];
 }
 
+/** The page a section opens when clicked: its first page the user may open, if any. */
+export function groupLandingLink(group) {
+    return group.links.find((link) => !link.locked);
+}
+
+/** A locked page's link shows its lock but opens nothing, clicked or entered. */
+export function lockedLinkProps(link) {
+    return link.locked ? { 'aria-disabled': true, onClick: (event) => event.preventDefault() } : {};
+}
+
 /** The group holding the current page, if any. */
 export function currentGroup(groups, url) {
     return groups.find((group) => isInsideAnyLink(group.links, url));

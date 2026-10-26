@@ -5,7 +5,7 @@ import Switch from '@/Components/Switch';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import ConfirmDialog from '@/Components/ConfirmDialog';
-import { moveColumn, PAPER_SIZES } from '@/lib/printLayout';
+import { moveColumn, PAPER_SIZES, PRINT_FONTS, PRINT_PRESETS, applyPrintPreset } from '@/lib/printLayout';
 
 const FOCUS_RING = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900';
 
@@ -87,6 +87,30 @@ function Group({ label, children }) {
     );
 }
 
+function FontField({ label, value, onChange }) {
+    return <Field label={label}>{(id) => <select id={id} value={value ?? 'plex'} onChange={(event) => onChange(event.target.value)} className="block w-full text-sm">
+        {Object.entries(PRINT_FONTS).map(([key, font]) => <option key={key} value={key}>{font.label}</option>)}
+    </select>}</Field>;
+}
+
+function NumberField({ label, value, onChange, min, max, step = 1 }) {
+    return <Field label={label}>{(id) => <input id={id} type="number" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Math.min(max, Math.max(min, Number(event.target.value))))} className="block w-full text-sm" />}</Field>;
+}
+
+function HeaderTypography({ label, header, onChange, font, size, bold, align }) {
+    return <fieldset className="space-y-3 border-t border-gray-100 pt-3">
+        <legend className="px-1 text-xs font-bold text-gray-900">{label}</legend>
+        <div className="grid grid-cols-2 gap-3">
+            <FontField label={`خط ${label}`} value={header[font]} onChange={(value) => onChange(font, value)} />
+            <NumberField label={`حجم ${label} (بكسل)`} value={header[size]} min={8} max={48} onChange={(value) => onChange(size, value)} />
+        </div>
+        <Field label={`محاذاة ${label}`}>{(id) => <select id={id} value={header[align]} onChange={(event) => onChange(align, event.target.value)} className="block w-full text-sm">
+            <option value="right">يمين</option><option value="center">وسط</option><option value="left">يسار</option>
+        </select>}</Field>
+        <Switch label={`${label} بخط عريض`} checked={header[bold]} onChange={(value) => onChange(bold, value)} />
+    </fieldset>;
+}
+
 /** A small icon-only button, named for screen readers and in its tooltip. */
 function IconButton({ icon, label, onClick, disabled = false, tone = 'gray' }) {
     return (
@@ -111,7 +135,7 @@ function IconButton({ icon, label, onClick, disabled = false, tone = 'gray' }) {
  * delete it. Without the permission to manage them they can only be
  * opened. A list that can't keep templates says so.
  */
-function TemplatesSection({ templates, onReset }) {
+function TemplatesSection({ templates, onReset, onPreset }) {
     const { list, active, isChanged, supported, canManage, errors, actions } = templates;
     const [selected, setSelected] = useState('');
     const [newName, setNewName] = useState('');
@@ -120,6 +144,18 @@ function TemplatesSection({ templates, onReset }) {
 
     return (
         <Section id="print-template-settings" icon="folder" title="قوالب الطباعة" open>
+            <Field label="البدء من تصميم جاهز" hint="اختر المظهر ثم عدّله واحفظه بالاسم الذي تريده. بيانات التقرير تبقى من القائمة الحالية.">
+                {(id) => <select id={id} value="" onChange={(event) => {
+                    const preset = PRINT_PRESETS.find((item) => item.id === event.target.value);
+                    if (!preset) return;
+                    onPreset(preset.id);
+                    setNewName(preset.name);
+                    setNewIsDefault(false);
+                }} className="block w-full text-sm">
+                    <option value="">— اختر تصميمًا —</option>
+                    {PRINT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.name} — {preset.description}</option>)}
+                </select>}
+            </Field>
             {!supported ? (
                 <p className="text-xs text-gray-500">هذه الصفحة لا تحفظ قوالب. يُحفظ آخر تصميم لها في هذا المتصفح.</p>
             ) : (
@@ -197,7 +233,7 @@ function TemplatesSection({ templates, onReset }) {
                                                 type="text"
                                                 value={newName}
                                                 onChange={(e) => setNewName(e.target.value)}
-                                                placeholder="مثلًا: قراءات حسب الطبلون"
+                                                placeholder="مثلًا: ورقة مقاصة — فرع مخيم 2"
                                                 aria-invalid={errors.name ? true : undefined}
                                                 className="block min-w-0 flex-1 text-sm"
                                             />
@@ -298,7 +334,10 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
 
     return (
         <div>
-            <TemplatesSection templates={templates} onReset={() => setConfirming('reset')} />
+            <TemplatesSection templates={templates} onReset={() => setConfirming('reset')} onPreset={(id) => {
+                onChange(applyPrintPreset(layout, id));
+                templates.actions.startNew?.();
+            }} />
 
             <Section icon="list" title="الصفوف" open>
                 <fieldset disabled={scope.loading}>
@@ -353,6 +392,8 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                 <Group label="اتجاه الورقة">
                     <ChoiceChips options={ORIENTATIONS} value={layout.orientation} onChange={(value) => set('orientation', value)} label="اتجاه الورقة" />
                 </Group>
+                <FontField label="خط محتوى التقرير" value={layout.fontFamily} onChange={(value) => set('fontFamily', value)} />
+                <NumberField label="تباعد أسطر التقرير" value={layout.lineHeight ?? 1.5} min={1} max={2.5} step={0.1} onChange={(value) => set('lineHeight', value)} />
                 <Field label={`حجم الخط: ${layout.fontSize} بكسل`}>
                     {(id) => (
                         <input
@@ -372,10 +413,22 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
             </Section>
 
             <Section icon="page-header" title="الترويسة">
+                <Group label="ترتيب الترويسة">
+                    <ChoiceChips options={[
+                        { value: 'standard', label: 'الترويسة المعتادة' },
+                        { value: 'letterhead', label: 'نص على جانبي الشعار' },
+                    ]} value={layout.header.layout} onChange={(value) => setIn('header', 'layout', value)} label="ترتيب الترويسة" />
+                </Group>
                 <Field label="اسم الشركة">
                     {(id) => (
                         <input id={id} type="text" value={layout.header.company} onChange={(e) => setIn('header', 'company', e.target.value)} className="block w-full text-sm" />
                     )}
+                </Field>
+                <Field label="تفاصيل الشركة بالعربية">
+                    {(id) => <textarea id={id} rows={2} value={layout.header.companyDetails} onChange={(event) => setIn('header', 'companyDetails', event.target.value)} placeholder="الإدارة، العنوان أو أرقام التواصل" className="block w-full text-sm" />}
+                </Field>
+                <Field label="اسم الشركة والتفاصيل بالإنجليزية">
+                    {(id) => <textarea id={id} dir="ltr" rows={3} value={layout.header.companyEnglish} onChange={(event) => setIn('header', 'companyEnglish', event.target.value)} placeholder={'Company for General Trade\nFares Abu Zayed Sons'} className="block w-full text-sm" />}
                 </Field>
                 <Field label="عنوان الطباعة">
                     {(id) => (
@@ -400,13 +453,41 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                     <Switch checked={layout.header.date} onChange={(value) => setIn('header', 'date', value)} label="إظهار تاريخ ووقت الطباعة" />
                     <Switch checked={layout.header.user} onChange={(value) => setIn('header', 'user', value)} label="إظهار اسم من طبع" />
                     <Switch checked={layout.header.count} onChange={(value) => setIn('header', 'count', value)} label="إظهار عدد الصفوف" />
-                    <Switch checked={layout.header.centered} onChange={(value) => setIn('header', 'centered', value)} label="ترويسة في المنتصف" />
+                    {layout.header.layout === 'standard' && <Switch checked={layout.header.centered} onChange={(value) => setIn('header', 'centered', value)} label="ترويسة في المنتصف" />}
                     <Switch
                         checked={layout.header.repeatTitle}
                         onChange={(value) => setIn('header', 'repeatTitle', value)}
                         label="تكرار العنوان أعلى كل صفحة"
                     />
                 </div>
+                {layout.header.layout === 'letterhead' && <>
+                    <Field label="موضع الشعار">
+                        {(id) => <select id={id} value={layout.header.logoPosition} onChange={(event) => setIn('header', 'logoPosition', event.target.value)} className="block w-full text-sm">
+                            <option value="right">يمين</option><option value="center">وسط بين النصين</option><option value="left">يسار</option>
+                        </select>}
+                    </Field>
+                    <Field label="المحاذاة العمودية للترويسة">
+                        {(id) => <select id={id} value={layout.header.verticalAlign} onChange={(event) => setIn('header', 'verticalAlign', event.target.value)} className="block w-full text-sm">
+                            <option value="top">أعلى</option><option value="center">وسط</option><option value="bottom">أسفل</option>
+                        </select>}
+                    </Field>
+                    <NumberField label="المسافة بين الشعار والنص (مم)" value={layout.header.gap} min={0} max={15} onChange={(value) => setIn('header', 'gap', value)} />
+                </>}
+                <div className="grid grid-cols-2 gap-3">
+                    <NumberField label="عرض الشعار (مم)" value={layout.header.logoWidth} min={10} max={80} onChange={(value) => setIn('header', 'logoWidth', value)} />
+                    <NumberField label="ارتفاع الشعار (مم)" value={layout.header.logoHeight} min={8} max={60} onChange={(value) => setIn('header', 'logoHeight', value)} />
+                </div>
+                <HeaderTypography label="النص العربي" header={layout.header} onChange={(key, value) => setIn('header', key, value)} font="companyFont" size="companySize" bold="companyBold" align="companyAlign" />
+                <HeaderTypography label="النص الإنجليزي" header={layout.header} onChange={(key, value) => setIn('header', key, value)} font="englishFont" size="englishSize" bold="englishBold" align="englishAlign" />
+                <HeaderTypography label="عنوان التقرير" header={layout.header} onChange={(key, value) => setIn('header', key, value)} font="titleFont" size="titleSize" bold="titleBold" align="titleAlign" />
+                <NumberField label="حجم السطر الإضافي (بكسل)" value={layout.header.subtitleSize} min={8} max={36} onChange={(value) => setIn('header', 'subtitleSize', value)} />
+                <Field label="الفاصل أسفل الترويسة">
+                    {(id) => <select id={id} value={layout.header.ruleStyle} onChange={(event) => setIn('header', 'ruleStyle', event.target.value)} className="block w-full text-sm">
+                        <option value="none">بدون فاصل</option><option value="single">خط واحد</option><option value="double">خطان بلونين</option>
+                    </select>}
+                </Field>
+                {layout.header.ruleStyle !== 'none' && <NumberField label="سماكة الفاصل (بكسل)" value={layout.header.ruleWidth} min={0.5} max={4} step={0.5} onChange={(value) => setIn('header', 'ruleWidth', value)} />}
+                {layout.header.ruleStyle === 'double' && <Field label="لون الخط الثاني">{(id) => <input id={id} type="color" value={layout.header.ruleColor} onChange={(event) => setIn('header', 'ruleColor', event.target.value)} className="h-9 w-full" />}</Field>}
             </Section>
 
             <Section icon="columns" title={`الأعمدة (${shownCount} من ${layout.columns.length})`} open>

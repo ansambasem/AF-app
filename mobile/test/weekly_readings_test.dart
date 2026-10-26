@@ -10,6 +10,7 @@ class WeeklyApi extends CollectorApi {
   bool allowed = true;
   final queries = <String>[];
   final selectedWeeks = <String?>[];
+  final selectedStatuses = <String>[];
 
   @override
   Future<Map<String, dynamic>> me() async => {
@@ -25,9 +26,13 @@ class WeeklyApi extends CollectorApi {
 
   @override
   Future<Map<String, dynamic>> weeklyReadings(
-      {String search = '', String? week, int page = 1}) async {
+      {String search = '',
+      String? week,
+      String subscriptionStatus = 'active',
+      int page = 1}) async {
     queries.add(search);
     selectedWeeks.add(week);
+    selectedStatuses.add(subscriptionStatus);
     if (!allowed) throw const ApiException('Forbidden', 403);
     return {
       'week_start': week ?? '2026-09-18',
@@ -79,6 +84,10 @@ void main() {
     expect(find.text('Weekly Subscriber'), findsOneWidget);
     expect(find.text('125'), findsOneWidget);
     expect(find.text('بانتظار الاعتماد'), findsOneWidget);
+    expect(api.selectedStatuses.last, 'active');
+    await tester.tap(find.byKey(const ValueKey('weekly-status-disconnected')));
+    await tester.pumpAndSettle();
+    expect(api.selectedStatuses.last, 'disconnected');
     expect(find.byType(CheckboxListTile), findsNothing);
 
     await tester.tap(find.byType(DropdownButton<String>));

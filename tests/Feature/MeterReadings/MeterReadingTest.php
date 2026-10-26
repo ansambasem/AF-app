@@ -175,10 +175,9 @@ class MeterReadingTest extends TestCase
     {
         $this->recordedReading('2026-09-18', 1200, 1250);
 
-        // Only the Super Admin may enter an earlier week at all.
         $this->actingAs(User::factory()->superAdmin()->create())
             ->post(route('meter-readings.store'), $this->payload(['week_start' => '2026-09-11']))
-            ->assertSessionHasErrors(['week_start' => 'يوجد قراءة لأسبوع لاحق لهذا المشترك، لا يمكن إدخال أسبوع سابق.']);
+            ->assertSessionHasErrors(['week_start' => 'يمكن إدخال قراءات الأسبوع الأخير فقط؛ الأسابيع السابقة للعرض فقط.']);
     }
 
     public function test_only_the_latest_week_can_be_entered_and_earlier_weeks_are_view_only(): void
@@ -203,13 +202,15 @@ class MeterReadingTest extends TestCase
                 ->where('rows.data.0.canEdit', true));
     }
 
-    public function test_the_super_admin_can_enter_a_reading_for_an_earlier_week(): void
+    public function test_the_super_admin_cannot_enter_a_missing_reading_for_an_earlier_week(): void
     {
         $this->actingAs(User::factory()->superAdmin()->create())
             ->post(route('meter-readings.store'), $this->payload(['week_start' => '2026-09-11']))
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors(['week_start' => 'يمكن إدخال قراءات الأسبوع الأخير فقط؛ الأسابيع السابقة للعرض فقط.']);
 
-        $this->assertSame('2026-09-11', MeterReading::sole()->week_start->toDateString());
+        $this->assertDatabaseCount('meter_readings', 0);
+        $this->get(route('meter-readings.index', ['week' => '2026-09-11']))
+            ->assertInertia(fn ($page) => $page->where('weekIsViewOnly', true)->where('rows.data.0.canEdit', false));
     }
 
     public function test_the_sheet_stays_on_the_week_that_ended_on_thursday_when_entering_late(): void
@@ -521,6 +522,29 @@ class MeterReadingTest extends TestCase
                 ->where('rows.data.0.canEdit', true)
                 ->where('summary.total', 1)
                 ->where('summary.entered', 0));
+    }
+
+    public function test_subscription_status_filter_shows_inactive_subscriptions_without_allowing_new_readings(): void
+    {
+        $disconnected = Subscription::factory()->create(['branch_id' => $this->branch->id, 'status' => SubscriptionStatus::Disconnected]);
+        Subscription::factory()->create(['status' => SubscriptionStatus::Disconnected]);
+
+        $this->actingAs($this->dataEntry)->get(route('meter-readings.index', ['filter' => ['subscription_status' => 'disconnected']]))
+            ->assertInertia(fn ($page) => $page->has('rows.data', 1)
+                ->where('rows.data.0.id', $disconnected->id)->where('rows.data.0.canEdit', false)->where('summary.total', 1));
+        $this->get(route('meter-readings.index', ['filter' => ['subscription_status' => 'all']]))
+            ->assertInertia(fn ($page) => $page->has('rows.data', 2)->where('summary.total', 2));
+    }
+
+    public function test_reading_message_action_requires_both_approval_and_message_permissions(): void
+    {
+        $this->dataEntry->permissions()->sync(Permission::idsFor([PermissionKey::ViewMeterReadings, PermissionKey::ApproveMeterReadings]));
+        $this->actingAs($this->dataEntry)->get(route('meter-readings.index'))
+            ->assertInertia(fn ($page) => $page->where('canSendReadingMessages', false));
+        $this->dataEntry->permissions()->attach(Permission::idsFor([PermissionKey::SendMessages]));
+        $this->dataEntry->unsetRelation('permissions');
+        $this->get(route('meter-readings.index'))
+            ->assertInertia(fn ($page) => $page->where('canSendReadingMessages', true)->where('messageBranchId', $this->branch->id));
     }
 
     public function test_the_reading_sheet_passes_on_the_saved_status_for_the_success_message(): void

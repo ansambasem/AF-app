@@ -35,6 +35,22 @@ class SubscriptionPersonalDetailsTest extends TestCase
         $this->assertSame('222222222', $subscription->profile->fresh()->national_id);
     }
 
+    public function test_an_old_record_keeps_its_personal_details_without_an_identity_or_mobile_number(): void
+    {
+        $branchAdmin = User::factory()->branchAdmin()->create();
+        $subscription = Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id, 'national_id' => null, 'phone' => null, 'subscription_phone' => null]);
+
+        $this->actingAs($branchAdmin)
+            ->patch(route('subscriptions.personal-details.update', $subscription), ['full_name' => 'Old Record', 'national_id' => '', 'phone' => '', 'address' => 'Nuseirat'])
+            ->assertSessionHasNoErrors();
+        $this->patch(route('subscriptions.personal-details.update', $subscription), ['full_name' => 'Old Record', 'national_id' => '12345', 'phone' => '0511111111'])
+            ->assertSessionHasErrors(['national_id', 'phone']);
+
+        $subscription->refresh();
+        $this->assertSame(['Old Record', null, null, 'Nuseirat'], [$subscription->full_name, $subscription->national_id, $subscription->phone, $subscription->address]);
+        $this->assertNull($subscription->profile->fresh()->national_id);
+    }
+
     public function test_another_persons_identity_number_is_refused(): void
     {
         $branchAdmin = User::factory()->branchAdmin()->create();

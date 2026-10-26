@@ -5,11 +5,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'api_client.dart';
 import 'app_identity.dart';
+import 'cash_boxes_page.dart';
 import 'development_credits.dart';
 import 'collection_view.dart';
 import 'payment_page.dart';
 import 'subscriber_page.dart';
-import 'split_payment_page.dart';
 import 'field_store.dart';
 import 'queued_readings.dart';
 import 'reading_flow.dart';
@@ -122,7 +122,14 @@ class _PowerCollectAppState extends State<PowerCollectApp>
       throw const ApiException(
           'زامن القراءات غير المرسلة قبل تسجيل الخروج.', 0);
     }
-    await api.logout();
+    try {
+      await api.logout();
+    } on ApiException catch (error) {
+      // Offline, the session still ends on this phone: the token is erased
+      // from it, and the collector signs in again like anyone else.
+      if (!error.isNetwork) rethrow;
+      api.token = null;
+    }
     store.state.clear();
     store.state['appearance'] = appearance.name;
     await store.save();
@@ -313,9 +320,18 @@ class _LoginPageState extends State<LoginPage> {
                                   setState(() => remember = value ?? false),
                           contentPadding: EdgeInsets.zero,
                           controlAffinity: ListTileControlAffinity.leading,
-                          title: const Text('تذكرني'),
-                          subtitle: const Text(
-                              'ابقَ مسجّل الدخول على هذا الجهاز لمدة تصل إلى 30 يومًا.')),
+                          title: Row(children: [
+                            const Text('تذكرني'),
+                            IconButton(
+                                tooltip: 'معلومات تذكرني',
+                                icon: AppIcon('err',
+                                    size: 18, color: AppIdentity.faint),
+                                onPressed: () => showAppSheet<void>(context,
+                                    title: 'تذكرني',
+                                    message:
+                                        'ابقَ مسجّل الدخول على هذا الجهاز لمدة تصل إلى 30 يومًا.',
+                                    children: const [])),
+                          ])),
                       if (error != null) ...[
                         AppNotice(error!, error: true),
                         const SizedBox(height: 12),
@@ -401,10 +417,20 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
       currentUser['can_adjust_balances'] == true;
   bool get canRecordSplitPayments =>
       canCollect && currentUser['can_record_split_payments'] == true;
+
+  /// The box types the user's payments go into: cash, bank transfers and
+  /// clearings, each by its own permission.
+  Set<String> get ownBoxTypes => {
+        if (canCollect && paymentMethods.contains('cash')) 'cash',
+        if (canCollect && paymentMethods.contains('bank_transfer'))
+          'bank_transfer',
+        if (currentUser['can_add_clearings'] == true) 'clearing',
+      };
+  bool get canViewOwnBoxes => ownBoxTypes.isNotEmpty;
   bool get canUseReadingSync =>
       canRead || widget.store.queuedReadings.isNotEmpty;
   bool collectionShowToday = false;
-  bool collectionForSplit = false;
+  bool collectionFocusSearch = false;
   bool get canViewReadings => currentUser['can_view_readings'] == true;
   bool get canDistributeReadings =>
       currentUser['can_distribute_readings'] == true ||
@@ -724,6 +750,7 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
           api: widget.api,
           subscriber: subscriber,
           paymentMethods: paymentMethods,
+          exchangeRates: exchangeRatesFrom(currentUser['currencies']),
           transferBanks: currentUser['transfer_banks'] is List
               ? List<String>.from(currentUser['transfer_banks'] as List)
               : defaultTransferBanks,
@@ -748,7 +775,8 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
     }
     final confirmed = await showAppSheet<bool>(context,
         title: 'تسجيل الخروج؟',
-        message: 'ستحتاج إلى الإنترنت لتسجيل الدخول مرة أخرى.',
+        message:
+            'ستحتاج إلى الإنترنت لتسجيل الدخول مرة أخرى، حتى لو خرجت دون اتصال.',
         children: [_confirmButtons('تسجيل الخروج')]);
     if (confirmed != true) return;
     try {
@@ -799,7 +827,7 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
   }
 
   void navigate(FieldSection destination,
-      {bool showToday = false, bool forSplit = false}) {
+      {bool showToday = false, bool focusSearch = false}) {
     FocusScope.of(context).unfocus();
     setState(() {
       if (section != destination &&
@@ -809,7 +837,7 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
       }
       section = destination;
       collectionShowToday = showToday;
-      collectionForSplit = forSplit;
+      collectionFocusSearch = focusSearch;
       message = null;
       if (destination != FieldSection.readings) {
         readingFocus = false;
@@ -850,24 +878,6 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
     if (!canViewReadings) return;
     Navigator.of(context).push(MaterialPageRoute<void>(
         builder: (_) => WeeklyReadingsPage(api: widget.api)));
-  }
-
-  Future<void> openSplitPayment(Map<String, dynamic> subscriber) async {
-    if (!canRecordSplitPayments || !online) return;
-    setState(resetCollectionSearch);
-    final recorded = await Navigator.of(context).push<bool>(MaterialPageRoute(
-        builder: (_) => SplitPaymentPage(
-            api: widget.api,
-            subscriber: subscriber,
-            transferBanks: currentUser['transfer_banks'] is List
-                ? List<String>.from(currentUser['transfer_banks'] as List)
-                : defaultTransferBanks,
-            senderBanks: currentUser['sender_banks'] is List
-                ? List<String>.from(currentUser['sender_banks'] as List)
-                : const [])));
-    if (!mounted || section != FieldSection.collections) return;
-    if (recorded == true) await synchronize();
-    if (mounted) await searchCollections();
   }
 
   List<AppNavItem> get destinations => [
@@ -951,11 +961,9 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
           subtitle: switch (section) {
             FieldSection.home =>
               '${widget.user['branch_name'] ?? 'جميع الفروع'}',
-            FieldSection.collections => collectionForSplit
-                ? 'اختر أول مشترك للحوالة المقسّمة'
-                : canCollect
-                    ? 'ابحث عن مشترك لتسجيل دفعة'
-                    : 'ابحث عن مشترك لعرض كشف حسابه',
+            FieldSection.collections => canCollect
+                ? 'ابحث عن مشترك لتسجيل دفعة'
+                : 'ابحث عن مشترك لعرض كشف حسابه',
             FieldSection.sync => 'القراءات المحفوظة على الجهاز',
             _ => null,
           },
@@ -993,8 +1001,9 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
           child: switch (section) {
         FieldSection.collections when canBrowseSubscribers => CollectionView(
             key: ValueKey(
-                'collections-$collectionShowToday-$collectionForSplit'),
+                'collections-$collectionShowToday-$collectionFocusSearch'),
             initiallyShowingToday: collectionShowToday,
+            focusSearch: collectionFocusSearch,
             canRecordPayments: canCollect,
             paymentMethods: paymentMethods,
             search: collectionSearch,
@@ -1012,9 +1021,7 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
               await searchCollections();
             },
             onWeeklyReadings: canViewReadings ? openWeeklyReadings : null,
-            onOpen: collectionForSplit && canRecordSplitPayments
-                ? openSplitPayment
-                : openSubscriber),
+            onOpen: openSubscriber),
         FieldSection.sync when canUseReadingSync => syncView(),
         FieldSection.account => account(),
         _ => home(),
@@ -1026,15 +1033,6 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
       color: AppIdentity.brand,
       onRefresh: () => synchronize(forceRoster: true),
       child: list);
-
-  /// «3 payments», as Arabic counts them.
-  String paymentsCount(int count) => switch (count) {
-        0 => 'لا دفعات',
-        1 => 'دفعة واحدة',
-        2 => 'دفعتان',
-        <= 10 => '$count دفعات',
-        _ => '$count دفعة',
-      };
 
   Widget home() {
     final total = today.fold<double>(0, (sum, payment) {
@@ -1056,6 +1054,46 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
     final weekStart = widget.store.state['week_start'];
     final rejected = queued.any((reading) => reading['sync_error'] != null);
     final ratio = subscribers.isEmpty ? 0.0 : done / subscribers.length;
+    final hasTasks = canRead || canBrowseSubscribers || canViewOwnBoxes;
+
+    // Weekly readings open from the collection screen and messages from the
+    // subscriber screen, so home lists them only for staff without those.
+    final tools = <Widget>[
+      if (canViewReadings && !canBrowseSubscribers)
+        AppServiceCard(
+            title: 'القراءات الأسبوعية',
+            subtitle: 'قراءات المشتركين والاستهلاك',
+            summary: 'عرض فقط',
+            icon: 'hist',
+            color: AppIdentity.info,
+            tint: AppIdentity.infoTint,
+            onTap: openWeeklyReadings),
+      if (canDistributeReadings)
+        AppServiceCard(
+            key: const ValueKey('reading-distribution-service'),
+            title: 'توزيع القراءات',
+            subtitle: 'المناطق والطبلونات وقارئو العدادات',
+            summary: 'توزيع القراءة القادمة',
+            icon: 'bolt',
+            color: AppIdentity.brand,
+            tint: AppIdentity.brandSoft,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                    builder: (_) => ReadingDistributionPage(api: widget.api)))),
+      if ((canSendMessages || canViewMessages) && !canBrowseSubscribers)
+        AppServiceCard(
+            title: canSendMessages ? 'إرسال الرسائل' : 'سجل رسائل المشتركين',
+            subtitle: 'رسائل المشترك وسجل الإرسال',
+            summary: canSendMessages ? 'رسائل نصية SMS' : 'عرض فقط',
+            icon: 'message',
+            color: AppIdentity.info,
+            tint: AppIdentity.infoTint,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                    builder: (_) => MessageSubscribersPage(api: widget.api)))),
+    ];
     return refreshable(ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
@@ -1124,9 +1162,17 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
                 if (canRead && canCollect) const SizedBox(width: 12),
                 if (canCollect)
                   Expanded(
-                      child: heroStat(
-                          'تحصيل اليوم', '${AppIdentity.grouped(total)} ₪',
-                          note: paymentsCount(today.length))),
+                      child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                              key: const ValueKey('collector-today-payments'),
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () => navigate(FieldSection.collections,
+                                  showToday: true),
+                              child: heroStat('تحصيل اليوم',
+                                  '${AppIdentity.grouped(total)} ₪',
+                                  note: AppIdentity.paymentsCount(today.length),
+                                  linked: true)))),
                 if (!canRead && !canCollect)
                   Expanded(
                       child: heroStat('الفرع',
@@ -1160,7 +1206,7 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
                 text: '${AppIdentity.readingsCount(drafts)} مكتوبة ولم تُحفظ',
                 action: 'متابعة',
                 onTap: () => navigate(FieldSection.readings)),
-          AppSection(canCollect ? 'الإجراءات السريعة' : 'خدماتك'),
+          if (hasTasks) const AppSection('مهامك'),
           if (canRead)
             AppServiceCard(
                 title: 'إدخال القراءات',
@@ -1173,102 +1219,130 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
                 color: AppIdentity.brand,
                 tint: AppIdentity.brandSoft,
                 onTap: () => navigate(FieldSection.readings)),
-          if (canCollect)
+          if (canBrowseSubscribers) subscribersService(),
+          if (canViewOwnBoxes)
             AppServiceCard(
-                title: 'تسجيل الدفعات',
-                subtitle: 'تحصيل دفعات المشتركين',
-                summary: 'اليوم ${AppIdentity.grouped(total)} ₪',
-                icon: collectionIcon,
-                color: AppIdentity.good,
-                tint: AppIdentity.goodTint,
-                onTap: () => navigate(FieldSection.collections)),
-          if (canRecordSplitPayments)
-            AppServiceCard(
-                key: const ValueKey('collector-split-payment'),
-                title: 'حوالة مقسّمة',
-                subtitle: 'اختر المشتركين ووزّع حوالة واحدة بينهم',
-                summary: 'إضافة حوالة',
-                icon: 'bank',
-                color: AppIdentity.brand,
-                tint: AppIdentity.brandTint,
-                onTap: () =>
-                    navigate(FieldSection.collections, forSplit: true)),
-          if (canCollect)
-            AppServiceCard(
-                key: const ValueKey('collector-today-payments'),
-                title: 'دفعاتي اليوم',
-                subtitle: 'مراجعة الدفعات التي سجّلتها اليوم',
-                summary: paymentsCount(today.length),
-                icon: collectionIcon,
-                color: AppIdentity.good,
-                tint: AppIdentity.goodTint,
-                onTap: () =>
-                    navigate(FieldSection.collections, showToday: true)),
-          if (canViewSubscriptions ||
-              currentUser['can_adjust_balances'] == true)
-            AppServiceCard(
-                key: const ValueKey('subscriber-statements-service'),
-                title: canViewSubscriptions
-                    ? 'كشوف حساب المشتركين'
-                    : 'حركات المشتركين',
-                subtitle: 'الدفعات والقراءات والحركات المالية',
-                summary: 'عرض السجل المالي',
-                icon: 'hist',
-                color: AppIdentity.info,
-                tint: AppIdentity.infoTint,
-                onTap: () => navigate(FieldSection.collections)),
-          if (canViewReadings)
-            AppServiceCard(
-                title: 'القراءات الأسبوعية',
-                subtitle: 'قراءات المشتركين والاستهلاك',
-                summary: 'عرض فقط',
-                icon: 'hist',
-                color: AppIdentity.info,
-                tint: AppIdentity.infoTint,
-                onTap: openWeeklyReadings),
-          if (canDistributeReadings)
-            AppServiceCard(
-                key: const ValueKey('reading-distribution-service'),
-                title: 'توزيع القراءات',
-                subtitle: 'المناطق والطبلونات وقارئو العدادات',
-                summary: 'توزيع القراءة القادمة',
-                icon: 'bolt',
-                color: AppIdentity.brand,
-                tint: AppIdentity.brandSoft,
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                        builder: (_) =>
-                            ReadingDistributionPage(api: widget.api)))),
-          if (canSendMessages || canViewMessages)
-            AppServiceCard(
-                title:
-                    canSendMessages ? 'إرسال الرسائل' : 'سجل رسائل المشتركين',
-                subtitle: 'رسائل المشترك وسجل الإرسال',
-                summary: canSendMessages ? 'رسائل نصية SMS' : 'عرض فقط',
-                icon: 'message',
+                key: const ValueKey('collector-cash-boxes-service'),
+                title: 'صندوقي',
+                subtitle: ownBoxTypes.length == 1
+                    ? 'صندوقك المفتوح ودفعاته'
+                    : 'صناديقك المفتوحة ودفعاتها حسب النوع',
+                summary: cashBoxTypesSummary(ownBoxTypes),
+                icon: 'box',
                 color: AppIdentity.info,
                 tint: AppIdentity.infoTint,
                 onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute<void>(
-                        builder: (_) =>
-                            MessageSubscribersPage(api: widget.api)))),
-          if (!canRead &&
-              !canCollect &&
-              !canViewSubscriptions &&
-              currentUser['can_adjust_balances'] != true &&
-              !canViewReadings &&
-              !canDistributeReadings &&
-              !canSendMessages &&
-              !canViewMessages)
+                        builder: (_) => CashBoxesPage(
+                            api: widget.api, types: ownBoxTypes)))),
+          if (tools.isNotEmpty) ...[
+            AppSection(hasTasks ? 'أدوات أخرى' : 'خدماتك'),
+            ...tools,
+          ],
+          if (!hasTasks && tools.isEmpty)
             const AppNotice(
                 'لا توجد خدمات مفعّلة لحسابك. تواصل مع الإدارة لمنحك الصلاحيات.'),
         ]));
   }
 
+  /// The subscribers card. Every payment, split transfer and statement starts
+  /// from one subscriber, so its search box is the single way into them.
+  Widget subscribersService() {
+    final (title, subtitle, icon, color, tint) = canCollect
+        ? (
+            'تسجيل الدفعات',
+            'ابحث عن المشترك ثم اختر العملية',
+            collectionIcon,
+            AppIdentity.good,
+            AppIdentity.goodTint
+          )
+        : (
+            canViewSubscriptions ? 'كشوف حساب المشتركين' : 'حركات المشتركين',
+            'الدفعات والقراءات والحركات المالية',
+            'hist',
+            AppIdentity.info,
+            AppIdentity.infoTint
+          );
+    final hint = !canCollect
+        ? 'كشف الحساب من صفحة المشترك'
+        : canRecordSplitPayments
+            ? 'الدفعة والحوالة المقسّمة وكشف الحساب من صفحة المشترك'
+            : 'الدفعة وكشف الحساب من صفحة المشترك';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        key: ValueKey(canCollect
+            ? 'collector-collections-service'
+            : 'subscriber-statements-service'),
+        decoration: AppIdentity.card(),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () => navigate(FieldSection.collections),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(children: [
+                      AppIconTile(icon, color, tint, size: 52, iconSize: 24),
+                      const SizedBox(width: 14),
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text(title,
+                                style: AppIdentity.body(16,
+                                    weight: FontWeight.w700)),
+                            Text(subtitle,
+                                style: AppIdentity.body(12.5,
+                                    color: AppIdentity.faint)),
+                          ])),
+                      const SizedBox(width: 8),
+                      AppIcon('chev', size: 18, color: AppIdentity.faint),
+                    ]),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      key: const ValueKey('home-subscriber-search'),
+                      borderRadius: BorderRadius.circular(15),
+                      onTap: () =>
+                          navigate(FieldSection.collections, focusSearch: true),
+                      child: Container(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                            color: AppIdentity.raised,
+                            border:
+                                Border.all(color: AppIdentity.line, width: 1.5),
+                            borderRadius: BorderRadius.circular(15)),
+                        child: Row(children: [
+                          AppIcon('search', color: AppIdentity.faint),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: Text('الاسم أو رقم الحساب أو الطبلون',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppIdentity.body(14.5,
+                                      color: AppIdentity.faint))),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(hint,
+                        style: AppIdentity.body(12, color: AppIdentity.faint)),
+                  ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget heroStat(String label, String value,
-          {String? note, double size = 23}) =>
+          {String? note, double size = 23, bool linked = false}) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label,
             style: AppIdentity.body(12.5, color: AppIdentity.heroFaint)),
@@ -1286,8 +1360,18 @@ class _FieldShellState extends State<FieldShell> with WidgetsBindingObserver {
         if (note != null)
           Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text(note,
-                  style: AppIdentity.body(12.5, color: AppIdentity.heroFaint))),
+              child: Row(children: [
+                Flexible(
+                    child: Text(note,
+                        style: AppIdentity.body(12.5,
+                            color: linked
+                                ? AppIdentity.heroGood
+                                : AppIdentity.heroFaint))),
+                if (linked) ...[
+                  const SizedBox(width: 2),
+                  AppIcon('chev', size: 14, color: AppIdentity.heroGood),
+                ],
+              ])),
       ]);
 
   Widget syncView() => ReadingReview(

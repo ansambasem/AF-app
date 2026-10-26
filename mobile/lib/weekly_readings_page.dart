@@ -23,6 +23,7 @@ class _WeeklyReadingsPageState extends State<WeeklyReadingsPage> {
   bool busy = true;
   String? error;
   String? week;
+  String subscriptionStatus = 'active';
   List<Map<String, dynamic>> weeks = [];
   List<Map<String, dynamic>> subscribers = [];
 
@@ -69,7 +70,10 @@ class _WeeklyReadingsPageState extends State<WeeklyReadingsPage> {
     });
     try {
       final result = await widget.api.weeklyReadings(
-          search: search.text.trim(), week: week, page: nextPage);
+          search: search.text.trim(),
+          week: week,
+          subscriptionStatus: subscriptionStatus,
+          page: nextPage);
       if (!mounted || request != requestId) return;
       setState(() {
         week = result['week_start'] as String;
@@ -125,6 +129,31 @@ class _WeeklyReadingsPageState extends State<WeeklyReadingsPage> {
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
                     children: [
                       if (weeks.isNotEmpty) weekPicker(),
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(children: [
+                          for (final option in const [
+                            ('active', 'النشط'),
+                            ('disconnected', 'المفصول'),
+                            ('suspended', 'الموقوف'),
+                            ('all', 'كل الحالات')
+                          ])
+                            Padding(
+                              padding: const EdgeInsetsDirectional.only(end: 8),
+                              child: FilterChip(
+                                key: ValueKey('weekly-status-${option.$1}'),
+                                label: Text(option.$2),
+                                selected: subscriptionStatus == option.$1,
+                                onSelected: (_) {
+                                  setState(
+                                      () => subscriptionStatus = option.$1);
+                                  unawaited(load());
+                                },
+                              ),
+                            ),
+                        ]),
+                      ),
                       const SizedBox(height: 10),
                       AppSearchField(
                           controller: search,
@@ -245,6 +274,11 @@ class _WeeklyReadingsPageState extends State<WeeklyReadingsPage> {
             AppTag(statusLabel, tone, icon: icon),
           ]),
           const SizedBox(height: 10),
+          if (subscriber['subscription_status_label'] != null) ...[
+            Text('حالة المشترك: ${subscriber['subscription_status_label']}',
+                style: AppIdentity.body(12, color: AppIdentity.muted)),
+            const SizedBox(height: 10),
+          ],
           AppReadingCompare(
               previous: AppIdentity.reading(subscriber['previous_reading']),
               current: subscriber['current_reading'] == null

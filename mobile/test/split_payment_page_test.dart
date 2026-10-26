@@ -166,7 +166,7 @@ void main() {
     ]);
     expect(api.requests.single['collector_confirmed'], true);
     expect(find.text('تم تسجيل الحوالة وحصص الاشتراكات معًا.'), findsOneWidget);
-    expect(find.text('السند: P1 · الرصيد: 60'), findsOneWidget);
+    expect(find.text('الرصيد بعد الدفعة: 60'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

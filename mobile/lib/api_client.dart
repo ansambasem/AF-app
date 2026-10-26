@@ -80,9 +80,13 @@ class ApiClient {
   Future<Map<String, dynamic>> approveReadingDistribution(int cycleId) =>
       _request('POST', '/api/mobile/reading-distribution/$cycleId/approve');
   Future<Map<String, dynamic>> weeklyReadings(
-          {String search = '', String? week, int page = 1}) =>
+          {String search = '',
+          String? week,
+          String subscriptionStatus = 'active',
+          int page = 1}) =>
       _request('GET', '/api/mobile/readings', query: {
         'search': search,
+        'subscription_status': subscriptionStatus,
         'page': '$page',
         if (week != null) 'week': week,
       });
@@ -113,6 +117,8 @@ class ApiClient {
           query: {'page': '$page'});
   Future<Map<String, dynamic>> collectionsToday() =>
       _request('GET', '/api/mobile/collections');
+  Future<Map<String, dynamic>> cashBoxes() =>
+      _request('GET', '/api/mobile/cash-boxes');
   Future<Map<String, dynamic>> sendCollection(
           Map<String, dynamic> collection) =>
       _request('POST', '/api/mobile/collections', body: collection);
@@ -190,7 +196,8 @@ class ApiClient {
       return await _decodeResponse(response, requestToken)
           .timeout(const Duration(seconds: 18));
     } on SocketException {
-      throw const ApiException('لا يمكن الوصول إلى خادم Laravel.', 0);
+      throw const ApiException(
+          'لا يوجد اتصال بالإنترنت. تحقّق من الاتصال وحاول مجددًا.', 0);
     } on TimeoutException {
       throw const ApiException('انتهت مهلة الاتصال بالخادم.', 0);
     } on HandshakeException {

@@ -1,4 +1,5 @@
-import { arrangeRows, rowColumnTotal, DENSITY_PADDING, paperSize } from '@/lib/printLayout';
+import { arrangeRows, rowColumnTotal, DENSITY_PADDING, paperSize, printFont } from '@/lib/printLayout';
+import PrintHeader from './PrintHeader';
 
 // The time printed under the heading, in the app's Arabic with Western digits.
 const PRINTED_AT_FORMAT = new Intl.DateTimeFormat('ar-SY-u-nu-latn', { dateStyle: 'long', timeStyle: 'short' });
@@ -43,34 +44,14 @@ export default function PrintPaper({ layout, table, summary, context, zoom }) {
                 minHeight: `${size.height}mm`,
                 padding: `${layout.margin}mm`,
                 fontSize: `${layout.fontSize}px`,
+                fontFamily: printFont(layout.fontFamily),
+                lineHeight: layout.lineHeight ?? 1.5,
                 zoom,
                 '--pd-pad': `${DENSITY_PADDING[layout.density] ?? DENSITY_PADDING.normal}px`,
                 '--pd-accent': style.accent,
             }}
         >
-            <header
-                className={`pd-header mb-4 flex gap-6 border-b-2 pb-3 ${header.centered ? 'flex-col items-center text-center' : 'items-start justify-between'}`}
-                style={{ borderColor: style.accent }}
-            >
-                {(header.logo || header.company || header.branch) && (
-                    <div className={`flex items-center gap-3 ${header.centered ? 'flex-col' : ''}`}>
-                        {header.logo && <img src="/images/logo-af.webp" alt={header.company || context.appName} className="h-12 w-auto" />}
-                        <div>
-                            {header.company && <div className="text-[1.35em] font-bold">{header.company}</div>}
-                            {header.branch && context.branchName && <div className="text-[0.95em] text-gray-600">{context.branchName}</div>}
-                        </div>
-                    </div>
-                )}
-                <div className={header.centered ? '' : 'text-end'}>
-                    {header.title && (
-                        <h1 className="text-[1.6em] font-bold" style={{ color: style.accent }}>
-                            {header.title}
-                        </h1>
-                    )}
-                    {header.subtitle && <p className="mt-1 whitespace-pre-line text-[1em] text-gray-700">{header.subtitle}</p>}
-                    {meta.length > 0 && <div className="mt-1 text-[0.85em] text-gray-600">{meta.join(' — ')}</div>}
-                </div>
-            </header>
+            <PrintHeader header={header} context={context} meta={meta} accent={style.accent} />
 
             {details.length > 0 && <dl className="mb-4 grid break-inside-avoid grid-cols-3 gap-x-5 gap-y-3 rounded border border-gray-200 p-3">
                 {details.map((field) => <div key={field.key}>
