@@ -70,6 +70,23 @@ class ReadingCycle extends Model
     }
 
     /**
+     * The current branch schedule (or the company default) determines the
+     * reading day, even when this cycle was prepared before it changed.
+     *
+     * @return array{weekEnd: CarbonInterface, min: CarbonInterface, max: CarbonInterface}
+     */
+    public function readingDateBounds(): array
+    {
+        $weekEnd = MeterReading::weekEndFor($this->week_start, $this->branch_id);
+
+        return [
+            'weekEnd' => $weekEnd,
+            'min' => $weekEnd->copy()->max(DailySeries::today()),
+            'max' => $weekEnd->copy()->addDays(6),
+        ];
+    }
+
+    /**
      * Where the cycle stands today: preparing before its reading day, the
      * reading day itself, ended after it, or closed.
      */

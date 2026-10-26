@@ -103,7 +103,7 @@ export default function DateInput({
         }
 
         function onScroll(event) {
-            if (!popoverRef.current?.contains(event.target)) {
+            if (!(event.target instanceof Node) || !popoverRef.current?.contains(event.target)) {
                 close(false);
             }
         }

@@ -1,7 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
 import ThemeToggle from '@/Components/ThemeToggle';
-import DevelopmentCredits from '@/Components/DevelopmentCredits';
+import AppFooter from '@/Components/AppFooter';
 
 export const COMPANY_NAME = 'شركة أبناء فارس أبو زايد للتجارة والاستيراد';
 const COMPANY_NAME_EN = 'Sons of Fares AbuZayed Trading & Import Company';
@@ -25,17 +25,12 @@ export default function GuestLayout({ children }) {
             <div className="login-form-panel relative flex flex-col px-6 py-8 sm:px-12">
                 <ThemeToggle className="absolute end-6 top-6 sm:end-8 sm:top-8" />
 
-                <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-16">
+                <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10 sm:py-12">
                     <img src="/images/logo-af.webp" alt={appName} className="mx-auto mb-10 h-24 w-auto lg:hidden" />
                     {children}
                 </div>
 
-                <footer className="space-y-3">
-                    <DevelopmentCredits />
-                    <p className="text-center text-xs text-gray-400">
-                        © {new Date().getFullYear()} {COMPANY_NAME}
-                    </p>
-                </footer>
+                <AppFooter compact />
             </div>
 
             <div className="login-brand-panel relative hidden flex-col items-center justify-center overflow-hidden border-s border-gray-100 px-10 py-12 text-center lg:flex">
