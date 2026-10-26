@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class ReadingCycleTest extends TestCase
@@ -97,7 +98,7 @@ class ReadingCycleTest extends TestCase
         return $this->withHeader('Authorization', 'Bearer '.($this->deviceTokens[$reader->id] ??= MobileAccessToken::issue($reader)));
     }
 
-    public function test_a_cycle_is_prepared_for_a_week_of_the_branch_and_its_reading_day_can_move_later_only(): void
+    public function test_a_cycle_is_prepared_for_a_branch_week_and_cannot_precede_its_scheduled_reading_day(): void
     {
         $this->actingAs($this->branchAdmin)
             ->post(route('reading-cycles.store'), ['week_start' => '2026-10-16', 'reading_date' => '2026-10-21'])
@@ -116,6 +117,102 @@ class ReadingCycleTest extends TestCase
         $this->actingAs($this->branchAdmin)
             ->post(route('reading-cycles.store'), ['week_start' => '2026-10-16', 'reading_date' => '2026-10-22'])
             ->assertSessionHasErrors('week_start');
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_an_existing_cycle_can_move_to_today_after_the_effective_reading_schedule_changes(bool $branchSchedule): void
+    {
+        $cycle = $this->cycle();
+        $box = $this->boxes(1)->first();
+        $reader = $this->reader('أحمد');
+        $this->allocate($this->branchAdmin, $cycle, [$box], 'mobile', $reader);
+        $this->actingAs($this->branchAdmin)->post(route('reading-cycles.assignments.approve', $cycle), []);
+        $actor = $branchSchedule ? $this->branchAdmin : User::factory()->superAdmin()->create();
+
+        $this->actingAs($actor)->put(route('settings.reading-schedule.update'), [
+            ...($branchSchedule ? ['branch_id' => $this->branch->id] : []),
+            'reading_day' => 2, 'open_days' => [2], 'mode' => 'automatic',
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->branchAdmin)->get(route('reading-cycles.show', $cycle))
+            ->assertInertia(fn ($page) => $page
+                ->where('cycle.scheduledReadingDate', '2026-10-20')
+                ->where('cycle.minReadingDate', '2026-10-20')
+                ->where('cycle.maxReadingDate', '2026-10-26'));
+        $this->patch(route('reading-cycles.update', $cycle), ['reading_date' => '2026-10-20'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('2026-10-20', $cycle->fresh()->reading_date->toDateString());
+        $this->assertSame('2026-10-20', $cycle->fresh()->week_end->toDateString());
+        $this->assertSame($branchSchedule ? 4 : 2, ReadingEntrySetting::company()->reading_day);
+
+        $download = $this->mobile($reader)->getJson(route('mobile.reading-assignments.index'))
+            ->assertJsonPath('assignments.0.cycle.entry_open', true)->json('assignments.0');
+        $this->mobile($reader)->postJson(route('mobile.reading-assignments.sync'), ['readings' => [[
+            'operation_id' => (string) Str::uuid(), 'assignment_id' => $download['id'], 'authorization' => $download['authorization'],
+            'subscription_id' => $box->subscriptions()->value('id'), 'current_reading' => 150,
+            'captured_at' => now()->toIso8601String(),
+        ]]])->assertJsonPath('results.0.status', 'accepted');
+
+        $this->assertSame('2026-10-20', MeterReading::query()->sole()->week_end->toDateString());
+    }
+
+    public function test_a_branch_with_its_own_schedule_does_not_follow_a_company_day_change(): void
+    {
+        $cycle = $this->cycle();
+        ReadingEntrySetting::factory()->forBranch($this->branch)->create();
+
+        $this->actingAs(User::factory()->superAdmin()->create())->put(route('settings.reading-schedule.update'), [
+            'reading_day' => 2, 'open_days' => [2], 'mode' => 'automatic',
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->branchAdmin)->get(route('reading-cycles.show', $cycle))
+            ->assertInertia(fn ($page) => $page
+                ->where('cycle.scheduledReadingDate', '2026-10-22')
+                ->where('cycle.minReadingDate', '2026-10-22')
+                ->where('cycle.maxReadingDate', '2026-10-28'));
+        $this->patch(route('reading-cycles.update', $cycle), ['reading_date' => '2026-10-20'])
+            ->assertSessionHasErrors('reading_date');
+
+        $this->assertSame('2026-10-22', $cycle->fresh()->reading_date->toDateString());
+    }
+
+    public function test_rescheduling_one_cycle_does_not_change_the_permanent_reading_schedule(): void
+    {
+        $cycle = $this->cycle();
+
+        $this->actingAs($this->branchAdmin)->patch(route('reading-cycles.update', $cycle), ['reading_date' => '2026-10-24'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('2026-10-24', $cycle->fresh()->reading_date->toDateString());
+        $this->assertSame('2026-10-22', $cycle->fresh()->week_end->toDateString());
+        $this->assertSame(4, ReadingEntrySetting::company()->reading_day);
+        $this->assertNull(ReadingEntrySetting::ownFor($this->branch));
+    }
+
+    public function test_rescheduling_does_not_allow_backdating_an_ended_reading_day(): void
+    {
+        $cycle = $this->cycle();
+        $this->travelTo(Carbon::parse('2026-10-23 09:00', 'Asia/Gaza'));
+
+        $this->actingAs($this->branchAdmin)->patch(route('reading-cycles.update', $cycle), ['reading_date' => '2026-10-22'])
+            ->assertSessionHasErrors('reading_date');
+
+        $this->assertSame('2026-10-22', $cycle->fresh()->reading_date->toDateString());
+    }
+
+    #[TestWith(['2026-10-19'])]
+    #[TestWith(['2026-10-29'])]
+    public function test_rescheduling_rejects_dates_outside_the_effective_schedule(string $date): void
+    {
+        $cycle = $this->cycle();
+
+        $this->actingAs($this->branchAdmin)->patch(route('reading-cycles.update', $cycle), ['reading_date' => $date])
+            ->assertSessionHasErrors('reading_date');
+
+        $this->assertSame('2026-10-22', $cycle->fresh()->reading_date->toDateString());
+        $this->assertSame('2026-10-22', $cycle->fresh()->week_end->toDateString());
     }
 
     public function test_twenty_boxes_are_split_between_three_readers_and_paper_with_each_box_in_one_place(): void

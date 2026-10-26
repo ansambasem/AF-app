@@ -108,7 +108,7 @@ class MobileCollectorDayJourneyTest extends TestCase
         $company = $this->setUpCompany();
         ['collector' => $collector, 'reader' => $reader] = $company;
         [$salem] = $this->registerTwoSubscribers($company);
-        $foreign = Subscription::factory()->create();
+        $foreign = Subscription::factory()->recycle($company['breaker'])->create();
 
         $this->withoutToken()->postJson(route('mobile.login'), ['username' => 'collector-1', 'password' => 'wrong'])->assertUnprocessable();
         $this->withoutToken()->postJson(route('mobile.login'), ['username' => 'auditor-1', 'password' => self::PASSWORD])->assertForbidden();

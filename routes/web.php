@@ -67,11 +67,12 @@ use App\Http\Controllers\TariffSegmentController;
 use App\Http\Controllers\TransactionAuditController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserTypeController;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
+Route::get('/', function (Request $request): RedirectResponse {
+    return redirect()->route($request->user() ? 'dashboard' : 'login');
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');

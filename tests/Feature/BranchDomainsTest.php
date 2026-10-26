@@ -42,6 +42,13 @@ class BranchDomainsTest extends TestCase
         $this->assertModelExists($subscription);
     }
 
+    public function test_the_branch_home_page_redirects_to_login_on_the_same_domain(): void
+    {
+        $response = $this->get('https://north.company.test/');
+
+        $response->assertRedirect('https://north.company.test/login');
+    }
+
     #[TestWith(['https://north.company.test/path'])]
     #[TestWith(['admin.company.test'])]
     #[TestWith(['south.example.test'])]

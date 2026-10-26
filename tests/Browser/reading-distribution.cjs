@@ -23,6 +23,16 @@ const { readFileSync } = require('node:fs');
         await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
         await page.waitForURL((url) => !url.pathname.startsWith('/login'));
         await page.goto(`/reading-cycles/${fixture.cycleId}`);
+        await page.getByRole('button', { name: 'يوم القراءة', exact: true }).click();
+        const dayForm = page.locator('form[aria-labelledby="reading-day-title"]');
+        const calendar = page.getByRole('dialog', { name: 'اختيار التاريخ', exact: true });
+        for (const event of ['scroll', 'resize']) {
+            await dayForm.getByRole('button', { name: /^يوم القراءة:/ }).click();
+            await calendar.waitFor();
+            await page.evaluate((type) => window.dispatchEvent(new Event(type)), event);
+            await calendar.waitFor({ state: 'hidden' });
+        }
+        await dayForm.getByRole('button', { name: 'إلغاء', exact: true }).click();
         await openSummary();
         assert.match(await summary().getByText('إجمالي الطبلونات', { exact: true }).locator('..').innerText(), /100/);
         const khalil = summary().getByRole('article').filter({ has: page.getByRole('heading', { name: 'خليل', exact: true }) });

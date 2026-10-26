@@ -146,6 +146,7 @@ export default function MeterBoxForm({ data, setData, errors, branches, canChoos
                 <FormSelect
                     id="sub_area_id"
                     label="منطقة 2"
+                    searchable
                     value={data.sub_area_id}
                     onChange={(value) => setData('sub_area_id', value)}
                     options={namedOptions(subAreasInArea)}

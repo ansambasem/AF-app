@@ -100,6 +100,12 @@ async function fillFields(scope, fields) {
                 await field.selectOption(value.select);
             } else {
                 await field.click();
+                if (value.search) {
+                    const search = scope.page().getByPlaceholder('بحث...', { exact: true });
+                    await search.fill(value.search);
+                    const popup = search.locator('..').locator('..');
+                    assert.equal(await popup.locator('ul button').count(), 2, 'search offers only the matching sub-area and the empty choice');
+                }
                 await scope.page().locator('ul button').filter({ hasText: value.select }).first().click();
             }
         } else if (value && typeof value === 'object' && 'chip' in value) {
@@ -164,7 +170,7 @@ step('the branch and its three tablons', async () => {
     for (const [name, suffix, number, block] of [['المدارس', '1', 'T-101', 'البلوك أ'], ['المدارس', '2', 'T-102', 'البلوك ب'], ['السوق', '', 'T-103', 'البلوك أ']]) {
         await addThroughWindow(page, '/meter-boxes', 'طبلون جديد', {
             'اسم الطبلون': name, 'لاحقة (اختياري)': suffix, 'رقم الطبلون': number,
-            'المحافظة': { select: 'المحافظة الوسطى' }, 'المنطقة': { select: 'مخيم النصيرات' }, 'الفرع': { select: 'فرع النصيرات' }, 'منطقة 2': { select: block },
+            'المحافظة': { select: 'المحافظة الوسطى' }, 'المنطقة': { select: 'مخيم النصيرات' }, 'الفرع': { select: 'فرع النصيرات' }, 'منطقة 2': { select: block, search: block },
         });
     }
     for (const number of ['T-101', 'T-102', 'T-103']) {

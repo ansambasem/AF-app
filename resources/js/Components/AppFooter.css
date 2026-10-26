@@ -1,0 +1,201 @@
+.af-footer {
+    position: relative;
+    isolation: isolate;
+    container-type: inline-size;
+    width: min(calc(100% - 2 * var(--tn-gutter, 16px)), calc(1720px - 2 * var(--tn-gutter, 16px)));
+    margin: 8px auto 20px;
+    overflow: hidden;
+    border: 1px solid rgb(var(--gray-100));
+    border-radius: 24px;
+    background: rgb(var(--surface) / 0.88);
+    box-shadow: 0 8px 24px -18px rgb(16 24 40 / 0.18);
+    color: rgb(var(--gray-500));
+    font-size: 12px;
+    line-height: 1.7;
+    text-align: start;
+}
+
+.af-footer::before {
+    content: '';
+    position: absolute;
+    inset-inline: 32px;
+    top: 0;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--spectrum);
+}
+
+.af-footer__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 16px 32px;
+    padding: 20px 24px 0;
+}
+
+.af-footer__company {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.af-footer__logo {
+    flex: none;
+    width: auto;
+    height: 44px;
+    transition: transform 250ms ease;
+}
+
+.af-footer:hover .af-footer__logo {
+    transform: scale(1.03);
+}
+
+.af-footer__rights {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.af-footer__rights b {
+    font-weight: 600;
+    color: rgb(var(--gray-800));
+}
+
+.af-footer__english {
+    font-family: Alexandria, sans-serif;
+    font-size: 10px;
+    line-height: 1.8;
+    color: rgb(var(--gray-400));
+}
+
+.af-team {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.af-team__label {
+    padding-inline: 6px;
+    font-weight: 700;
+    color: rgb(var(--brand-600));
+}
+
+.af-team__names {
+    display: grid;
+    list-style: none;
+}
+
+.af-team__member {
+    display: flex;
+    min-height: 24px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    color: rgb(var(--gray-700));
+    text-decoration: none;
+    transition: background-color 180ms ease, color 180ms ease;
+}
+
+.af-team__member:hover {
+    background: rgb(var(--gray-50));
+    color: rgb(var(--gray-900));
+}
+
+.af-team__member:focus-visible {
+    outline: 2px solid rgb(var(--brand-600));
+    outline-offset: 2px;
+}
+
+.af-team__phone {
+    flex: none;
+    font-family: Alexandria, sans-serif;
+    font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
+    color: rgb(var(--gray-400));
+    white-space: nowrap;
+}
+
+.af-footer__wordmark {
+    margin: 8px 0 -0.16em;
+    font-family: Alexandria, sans-serif;
+    font-size: clamp(26px, 8.5cqi, 104px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.045em;
+    text-align: center;
+    white-space: nowrap;
+    background-image: linear-gradient(180deg, rgb(var(--brand-500) / 0.4), rgb(var(--gray-900) / 0.16) 50%, rgb(var(--gray-900) / 0.03));
+    background-size: 100% 200%;
+    background-position: 0 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    transition: background-position 600ms ease;
+    pointer-events: none;
+    user-select: none;
+}
+
+.af-footer:hover .af-footer__wordmark {
+    background-position: 0 0;
+}
+
+.af-footer--compact {
+    width: 100%;
+    margin: 0;
+    border-radius: 18px;
+}
+
+.af-footer--compact .af-footer__inner {
+    gap: 12px;
+    padding: 14px 16px 0;
+}
+
+.af-footer--compact .af-footer__logo {
+    height: 34px;
+}
+
+.af-footer--compact .af-footer__english {
+    display: none;
+}
+
+.af-footer--compact .af-footer__wordmark {
+    font-size: clamp(24px, 7cqi, 44px);
+    margin-top: 4px;
+}
+
+@container (max-width: 760px) {
+    .af-footer__inner {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        padding: 16px 18px 0;
+    }
+
+    .af-footer__company {
+        align-items: flex-start;
+    }
+
+    .af-footer__logo {
+        height: 38px;
+    }
+
+    .af-team {
+        width: min(100%, 300px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .af-footer * {
+        transition: none;
+    }
+}
+
+@media print {
+    .af-footer {
+        display: none !important;
+    }
+}

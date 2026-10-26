@@ -133,6 +133,7 @@ class ReadingCycleController extends Controller
         $previous = $cycle->previous();
         $defaults = ReadingDistribution::query()->where('branch_id', $cycle->branch_id)->get()->keyBy('meter_box_id');
         $schedule = ReadingEntrySetting::forBranch($cycle->branch_id);
+        $dateBounds = $cycle->readingDateBounds();
 
         $boards = $boxes->map(function (MeterBox $box) use ($assignments, $readCounts, $defaults): array {
             $assignment = $assignments->get($box->id);
@@ -180,7 +181,9 @@ class ReadingCycleController extends Controller
                 'availableOn' => $cycle->reading_date->copy()->subDays($schedule->assignment_lead_days ?? 1)->toDateString(),
                 'assignmentLeadDays' => $schedule->assignment_lead_days ?? 1,
                 'readingDayName' => $cycle->reading_date->locale('ar')->dayName,
-                'maxReadingDate' => $cycle->week_end->copy()->addDays(6)->toDateString(),
+                'scheduledReadingDate' => $dateBounds['weekEnd']->toDateString(),
+                'minReadingDate' => $dateBounds['min']->toDateString(),
+                'maxReadingDate' => $dateBounds['max']->toDateString(),
                 'stage' => $cycle->stage(),
                 'notes' => $cycle->notes,
                 'isClosed' => $cycle->isClosed(),
@@ -213,16 +216,22 @@ class ReadingCycleController extends Controller
     {
         $this->authorize('manage', $readingCycle);
 
+        $dateBounds = $readingCycle->readingDateBounds();
+
         $validated = $request->validate([
-            'reading_date' => ['sometimes', 'date_format:Y-m-d', 'after_or_equal:'.$readingCycle->week_end->toDateString(), 'before_or_equal:'.$readingCycle->week_end->copy()->addDays(6)->toDateString()],
+            'reading_date' => ['sometimes', 'date_format:Y-m-d', 'after_or_equal:'.$dateBounds['min']->toDateString(), 'before_or_equal:'.$dateBounds['max']->toDateString()],
             'notes' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'closed' => ['sometimes', 'boolean'],
         ], [
-            'reading_date.after_or_equal' => 'يوم القراءة لا يكون قبل نهاية الأسبوع.',
-            'reading_date.before_or_equal' => 'يوم القراءة لا يتجاوز ستة أيام بعد نهاية الأسبوع.',
+            'reading_date.after_or_equal' => 'اختر يوم القراءة حسب إعدادات الفرع أو يومًا بعده، ولا تختَر تاريخًا قبل اليوم.',
+            'reading_date.before_or_equal' => 'يوم القراءة لا يتجاوز ستة أيام بعد الموعد المحدد في إعدادات الفرع.',
         ]);
 
         $data = collect($validated)->only(['reading_date', 'notes'])->all();
+
+        if (array_key_exists('reading_date', $validated)) {
+            $data['week_end'] = $dateBounds['weekEnd']->toDateString();
+        }
 
         if (array_key_exists('closed', $validated)) {
             $data += $validated['closed']
