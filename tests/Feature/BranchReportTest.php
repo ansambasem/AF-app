@@ -14,6 +14,7 @@ use App\Models\Permission;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -126,6 +127,8 @@ class BranchReportTest extends TestCase
 
         $this->actingAs($this->preparer())->get(route('reports.index', ['branch' => $this->south->id]))->assertInertia(fn ($page) => $page
             ->where('filters.branch', $this->north->id)
+            ->where('branchScope', null)
+            ->where('scopeLabel', 'North')
             ->where('collections.total', '10.00'));
         $this->get(route('reports.index', ['branch' => 'all']))->assertInertia(fn ($page) => $page->where('collections.total', '10.00'));
         $this->assertStringNotContainsString('South', $this->get(route('reports.export'))->streamedContent());
@@ -136,7 +139,18 @@ class BranchReportTest extends TestCase
         $this->actingAs($auditor)->get(route('reports.index', ['branch' => 'all']))->assertInertia(fn ($page) => $page
             ->where('filters.branch', 'all')
             ->where('scopeLabel', 'كل الفروع')
+            ->where('branchScope', null)
             ->where('collections.total', '30.00'));
+
+        $this->actingAs(User::factory()->superAdmin()->create())->get(route('reports.index', ['branch' => 'all']))->assertInertia(fn ($page) => $page
+            ->where('branchScope.all', true)
+            ->where('branchScope.name', 'جميع الفروع')
+            ->where('branchScope.branches', Branch::count())
+            ->where('branchScope.subscribers', Subscription::count()));
+        $this->get(route('reports.index', ['branch' => $this->north->id]))->assertInertia(fn ($page) => $page
+            ->where('branchScope.all', false)
+            ->where('branchScope.name', 'North')
+            ->where('branchScope.subscribers', 1));
     }
 
     public function test_a_report_across_branches_counts_each_branchs_payments_by_its_own_cutoff(): void
@@ -185,13 +199,38 @@ class BranchReportTest extends TestCase
         $payment = $this->at('2026-10-01 08:10', fn () => $this->pay('40'));
         $this->actingAs($this->preparer());
 
-        $csv = $this->get(route('reports.export', ['kind' => 'payments']))->assertOk()->streamedContent();
+        $response = $this->get(route('reports.export', ['kind' => 'payments']))->assertOk();
+        $csv = $response->streamedContent();
 
-        $this->assertStringStartsWith("\u{FEFF}التاريخ,الوقت,الفرع", $csv);
+        $this->assertStringContainsString(rawurlencode('التقارير_North_2026-10-01_2026-10-01.csv'), $response->headers->get('Content-Disposition'));
+
+        $this->assertStringStartsWith("\u{FEFF}\"North — التقارير المالية\"\n\"الفترة: 01/10/2026 – 01/10/2026\"\n\nالتاريخ,الوقت,الفرع", $csv);
         $this->assertStringContainsString($payment->printedVoucherNumber(), $csv);
         $this->assertStringNotContainsString(__(ChargeType::Penalty->label()), $csv);
         $this->get(route('reports.index', ['kind' => 'charges']))->assertInertia(fn ($page) => $page
             ->where('transactions.data', fn ($lines): bool => collect($lines)->pluck('type')->all() === ['penalty']));
+    }
+
+    public function test_the_excel_editor_gets_every_line_oldest_first_with_the_pages_filters(): void
+    {
+        $this->at('2026-10-01 08:00', fn () => SubscriptionTransaction::recordCharge($this->subscription, $this->collector, ChargeType::Penalty, '100', 'late'));
+        $first = $this->at('2026-10-01 08:10', fn () => $this->pay('40'));
+        $second = $this->at('2026-10-01 09:00', fn () => $this->pay('15.5'));
+        $this->at('2026-10-01 09:30', fn () => $this->pay('20', [], Subscription::factory()->create(['branch_id' => $this->south->id])));
+        $this->actingAs($this->preparer());
+
+        $this->getJson(route('reports.lines', ['kind' => 'payments', 'branch' => $this->south->id]))
+            ->assertOk()
+            ->assertJsonCount(2, 'lines')
+            ->assertJsonPath('lines.0.id', $first->id)
+            ->assertJsonPath('lines.0.amount', '40.00')
+            ->assertJsonPath('lines.0.isCredit', true)
+            ->assertJsonPath('lines.0.branchName', 'North')
+            ->assertJsonPath('lines.1.id', $second->id);
+        $this->getJson(route('reports.lines'))->assertJsonCount(3, 'lines');
+        $this->getJson(route('reports.lines', ['from' => '2026-10-02']))->assertUnprocessable();
+
+        $this->actingAs($this->collector)->getJson(route('reports.lines'))->assertForbidden();
     }
 
     public function test_a_period_is_valid_and_at_most_a_quarter_and_never_past_today(): void
@@ -202,6 +241,56 @@ class BranchReportTest extends TestCase
             ->assertSessionHasErrors(['from' => 'اختر فترة صحيحة لا تزيد على ثلاثة أشهر ولا تتجاوز اليوم.']);
         $this->get(route('reports.index', ['from' => '2026-09-30', 'to' => '2026-12-31']))
             ->assertInertia(fn ($page) => $page->where('filters.to', '2026-10-01'));
+    }
+
+    public function test_comparison_uses_the_same_branch_and_shows_no_percentage_when_the_previous_total_is_zero(): void
+    {
+        $this->at('2026-09-30 09:00', fn () => $this->pay('40'));
+        $this->at('2026-10-01 09:00', fn () => $this->pay('60'));
+        $this->at('2026-09-30 09:00', fn () => $this->pay('999', [], Subscription::factory()->create(['branch_id' => $this->south->id])));
+        $this->actingAs($this->preparer());
+
+        $this->get(route('reports.index', ['kind' => 'charges']))->assertInertia(fn ($page) => $page
+            ->where('comparison', ['from' => '2026-09-30', 'to' => '2026-09-30', 'total' => '40.00', 'difference' => '20.00', 'percentage' => 50])
+            ->where('collections.total', '60.00'));
+        $this->get(route('reports.index', ['from' => '2026-09-30', 'to' => '2026-09-30']))->assertInertia(fn ($page) => $page
+            ->where('comparison.total', '0.00')
+            ->where('comparison.difference', '40.00')
+            ->where('comparison.percentage', null));
+    }
+
+    public function test_excel_lines_are_bounded_and_cursor_pages_do_not_skip_or_duplicate_records(): void
+    {
+        $lines = SubscriptionTransaction::factory()->count(501)->for($this->subscription)
+            ->sequence(fn (Sequence $sequence): array => ['source_key' => 'export-test:'.$sequence->index])->create([
+                'recorded_by' => $this->collector->id, 'type' => 'payment',
+                'amount' => '-1.00', 'created_at' => now(),
+            ]);
+        $this->actingAs($this->preparer());
+
+        $first = $this->getJson(route('reports.lines', ['kind' => 'payments']))->assertJsonCount(500, 'lines');
+        $second = $this->getJson(route('reports.lines', ['kind' => 'payments', 'cursor' => $first->json('nextCursor')]))
+            ->assertJsonCount(1, 'lines')->assertJsonPath('nextCursor', null);
+
+        $this->assertSame($lines->pluck('id')->all(), array_merge(array_column($first->json('lines'), 'id'), array_column($second->json('lines'), 'id')));
+    }
+
+    public function test_print_designer_receives_the_chosen_summary_or_filtered_details_with_company_templates(): void
+    {
+        $payment = $this->at('2026-10-01 08:10', fn () => $this->pay('40'));
+        $this->at('2026-10-01 08:20', fn () => SubscriptionTransaction::recordCharge($this->subscription, $this->collector, ChargeType::Penalty, '100', 'late'));
+        $this->actingAs($this->preparer());
+
+        $this->get(route('reports.index', ['print' => 1, 'print_view' => 'summary']))->assertInertia(fn ($page) => $page
+            ->where('printData.columns.0.label', 'البند')
+            ->where('printData.context.branchName', 'North')
+            ->where('printData.rows', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => $row['cells']['البند'] === 'إجمالي المحصّل' && $row['cells']['المبلغ ₪'] === '40.00'))
+            ->has('printTemplates'));
+        $this->get(route('reports.index', ['print' => 1, 'print_all' => 1, 'print_view' => 'lines', 'kind' => 'payments']))->assertInertia(fn ($page) => $page
+            ->where('printData.total', 1)
+            ->where('printData.rows.0.cells.السند', $payment->printedVoucherNumber())
+            ->where('printData.rows.0.cells.له', '40.00')
+            ->where('printData.context.templatePage', '/reports'));
     }
 
     public function test_report_presents_weekly_and_monthly_periods_without_changing_the_filter_shape(): void

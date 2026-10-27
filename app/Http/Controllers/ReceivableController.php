@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
 use App\Models\User;
+use App\Support\BranchScope;
 use App\Support\DailySeries;
 use App\Support\DebtAging;
 use Illuminate\Database\Eloquent\Builder;
@@ -65,6 +66,8 @@ class ReceivableController extends Controller
             'buckets' => collect(DebtAging::BUCKET_LABELS)->map(fn (string $label, string $key): array => ['key' => $key, 'label' => $label])->values(),
             'today' => DailySeries::today()->toDateString(),
             'scopeLabel' => $this->scopeLabel($request, $actor),
+            // The Super Admin reads, large above the report, which branch it holds.
+            'branchScope' => fn () => BranchScope::shownTo($actor) ? BranchScope::forFilter($actor, $this->filterValue($request, 'branch_id')) : null,
             'filters' => $this->dataTableState($request, 'balance', 'desc', self::DEFAULT_PER_PAGE),
             'filterOptions' => $this->filterOptions($actor),
             // A debtor's statement, opened over the report.

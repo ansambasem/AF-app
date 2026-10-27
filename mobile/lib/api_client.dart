@@ -187,9 +187,13 @@ class ApiClient {
       if (requestToken != null)
         request.headers
             .set(HttpHeaders.authorizationHeader, 'Bearer $requestToken');
-      if (body != null) {
+      final encodedBody = body == null ? null : utf8.encode(jsonEncode(body));
+      // The production Apache/PHP host misroutes chunked POSTs as GETs.
+      // Send the UTF-8 byte length for login, payments and readings alike.
+      request.contentLength = encodedBody?.length ?? 0;
+      if (encodedBody != null) {
         request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(body));
+        request.add(encodedBody);
       }
       final response =
           await request.close().timeout(const Duration(seconds: 18));

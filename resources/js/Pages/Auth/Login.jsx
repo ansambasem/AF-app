@@ -34,8 +34,8 @@ export default function Login() {
                     <InputLabel htmlFor="username" value="اسم المستخدم" />
                     <TextInput
                         id="username"
-                        className="mt-2 block w-full py-3"
-                        dir="ltr"
+                        className="mt-2 block w-full py-3 text-right"
+                        dir="auto"
                         value={data.username}
                         autoFocus
                         autoComplete="username"
@@ -48,7 +48,8 @@ export default function Login() {
                     <InputLabel htmlFor="password" value="كلمة المرور" />
                     <PasswordInput
                         id="password"
-                        className="mt-2 block w-full py-3"
+                        className="mt-2 block w-full py-3 text-right"
+                        dir="auto"
                         value={data.password}
                         autoComplete="current-password"
                         onChange={(e) => setData('password', e.target.value)}

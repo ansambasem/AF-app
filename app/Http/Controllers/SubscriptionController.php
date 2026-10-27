@@ -24,6 +24,7 @@ use App\Models\Tariff;
 use App\Models\TariffSegment;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
+use App\Support\BranchScope;
 use App\Support\DailySeries;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -86,6 +87,8 @@ class SubscriptionController extends Controller
             'statusOptions' => SubscriptionStatus::options(),
             'filters' => $this->dataTableState($request, 'display_name'),
             'filterOptions' => fn () => $this->filterOptions($actor, $request),
+            // Whoever sees every branch's subscribers reads, large above the table, which branch the list holds.
+            'branchScope' => fn () => BranchScope::shownTo($actor) ? BranchScope::forFilter($actor, $request->input('filter.branch_id')) : null,
             // New reading forms offer only the latest week of each branch.
             'readingWeekOptions' => fn () => MeterReading::recentWeekOptionsFor($actor, 1),
             'statement' => fn () => $this->requestedStatement($request, $actor),

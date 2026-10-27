@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { BranchFilterBanner } from '@/Components/BranchBanner';
 import Icon from '@/Components/Icon';
 import SearchableSelect from '@/Components/SearchableSelect';
 import SegmentedTabs from '@/Components/SegmentedTabs';
@@ -49,7 +50,7 @@ function SummaryTile({ icon, label, boxes, hint, active, onClick }) {
 }
 
 /** Open boxes for closing, and closed boxes grouped by their closing week. */
-export default function BranchCashBoxes({ branch, branches, started, place, tabs, boxes, periods, week, pendingCount, periodAudit, urls, canSearchTransfers, searchingTransfers, transferSearch, canApprovePeriod }) {
+export default function BranchCashBoxes({ branch, branches, branchScope = null, started, place, tabs, boxes, periods, week, pendingCount, periodAudit, urls, canSearchTransfers, searchingTransfers, transferSearch, canApprovePeriod }) {
     const { errors } = usePage().props;
     const [search, setSearch] = useState('');
     const [person, setPerson] = useState('');
@@ -116,8 +117,9 @@ export default function BranchCashBoxes({ branch, branches, started, place, tabs
 
     const summary = Object.keys(boxTypes).map((key) => ({ key, icon: <BoxTypeIcon type={key} className="h-10 w-10" />, label: boxTypes[key], boxes: inPlace.filter((box) => box.type === key), hint: { open: 'صناديق مفتوحة', closed: 'صناديق مغلقة في الفترة' }[place], active: type === key, onClick: () => setType(type === key ? '' : key) }));
 
-    return <AuthenticatedLayout badges={{ '/payments/summary': pendingCount }} header={<PageHeader eyebrow={branches.length > 1 ? <select aria-label="الفرع" className="rounded-control border-gray-200 py-1 text-sm" value={branch.id} onChange={(event) => router.get(urls.index, { ...navigation, branch_id: event.target.value })}>{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : branch.name} title="الصناديق المالية" info={started && !searchingTransfers ? placeHints[place] : null} titleAddon={<BoxTabs tabs={tabs} current={place} />} />}>
+    return <AuthenticatedLayout badges={{ '/payments/summary': pendingCount }} scope={branchScope?.name ?? null} header={<PageHeader eyebrow={branchScope ? null : branches.length > 1 ? <select aria-label="الفرع" className="rounded-control border-gray-200 py-1 text-sm" value={branch.id} onChange={(event) => router.get(urls.index, { ...navigation, branch_id: event.target.value })}>{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : branch.name} title="الصناديق المالية" info={started && !searchingTransfers ? placeHints[place] : null} titleAddon={<BoxTabs tabs={tabs} current={place} />} />}>
         <Head title="الصناديق المالية" />
+        {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن صناديق" group={{ options: branches.map((item) => ({ value: String(item.id), label: item.name })) }} value={String(branch.id)} onChange={(value) => value && router.get(urls.index, { ...navigation, branch_id: value })} allowAll={false} />}
         {!started ? <div className="flex flex-wrap items-center justify-between gap-4 rounded-panel border border-dashed border-gray-200 bg-surface p-6 text-sm leading-7 text-gray-500">
             <p>تُفتح الصناديق تلقائيًا عند تسجيل أول دفعة أو مقاصة في الفرع، وتُضاف كل حركة إلى صندوق الموظف حسب نوعها.</p>
         </div> : <div className="financial-boxes financial-surface space-y-5">

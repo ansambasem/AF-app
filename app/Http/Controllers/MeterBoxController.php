@@ -17,6 +17,7 @@ use App\Models\SubArea;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
+use App\Support\BranchScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -99,6 +100,8 @@ class MeterBoxController extends Controller
             ],
             'filters' => $this->dataTableState($request, 'box_number'),
             'filterOptions' => $this->filterOptions($actor),
+            // The Super Admin reads, large above the list, which branch's boxes it holds.
+            'branchScope' => fn () => BranchScope::shownTo($actor) ? BranchScope::forFilter($actor, $request->input('filter.branch_id')) : null,
             ...$this->formOptions(),
         ]);
     }

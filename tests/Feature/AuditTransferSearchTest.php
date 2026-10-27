@@ -21,6 +21,42 @@ class AuditTransferSearchTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    #[TestWith(['bank_asc'])]
+    #[TestWith(['bank_desc'])]
+    public function test_bank_arrival_sorting_is_independent_of_movement_dates_and_places_unknown_dates_last(string $sort): void
+    {
+        $older = $this->entry(attributes: ['bank_received_on' => '2026-10-10']);
+        $newer = $this->entry($older->box, ['bank_received_on' => '2026-10-16']);
+        $sameDay = $this->entry($older->box, ['bank_received_on' => '2026-10-10']);
+        $unknown = $this->entry($older->box);
+        $older->update(['occurred_at' => '2026-10-18 12:00:00']);
+        $sameDay->update(['occurred_at' => '2026-10-18 12:00:00']);
+        $newer->update(['occurred_at' => '2026-10-18 08:00:00']);
+        $auditor = User::factory()->financialAuditor()->create();
+        $expected = $sort === 'bank_asc' ? [$older->id, $sameDay->id, $newer->id] : [$newer->id, $sameDay->id, $older->id];
+
+        $this->actingAs($auditor)->get($this->url($older, ['transfer_sort' => $sort]))->assertInertia(fn ($page) => $page
+            ->where('transferSearch.sort', $sort)->where('transferSearch.results.total', 4)
+            ->where('transferSearch.results.data.0.id', $expected[0])
+            ->where('transferSearch.results.data.1.id', $expected[1])
+            ->where('transferSearch.results.data.2.id', $expected[2])
+            ->where('transferSearch.results.data.3.id', $unknown->id)
+            ->where('transferSearch.summary.transfers', 4));
+    }
+
+    public function test_movement_date_sorting_can_show_oldest_first(): void
+    {
+        $older = $this->entry();
+        $newer = $this->entry($older->box);
+        $older->update(['occurred_at' => '2026-10-18 08:00:00']);
+        $newer->update(['occurred_at' => '2026-10-18 12:00:00']);
+        $auditor = User::factory()->financialAuditor()->create();
+
+        $this->actingAs($auditor)->get($this->url($older, ['transfer_sort' => 'date_asc']))->assertInertia(fn ($page) => $page
+            ->where('transferSearch.results.data.0.id', $older->id)
+            ->where('transferSearch.results.data.1.id', $newer->id));
+    }
+
     public function test_bank_arrival_filter_uses_only_the_optional_bank_date_and_leaves_recording_date_separate(): void
     {
         $entry = $this->entry(attributes: ['bank_received_on' => '2026-10-16']);
@@ -141,6 +177,9 @@ class AuditTransferSearchTest extends TestCase
             ->where('transferSearch.results.next_page_url', fn ($url): bool => str_contains($url, 'view=transfers') && str_contains($url, 'transfer_state=unreviewed')));
         $this->get($this->url($entry, ['transfer_state' => 'unreviewed', 'transfer_page' => 2]))->assertInertia(fn ($page) => $page
             ->has('transferSearch.results.data', 2)->where('transferSearch.summary.transfers', 22));
+        $this->get($this->url($entry, ['transfer_sort' => 'bank_asc']))->assertInertia(fn ($page) => $page
+            ->where('transferSearch.results.total', 22)
+            ->where('transferSearch.results.next_page_url', fn ($url): bool => str_contains($url, 'transfer_sort=bank_asc')));
     }
 
     #[TestWith([null])]
@@ -214,6 +253,8 @@ class AuditTransferSearchTest extends TestCase
     #[TestWith(['transfer_search', ['bad']])]
     #[TestWith(['transfer_search', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'])]
     #[TestWith(['transfer_state', 'unknown'])]
+    #[TestWith(['transfer_sort', 'unknown'])]
+    #[TestWith(['transfer_sort', ['bank_asc']])]
     public function test_invalid_search_input_is_rejected(string $key, mixed $value): void
     {
         $entry = $this->entry();

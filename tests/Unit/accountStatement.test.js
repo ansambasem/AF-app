@@ -89,6 +89,26 @@ test('the date range includes both ends, and a reversed range matches nothing', 
     assert.deepEqual(filterStatementEntries(entries), entries);
 });
 
+test('bank arrival sorting is independent of recording date and keeps missing dates last in both directions', () => {
+    const payments = [
+        { ...entries[2], id: 11, bankReceivedOn: '2026-09-12', balance: '15.00' },
+        { ...entries[2], id: 12, date: '2026-09-10 10:00', bankReceivedOn: '2026-09-15', balance: '5.00' },
+        { ...entries[2], id: 13, bankReceivedOn: null, balance: '0.00' },
+        { ...entries[2], id: 14, bankReceivedOn: '2026-09-12', balance: '-5.00' },
+    ];
+
+    assert.deepEqual(ids(filterStatementEntries(payments, { sort: 'bank_asc' })), [11, 14, 12, 13]);
+    assert.deepEqual(ids(filterStatementEntries(payments, { sort: 'bank_desc' })), [12, 11, 14, 13]);
+    assert.deepEqual(ids(payments), [11, 12, 13, 14]);
+    assert.deepEqual(filterStatementEntries(payments, { sort: 'bank_desc' }).map((entry) => entry.balance), ['5.00', '15.00', '-5.00', '0.00']);
+    assert.deepEqual(ids(filterStatementEntries(payments, { sort: 'invalid' })), [11, 12, 13, 14]);
+});
+
+test('recording date sorting composes with existing payment filters', () => {
+    assert.deepEqual(ids(filterStatementEntries(entries, { sort: 'date_desc', type: 'payment' })), [3, 2]);
+    assert.deepEqual(ids(filterStatementEntries(entries, { sort: 'date_asc', type: 'payment' })), [2, 3]);
+});
+
 test('a balance reads as owed, in credit or settled', () => {
     assert.deepEqual(describeBalance('54.10'), { amount: '54.10', signed: '54.10', label: 'عليه', tone: 'owes' });
     assert.deepEqual(describeBalance('-9.10'), { amount: '9.10', signed: '-9.10', label: 'له', tone: 'credit' });

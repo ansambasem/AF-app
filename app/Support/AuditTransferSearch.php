@@ -33,10 +33,13 @@ class AuditTransferSearch
         $state = (string) $request->query('transfer_state', '');
         $dates = $request->validate([
             'transfer_date_basis' => ['sometimes', 'in:recorded,paid,bank'],
+            'transfer_sort' => ['sometimes', 'in:date_desc,date_asc,bank_desc,bank_asc'],
             'transfer_from' => ['nullable', 'required_with:transfer_to', 'date_format:Y-m-d'],
             'transfer_to' => ['nullable', 'required_with:transfer_from', 'date_format:Y-m-d', 'after_or_equal:transfer_from'],
         ]);
         $basis = $dates['transfer_date_basis'] ?? 'recorded';
+        $sort = $dates['transfer_sort'] ?? 'date_desc';
+        $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
         $query = $this->entries($branchId, $week);
         if (! empty($dates['transfer_from']) && ! empty($dates['transfer_to'])) {
             $from = CarbonImmutable::parse($dates['transfer_from'], config('app.business_timezone'))->startOfDay()->utc();
@@ -74,11 +77,17 @@ class AuditTransferSearch
             'missing', 'short', 'over', 'matched' => $query->whereHas('audit', fn (Builder $audit) => $audit->where('outcome', $state)),
             default => null,
         };
-        if ($search === '' && $state === '' && empty($dates['transfer_from'])) {
+        if ($search === '' && $state === '' && empty($dates['transfer_from']) && $sort === 'date_desc') {
             $query->whereRaw('1 = 0');
         }
+        if (str_starts_with($sort, 'bank_')) {
+            $query->join('subscription_transactions as bank_sort', 'bank_sort.id', '=', 'cash_box_payments.subscription_transaction_id')
+                ->select('cash_box_payments.*')
+                ->orderByRaw('CASE WHEN bank_sort.bank_received_on IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('bank_sort.bank_received_on', $direction);
+        }
         $results = $query->with(['transaction.subscription:id,full_name,subscription_name', 'transaction.recordedBy:id,name', 'box.user:id,name', 'box.audit', 'audit.auditor:id,name'])
-            ->orderByDesc('occurred_at')->orderByDesc('id')->paginate(20, pageName: 'transfer_page')->withQueryString()
+            ->orderBy('cash_box_payments.occurred_at', $direction)->orderBy('cash_box_payments.id', $direction)->paginate(20, pageName: 'transfer_page')->withQueryString()
             ->through(function (CashBoxPayment $entry) use ($actor): array {
                 $payment = $entry->transaction;
 
@@ -100,6 +109,7 @@ class AuditTransferSearch
         return [
             'search' => $search, 'state' => $state, 'results' => $results,
             'dateBasis' => $basis, 'from' => $dates['transfer_from'] ?? '', 'to' => $dates['transfer_to'] ?? '',
+            'sort' => $sort,
             'summary' => ['transfers' => (int) $totals->transfers, 'automaticMatches' => (int) $totals->automatic_matches, 'exceptions' => (int) $totals->exceptions,
                 'debit' => Closing::money(Closing::cents($totals->debit ?? 0)), 'credit' => Closing::money(Closing::cents($totals->credit ?? 0))],
         ];

@@ -27,12 +27,12 @@ class SubscriptionStatementPrintTest extends TestCase
 
         $this->get(route('subscriptions.statement.print', [
             'subscription' => $subscription->id, 'print' => 1, 'view' => 'compact',
-            'filter' => ['type' => 'debit', 'search' => 'رسوم', 'dateFrom' => '2026-01-01'], 'history' => [$charge->id],
+            'filter' => ['type' => 'debit', 'search' => 'رسوم', 'dateFrom' => '2026-01-01', 'sort' => 'bank_desc'], 'history' => [$charge->id],
         ]))->assertOk()->assertInertia(fn ($page) => $page
             ->component('Subscriptions/StatementPrint')->where('subscription.id', $subscription->id)
             ->has('entries', 3)->where('entries.0.id', $charge->id)->where('entries.0.cancellation.notes', 'أُضيفت بالخطأ')
             ->where('summary.balance', '20.00')->where('printOptions.view', 'compact')
-            ->where('printOptions.filters', ['search' => 'رسوم', 'type' => 'debit', 'method' => '', 'dateFrom' => '2026-01-01', 'dateTo' => ''])
+            ->where('printOptions.filters', ['search' => 'رسوم', 'type' => 'debit', 'method' => '', 'dateFrom' => '2026-01-01', 'dateTo' => '', 'sort' => 'bank_desc'])
             ->where('printOptions.openHistories', [$charge->id])->where('printTemplates', []));
         $this->assertDatabaseCount('subscription_transactions', 3);
     }
@@ -62,8 +62,8 @@ class SubscriptionStatementPrintTest extends TestCase
     {
         $reader = User::factory()->branchAdmin()->create();
         $this->actingAs($reader)->getJson(route('subscriptions.statement.print', [
-            'subscription' => 'invalid', 'view' => 'invalid', 'filter' => ['dateFrom' => 'not-a-date'], 'history' => ['invalid'],
-        ]))->assertUnprocessable()->assertJsonValidationErrors(['subscription', 'view', 'filter.dateFrom', 'history.0']);
+            'subscription' => 'invalid', 'view' => 'invalid', 'filter' => ['dateFrom' => 'not-a-date', 'sort' => 'invalid'], 'history' => ['invalid'],
+        ]))->assertUnprocessable()->assertJsonValidationErrors(['subscription', 'view', 'filter.dateFrom', 'filter.sort', 'history.0']);
     }
 
     public function test_shared_statement_layouts_can_be_saved_and_used_for_different_subscribers(): void

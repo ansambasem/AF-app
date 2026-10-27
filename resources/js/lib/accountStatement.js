@@ -2,6 +2,14 @@ import { csvText } from './csv.js';
 import { formatAmount, roundToCents } from './currency.js';
 import { signedBalance } from './balance.js';
 
+export const STATEMENT_SORT_OPTIONS = [
+    { value: '', label: 'تسلسل كشف الحساب' },
+    { value: 'bank_asc', label: 'وصول البنك: الأقدم أولًا' },
+    { value: 'bank_desc', label: 'وصول البنك: الأحدث أولًا' },
+    { value: 'date_asc', label: 'تاريخ الحركة: الأقدم أولًا' },
+    { value: 'date_desc', label: 'تاريخ الحركة: الأحدث أولًا' },
+];
+
 /**
  * The statement page's filters, applied in the browser. Every line already
  * carries the balance it left, so hiding some lines never changes the
@@ -23,14 +31,14 @@ function matchesType(entry, type) {
     return entry.type === type;
 }
 
-export function filterStatementEntries(entries, { search = '', type = '', method = '', dateFrom = '', dateTo = '' } = {}) {
+export function filterStatementEntries(entries, { search = '', type = '', method = '', dateFrom = '', dateTo = '', sort = '' } = {}) {
     if (dateFrom && dateTo && dateFrom > dateTo) {
         return [];
     }
 
     const query = search.trim().toLocaleLowerCase();
 
-    return entries.filter((entry) => {
+    const filtered = entries.filter((entry) => {
         const date = entry.date.slice(0, 10);
         const text = [
             entry.description,
@@ -56,6 +64,21 @@ export function filterStatementEntries(entries, { search = '', type = '', method
             (!dateFrom || date >= dateFrom) &&
             (!dateTo || date <= dateTo)
         );
+    });
+
+    if (!sort || !STATEMENT_SORT_OPTIONS.some((option) => option.value === sort)) {
+        return filtered;
+    }
+
+    const bankDate = sort.startsWith('bank_');
+    const direction = sort.endsWith('_asc') ? 1 : -1;
+    return filtered.sort((first, second) => {
+        const firstDate = bankDate ? first.bankReceivedOn : first.date;
+        const secondDate = bankDate ? second.bankReceivedOn : second.date;
+        if (!firstDate || !secondDate) {
+            return Number(!firstDate) - Number(!secondDate);
+        }
+        return direction * firstDate.localeCompare(secondDate);
     });
 }
 
@@ -305,7 +328,7 @@ function entryState(entry) {
 }
 
 /**
- * The statement's lines (the ones shown, oldest first) as a CSV file for
+ * The statement's lines, in their displayed order, as a CSV file for
  * Excel: every column of the statement, with each line's side (عليه or
  * له) and the balance it left, in shekels, with its sign (negative is
  * credit), as the accountant adds it up.

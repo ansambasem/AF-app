@@ -247,4 +247,17 @@ class PrintTemplateTest extends TestCase
         $this->actingAs($dataEntry)->get(route('meter-readings.index'))
             ->assertInertia(fn ($page) => $page->where('printTemplates', null));
     }
+
+    public function test_financial_report_printing_uses_its_shared_company_templates(): void
+    {
+        PrintTemplate::factory()->create(['page' => '/reports', 'name' => 'تقرير الإدارة', 'is_default' => true]);
+        PrintTemplate::factory()->create(['page' => '/meter-readings', 'name' => 'قراءات']);
+
+        $this->actingAs(User::factory()->superAdmin()->create())
+            ->get(route('reports.index', ['print' => 1, 'print_view' => 'summary']))
+            ->assertInertia(fn ($page) => $page
+                ->has('printTemplates', 1)
+                ->where('printTemplates.0.name', 'تقرير الإدارة')
+                ->where('printTemplates.0.isDefault', true));
+    }
 }

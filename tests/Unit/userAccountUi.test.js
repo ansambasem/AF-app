@@ -48,6 +48,22 @@ test('editing an account exposes password inputs only with the separate password
     assert.match(html, /اتركها فارغة للاحتفاظ بالحالية/);
 });
 
+test('username input accepts Arabic names and spaces while rejecting unsupported characters', () => {
+    const html = render({ data: userFormData({ name: 'محمد', username: 'محمد حمدان' }) });
+    const input = html.match(/<input[^>]*id="username"[^>]*>/)?.[0];
+    assert.ok(input);
+    assert.match(input, /dir="auto"/);
+    const pattern = input.match(/pattern="([^"]+)"/)?.[1];
+    assert.ok(pattern);
+    const allowed = new RegExp(`^(?:${pattern})$`, 'v');
+    for (const username of ['محمد حمدان', 'مُحَمَّد حمدان', 'mohammad.hamdan_1-2', 'محمد hamdan ١٢']) {
+        assert.ok(allowed.test(username), username);
+    }
+    for (const username of ['محمد@حمدان', 'محمد\nحمدان']) {
+        assert.equal(allowed.test(username), false, username);
+    }
+});
+
 test('device limits default to one and only account managers can change them or end sessions', () => {
     assert.equal(userFormData().max_devices, 1);
     assert.equal(userFormData({max_devices: 3}).max_devices, 3);

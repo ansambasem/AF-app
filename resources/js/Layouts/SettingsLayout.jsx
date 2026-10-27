@@ -5,6 +5,6 @@ import AuthenticatedLayout from './AuthenticatedLayout';
  * Boxes, Governorates, Permissions, Reading Schedule, Print Templates).
  * The top bar places these pages in their relevant sections.
  */
-export default function SettingsLayout({ header, children }) {
-    return <AuthenticatedLayout header={header}>{children}</AuthenticatedLayout>;
+export default function SettingsLayout({ header, scope = null, children }) {
+    return <AuthenticatedLayout header={header} scope={scope}>{children}</AuthenticatedLayout>;
 }

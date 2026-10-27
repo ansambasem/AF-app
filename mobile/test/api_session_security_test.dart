@@ -35,9 +35,12 @@ class SessionRequest implements HttpClientRequest {
   final SessionHeaders headers = SessionHeaders();
   @override
   bool followRedirects = true;
-  String? body;
   @override
-  void write(Object? value) => body = '$value';
+  int contentLength = -1;
+  List<int>? bodyBytes;
+  String? get body => bodyBytes == null ? null : utf8.decode(bodyBytes!);
+  @override
+  void add(List<int> data) => bodyBytes = List<int>.from(data);
   @override
   Future<HttpClientResponse> close() async => response;
   @override
@@ -47,8 +50,15 @@ class SessionRequest implements HttpClientRequest {
 class SessionHttpClient implements HttpClient {
   SessionHttpClient(this.request);
   final SessionRequest request;
+  String? method;
+  Uri? url;
   @override
-  Future<HttpClientRequest> openUrl(String method, Uri url) async => request;
+  Future<HttpClientRequest> openUrl(String method, Uri url) async {
+    this.method = method;
+    this.url = url;
+    return request;
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
@@ -92,13 +102,16 @@ void main() {
       () async {
     final request =
         SessionRequest(SessionResponse(200, '{"token":"renewed","user":{}}'));
-    final api = ApiClient(httpClient: SessionHttpClient(request))
-      ..token = 'existing';
+    final http = SessionHttpClient(request);
+    final api = ApiClient(httpClient: http)..token = 'existing';
     await api.login('reader', 'password', remember: true);
     expect(jsonDecode(request.body!)['remember'], true);
     expect(request.headers.values[HttpHeaders.authorizationHeader],
         'Bearer existing');
     expect(request.followRedirects, false);
+    expect(http.method, 'POST');
+    expect(http.url!.path, '/api/mobile/login');
+    expect(jsonDecode(request.body!)['username'], 'reader');
     expect(api.token, 'renewed');
   });
 
@@ -114,5 +127,53 @@ void main() {
             (error) => error.message, 'message', contains('إعادة توجيه'))));
     expect(request.followRedirects, false);
     expect(api.token, 'existing');
+  });
+
+  for (final status in [301, 302, 303, 307, 308]) {
+    test(
+        'login never follows a $status redirect as GET or forwards credentials',
+        () async {
+      final request =
+          SessionRequest(SessionResponse(status, '<html>Redirect</html>'));
+      final http = SessionHttpClient(request);
+      final api = ApiClient(httpClient: http)..token = 'existing';
+
+      await expectLater(
+          api.login('reader', 'password'),
+          throwsA(isA<ApiException>().having(
+              (error) => error.message, 'message', contains('إعادة توجيه'))));
+
+      expect(http.method, 'POST');
+      expect(request.followRedirects, false);
+      expect(api.token, 'existing');
+    });
+  }
+
+  test('login sends a fixed UTF-8 byte length for Arabic credentials',
+      () async {
+    final request =
+        SessionRequest(SessionResponse(200, '{"token":"signed-in","user":{}}'));
+    final api = ApiClient(httpClient: SessionHttpClient(request));
+
+    await api.login('محمد حمدان', 'password');
+
+    final expected = utf8.encode(jsonEncode({
+      'username': 'محمد حمدان',
+      'password': 'password',
+      'remember': false,
+    }));
+    expect(request.bodyBytes, expected);
+    expect(request.contentLength, expected.length);
+    expect(request.contentLength, greaterThan(request.body!.length));
+  });
+
+  test('bodyless requests use a zero content length', () async {
+    final request = SessionRequest(SessionResponse(200, '{}'));
+    final api = ApiClient(httpClient: SessionHttpClient(request));
+
+    await api.logout();
+
+    expect(request.contentLength, 0);
+    expect(request.bodyBytes, isNull);
   });
 }

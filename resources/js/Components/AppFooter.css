@@ -144,28 +144,26 @@
     background-position: 0 0;
 }
 
-.af-footer--compact {
+.af-login-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 16px;
     width: 100%;
+    max-width: 28rem;
+    margin-inline: auto;
+    padding-block: 8px;
+    border-top: 1px solid rgb(var(--gray-200));
+    color: rgb(var(--gray-500));
+    font-size: 12px;
+    line-height: 1.8;
+    text-align: start;
+}
+
+.af-login-footer > p {
+    flex: 1 1 200px;
     margin: 0;
-    border-radius: 18px;
-}
-
-.af-footer--compact .af-footer__inner {
-    gap: 12px;
-    padding: 14px 16px 0;
-}
-
-.af-footer--compact .af-footer__logo {
-    height: 34px;
-}
-
-.af-footer--compact .af-footer__english {
-    display: none;
-}
-
-.af-footer--compact .af-footer__wordmark {
-    font-size: clamp(24px, 7cqi, 44px);
-    margin-top: 4px;
 }
 
 @container (max-width: 760px) {
@@ -195,7 +193,78 @@
 }
 
 @media print {
-    .af-footer {
+    .af-footer,
+    .af-login-footer {
         display: none !important;
     }
+}
+
+.af-footer__credits {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    color: rgb(var(--brand-600));
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    justify-self: start;
+}
+
+.af-footer__credits:hover {
+    background: rgb(var(--gray-50));
+}
+
+.af-footer__credits:focus-visible,
+.af-team__contact:focus-visible {
+    outline: 2px solid rgb(var(--brand-600));
+    outline-offset: 3px;
+}
+
+.af-team-dialog__names {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.af-team-dialog__member {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2px 12px;
+    padding-block: 12px;
+}
+
+.af-team-dialog__member + .af-team-dialog__member {
+    border-top: 1px solid rgb(var(--gray-100));
+}
+
+.af-team-dialog__name {
+    color: rgb(var(--gray-800));
+    font-size: 16px;
+    line-height: 1.8;
+}
+
+.af-team__contact {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    border-radius: 4px;
+    color: rgb(var(--gray-500));
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.8;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.af-team__contact:hover {
+    color: rgb(var(--brand-600));
+    text-decoration: underline;
+    text-underline-offset: 4px;
 }

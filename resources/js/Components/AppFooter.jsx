@@ -7,7 +7,14 @@ const COMPANY_EN = 'Sons of Fares AbuZayed Trading & Import Company';
 export default function AppFooter({ compact = false }) {
     const year = new Date().getFullYear();
 
-    return <footer className={`af-footer${compact ? ' af-footer--compact' : ''}`} dir="rtl">
+    if (compact) {
+        return <footer className="af-login-footer" dir="rtl">
+            <p>© <span dir="ltr">{year}</span> {COMPANY}</p>
+            <DevelopmentCredits />
+        </footer>;
+    }
+
+    return <footer className="af-footer" dir="rtl">
         <div className="af-footer__inner">
             <div className="af-footer__company">
                 <img className="af-footer__logo" src="/images/logo-af.webp" alt="شعار الشركة" width="89" height="52" />

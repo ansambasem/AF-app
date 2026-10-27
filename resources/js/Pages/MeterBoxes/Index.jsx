@@ -4,6 +4,7 @@ import SettingsLayout from '@/Layouts/SettingsLayout';
 import AddButton from '@/Components/AddButton';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
 import DataTableFilterMenu from '@/Components/DataTable/DataTableFilterMenu';
+import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner';
 import SortableTh from '@/Components/DataTable/SortableTh';
 import RowActionsMenu from '@/Components/DataTable/RowActionsMenu';
 import RowIdentity from '@/Components/DataTable/RowIdentity';
@@ -53,6 +54,7 @@ export default function Index({
     currentBranchAreaId,
     filters,
     filterOptions,
+    branchScope,
     summary,
     canViewSubscriptions,
     canRecordReadings,
@@ -64,14 +66,18 @@ export default function Index({
     const rowClick = useRowClick();
     const { requestDelete, deleteDialog } = useDeleteRecord('الطبلون');
     const { search, setSearch, sort, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/meter-boxes', filters);
+    // The Super Admin picks the branch in the banner above the list, not among the filters; clearing those keeps it.
+    const branchFilter = splitBranchFilter(branchScope, filterOptions, filterValues);
 
     return (
         <SettingsLayout
+            scope={branchScope?.name ?? null}
             header={
                 <PageHeader title="الطبلونات" info={canViewSubscriptions ? 'كل طبلون برقمه وموقعه. افتح الصف لعرض المشتركين والأرصدة.' : null} actions={canCreate && <AddButton onClick={() => setCreating(true)}>طبلون جديد</AddButton>} />
             }
         >
             <Head title="الطبلونات" />
+            {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن طبلونات" group={branchFilter.branch} value={filterValues.branch_id} onChange={(value) => setFilter('branch_id', value)} />}
 
             {summary && <MeterBoxSummary summary={summary} />}
 
@@ -85,11 +91,11 @@ export default function Index({
                 filterMenu={
                     <DataTableFilterMenu
                         tableKey="meter_boxes"
-                        groups={filterOptions}
-                        values={filterValues}
+                        groups={branchFilter.groups}
+                        values={branchFilter.values}
                         onChange={setFilter}
                         onChangeMany={setFilters}
-                        onClear={clearFilters}
+                        onClear={() => branchFilter.clear(setFilters, clearFilters)}
                     />
                 }
             />

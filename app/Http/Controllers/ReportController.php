@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Concerns\FiltersDataTable;
 use App\Models\Branch;
 use App\Models\Closing;
 use App\Models\SubscriptionTransaction;
 use App\Support\BranchReport;
+use App\Support\BranchScope;
 use App\Support\ClosingPeriods;
 use App\Support\DailySeries;
 use App\Support\FinancialReportAccess;
 use App\Support\ReportPeriod;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -27,6 +31,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class ReportController extends Controller
 {
+    use FiltersDataTable;
+
     /**
      * The longest stretch a report covers.
      */
@@ -41,6 +47,19 @@ class ReportController extends Controller
         ['chosen' => $chosen, 'branch' => $branch, 'from' => $from, 'to' => $to, 'today' => $today, 'kind' => $kind] = $this->filters($request, $branches);
         $report = new BranchReport($chosen, $from, $to);
         $period = ReportPeriod::describe($from, $to, $request->query('view'), $today);
+        $collections = $chosen->isEmpty() ? null : $report->collections();
+        $comparison = null;
+        if ($collections !== null) {
+            $previous = (new BranchReport($chosen, ClosingPeriods::date($period['comparison']['from']), ClosingPeriods::date($period['comparison']['to'])))->collections();
+            $previousCents = Closing::cents($previous['total']);
+            $difference = Closing::cents($collections['total']) - $previousCents;
+            $comparison = [
+                ...$period['comparison'],
+                'total' => $previous['total'],
+                'difference' => Closing::money($difference),
+                'percentage' => $previousCents === 0 ? null : round($difference / $previousCents * 100, 1),
+            ];
+        }
         $branchSummary = $chosen->count() > 1
             ? $chosen->map(function (Branch $item) use ($from, $to): array {
                 $branchReport = new BranchReport(collect([$item]), $from, $to);
@@ -53,49 +72,106 @@ class ReportController extends Controller
                 ];
             })->values()
             : collect();
+        $flow = $chosen->isEmpty() ? null : $report->flow();
+        $scopeLabel = $chosen->count() === 1 ? $chosen->first()->name : 'كل الفروع';
+        $transactions = $report->lines($kind)
+            ->with(['subscription.branch', 'subscription.meterBox', 'recordedBy', 'meterReading', 'reverses.meterReading', 'bankTransferAudit'])
+            ->orderByDesc('subscription_transactions.created_at')
+            ->orderByDesc('subscription_transactions.id')
+            ->paginate($request->boolean('print') ? $this->dataTablePerPage($request, self::PER_PAGE) : self::PER_PAGE)
+            ->withQueryString()
+            ->through(fn (SubscriptionTransaction $line): array => $this->row($line));
+        $printData = null;
+        if ($request->boolean('print') && $flow !== null) {
+            $detail = $request->query('print_view') === 'lines';
+            $columns = $detail
+                ? ['التاريخ', 'الوقت', 'الفرع', 'السند', 'المشترك', 'رقم الحساب', 'البيان', 'الحساب', 'عليه', 'له', 'سجّله', 'الحالة']
+                : ['البند', 'العدد', 'المبلغ ₪'];
+            $rows = $detail ? $transactions->getCollection()->map(fn (array $line): array => [
+                $line['day'], $line['time'], $line['branchName'], $line['voucherNumber'], $line['subscriptionName'], $line['accountNumber'],
+                $line['description'], $line['account'], $line['isCredit'] ? '' : $line['amount'], $line['isCredit'] ? $line['amount'] : '',
+                $line['recordedBy'], $line['isCancelled'] ? 'ملغى / قيد عكسي' : '',
+            ])->all() : $this->summaryPrintRows($flow, $collections, $branchSummary, $comparison);
+            $printData = [
+                'columns' => array_map(fn (string $label): array => ['key' => $label, 'label' => $label], $columns),
+                'rows' => array_map(fn (array $row): array => ['type' => 'row', 'cells' => array_combine($columns, array_map(fn (mixed $value): string => (string) $value, $row))], $rows),
+                'total' => $detail ? $transactions->total() : count($rows),
+                'summary' => $scopeLabel.' · '.$from->format('d/m/Y').' – '.$to->format('d/m/Y').($detail ? ' · '.collect(BranchReport::kinds())->firstWhere('value', $kind)['label'] : ' · الملخص لجميع أنواع الحركات'),
+                'context' => ['branchName' => $scopeLabel, 'templatePage' => '/reports'],
+            ];
+        }
 
         return Inertia::render('Reports/Index', [
             'branches' => $branches->map(fn (Branch $branch): array => ['value' => $branch->id, 'label' => $branch->name])->values(),
             'filters' => ['branch' => $branch, 'from' => $from->toDateString(), 'to' => $to->toDateString(), 'kind' => $kind],
-            'scopeLabel' => $chosen->count() === 1 ? $chosen->first()->name : 'كل الفروع',
+            'scopeLabel' => $scopeLabel,
+            'branchScope' => BranchScope::shownTo($request->user()) ? BranchScope::describe($chosen) : null,
             'canExport' => FinancialReportAccess::export($request->user()),
             'period' => $period,
+            'comparison' => $comparison,
+            'printData' => $printData,
             'branchSummary' => $branchSummary,
             'presets' => $this->presets($today),
             'today' => $today->toDateString(),
             'cutoff' => ClosingPeriods::for($chosen->count() === 1 ? $chosen->first() : null)->cutoff(),
             'kinds' => BranchReport::kinds(),
-            'flow' => $chosen->isEmpty() ? null : $report->flow(),
-            'collections' => $chosen->isEmpty() ? null : $report->collections(),
+            'flow' => $flow,
+            'collections' => $collections,
             'readings' => $chosen->isEmpty() ? null : $report->readings(),
             'days' => $chosen->isEmpty() ? [] : $report->days(),
-            'transactions' => $report->lines($kind)
-                ->with(['subscription.branch', 'subscription.meterBox', 'recordedBy', 'meterReading', 'reverses.meterReading', 'bankTransferAudit'])
-                ->orderByDesc('subscription_transactions.created_at')
-                ->orderByDesc('subscription_transactions.id')
-                ->paginate(self::PER_PAGE)
-                ->withQueryString()
-                ->through(fn (SubscriptionTransaction $line): array => $this->row($line)),
+            'transactions' => $transactions,
         ]);
     }
 
     /**
+     * The summary's printable rows, using the same figures as the screen.
+     *
+     * @param  array<string, mixed>  $flow
+     * @param  array<string, mixed>  $collections
+     * @param  Collection<int, array<string, mixed>>  $branches
+     * @param  array<string, mixed>|null  $comparison
+     * @return list<array{string, int|string, string}>
+     */
+    private function summaryPrintRows(array $flow, array $collections, Collection $branches, ?array $comparison): array
+    {
+        return [
+            ['الرصيد الافتتاحي لذمم المشتركين', '', $flow['opening']],
+            ...array_map(fn (array $line): array => ['+ '.$line['label'], $line['count'], $line['total']], $flow['charges']),
+            ['مجموع التحميلات (عليه)', '', $flow['chargesTotal']],
+            ...array_map(fn (array $line): array => ['− '.$line['label'], $line['count'], $line['total']], $flow['credits']),
+            ['مجموع الدفعات والخصومات (له)', '', $flow['creditsTotal']],
+            ['الإلغاءات والقيود العكسية', $flow['corrections']['count'], $flow['corrections']['total']],
+            ['الرصيد الختامي لذمم المشتركين', '', $flow['closing']],
+            ['إجمالي المحصّل', $collections['count'], $collections['total']],
+            ['التحصيل النقدي', '', $collections['cash']],
+            ['التحويلات والشيكات', '', $collections['nonCash']],
+            ...($comparison === null ? [] : [
+                ['المحصّل سابقًا ('.$comparison['from'].' – '.$comparison['to'].')', '', $comparison['total']],
+                ['فرق التحصيل عن الفترة السابقة', '', $comparison['difference']],
+            ]),
+            ...array_map(fn (array $account): array => ['حساب: '.$account['label'], $account['count'], $account['total']], $collections['accounts']),
+            ...array_map(fn (array $collector): array => ['محصّل: '.$collector['name'], $collector['count'], $collector['total']], $collections['collectors']),
+            ...$branches->map(fn (array $branch): array => ['تحصيل: '.$branch['name'], $branch['collections']['count'], $branch['collections']['total']])->all(),
+        ];
+    }
+
+    /**
      * The report's lines, oldest first, as a CSV file for a spreadsheet,
-     * with the same filters as on the page.
+     * with the same filters as on the page. The branch's name heads the
+     * file and names it, so a file shared later still says whose it is.
      */
     public function export(Request $request): StreamedResponse
     {
-        abort_unless(FinancialReportAccess::export($request->user()), 403);
-        ['chosen' => $chosen, 'from' => $from, 'to' => $to, 'kind' => $kind] = $this->filters($request, FinancialReportAccess::branches($request->user()));
-        $lines = (new BranchReport($chosen, $from, $to))->lines($kind)
-            ->with(['subscription.branch', 'subscription.meterBox', 'recordedBy', 'meterReading', 'reverses.meterReading', 'bankTransferAudit'])
-            ->orderBy('subscription_transactions.created_at')
-            ->orderBy('subscription_transactions.id');
+        ['chosen' => $chosen, 'from' => $from, 'to' => $to, 'lines' => $lines] = $this->exportedLines($request);
+        $scope = BranchScope::describe($chosen)['name'];
         $columns = ['التاريخ', 'الوقت', 'الفرع', 'رقم السند', 'المشترك', 'رقم الحساب', 'الطبلون', 'النوع', 'البيان', 'طريقة الدفع', 'الحساب', 'العملة', 'المبلغ بالعملة', 'عليه', 'له', 'سجّله', 'ملغى'];
 
-        return response()->streamDownload(function () use ($lines, $columns): void {
+        return response()->streamDownload(function () use ($lines, $columns, $scope, $from, $to): void {
             $file = fopen('php://output', 'w');
             fwrite($file, "\u{FEFF}");
+            fputcsv($file, ["{$scope} — التقارير المالية"]);
+            fputcsv($file, ['الفترة: '.$from->format('d/m/Y').' – '.$to->format('d/m/Y')]);
+            fputcsv($file, []);
             fputcsv($file, $columns);
 
             foreach ($lines->lazy(500) as $line) {
@@ -108,7 +184,39 @@ class ReportController extends Controller
             }
 
             fclose($file);
-        }, "report-{$from->toDateString()}-{$to->toDateString()}.csv", ['Content-Type' => 'text/csv; charset=UTF-8']);
+        }, 'التقارير_'.str_replace(' ', '-', $scope)."_{$from->toDateString()}_{$to->toDateString()}.csv", ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * A bounded page of export lines, oldest first, and its next cursor.
+     * Every request applies the same authorization and report filters.
+     */
+    public function lines(Request $request): JsonResponse
+    {
+        ['lines' => $lines] = $this->exportedLines($request);
+        $page = $lines->cursorPaginate(500);
+
+        return response()->json([
+            'lines' => $page->getCollection()->map(fn (SubscriptionTransaction $line): array => $this->row($line))->values(),
+            'nextCursor' => $page->nextCursor()?->encode(),
+        ]);
+    }
+
+    /**
+     * The lines a download holds, for whoever may export the report.
+     *
+     * @return array{chosen: Collection<int, Branch>, from: CarbonImmutable, to: CarbonImmutable, lines: Builder<SubscriptionTransaction>}
+     */
+    private function exportedLines(Request $request): array
+    {
+        abort_unless(FinancialReportAccess::export($request->user()), 403);
+        ['chosen' => $chosen, 'from' => $from, 'to' => $to, 'kind' => $kind] = $this->filters($request, FinancialReportAccess::branches($request->user()));
+        $lines = (new BranchReport($chosen, $from, $to))->lines($kind)
+            ->with(['subscription.branch', 'subscription.meterBox', 'recordedBy', 'meterReading', 'reverses.meterReading', 'bankTransferAudit'])
+            ->orderBy('subscription_transactions.created_at')
+            ->orderBy('subscription_transactions.id');
+
+        return ['chosen' => $chosen, 'from' => $from, 'to' => $to, 'lines' => $lines];
     }
 
     /**
