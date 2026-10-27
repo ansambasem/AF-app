@@ -11,7 +11,7 @@ use App\Models\Governorate;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
 use App\Models\User;
-use App\Support\BranchDomainContext;
+use App\Support\BranchScope;
 use App\Support\DailySeries;
 use App\Support\DashboardOverview;
 use Closure;
@@ -44,7 +44,7 @@ class DashboardController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $days = (int) ($validated['days'] ?? 30);
-        $company = $actor->isSuperAdmin() && BranchDomainContext::id() === null;
+        $company = BranchScope::shownTo($actor);
         $allBranches = $company ? Branch::query()->with('governorate')->orderBy('name')->get() : collect();
         $governorateId = $company ? ($validated['governorate'] ?? null) : null;
         $branchId = $company ? ($validated['branch'] ?? null) : null;
@@ -80,6 +80,10 @@ class DashboardController extends Controller
                 'governorates' => $branches->pluck('governorate_id')->filter()->unique()->count(),
                 'today' => DailySeries::today()->toDateString(),
             ],
+            // The head of the company reads, large at the top, whose figures these are: the company, a governorate or a branch.
+            'branchScope' => fn (): ?array => $company
+                ? BranchScope::describe($branches, $governorateId && ! $branchId ? Governorate::query()->whereKey($governorateId)->value('name') : null)
+                : null,
             'filters' => [
                 'days' => $days,
                 'branch' => $branchId,

@@ -15,7 +15,8 @@ import Icon from '@/Components/Icon';
  * `onChange` also gets the option picked, so a caller can read its extras.
  * `clearable={false}` leaves out the empty choice, for a field that always
  * holds one (a sort order, say); `searchable={false}` leaves out the search
- * box, for a list of a few choices.
+ * box, for a list of a few choices. `onDark` draws the closed field for a
+ * dark card (translucent, with white text), as in the branch banner.
  */
 export default function SearchableSelect({
     id,
@@ -34,6 +35,7 @@ export default function SearchableSelect({
     clearable = true,
     searchable = true,
     portal = false,
+    onDark = false,
 }) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -160,7 +162,8 @@ export default function SearchableSelect({
 
     useEffect(() => {
         if (open) {
-            searchRef.current?.focus();
+            // A portalled list is placed (fixed, beside the field) only after this first render, so focusing it must not scroll the page to where it was drawn before.
+            searchRef.current?.focus({ preventScroll: portal });
         }
     }, [open]);
 
@@ -184,16 +187,22 @@ export default function SearchableSelect({
                 aria-expanded={open}
                 data-active={active ? '' : undefined}
                 onClick={() => setOpen((current) => !current)}
-                className={`flex h-[42px] w-full items-center justify-between gap-2 rounded-control border bg-surface px-3 text-start text-base leading-6 transition focus:outline-none focus-visible:border-brand-500 focus-visible:ring-4 focus-visible:ring-brand-500/15 disabled:cursor-not-allowed disabled:border-dashed disabled:bg-gray-50 disabled:text-gray-500 ${
-                    open ? 'border-brand-500 ring-4 ring-brand-500/15' : active ? 'border-brand-500/60' : 'border-gray-200 hover:border-brand-500/45'
-                }`}
+                className={
+                    onDark
+                        ? `flex h-[46px] w-full items-center justify-between gap-2 rounded-control border bg-white/10 px-3.5 text-start text-base leading-6 text-white transition focus:outline-none focus-visible:border-white/50 focus-visible:ring-4 focus-visible:ring-white/15 disabled:cursor-not-allowed disabled:opacity-50 ${
+                              open ? 'border-white/50 ring-4 ring-white/15' : active ? 'border-white/35' : 'border-white/15 hover:border-white/35 hover:bg-white/15'
+                          }`
+                        : `flex h-[42px] w-full items-center justify-between gap-2 rounded-control border bg-surface px-3 text-start text-base leading-6 transition focus:outline-none focus-visible:border-brand-500 focus-visible:ring-4 focus-visible:ring-brand-500/15 disabled:cursor-not-allowed disabled:border-dashed disabled:bg-gray-50 disabled:text-gray-500 ${
+                              open ? 'border-brand-500 ring-4 ring-brand-500/15' : active ? 'border-brand-500/60' : 'border-gray-200 hover:border-brand-500/45'
+                          }`
+                }
             >
-                <span className={`flex min-w-0 gap-2 ${selected?.icon ? 'items-center' : 'items-baseline'} ${selected ? 'text-gray-900' : 'text-gray-400/60'}`}>
+                <span className={`flex min-w-0 gap-2 ${selected?.icon ? 'items-center' : 'items-baseline'} ${onDark ? (selected ? 'font-bold text-white' : 'text-white/70') : selected ? 'text-gray-900' : 'text-gray-400/60'}`}>
                     {selected?.icon && <span aria-hidden="true" className="inline-flex shrink-0">{selected.icon}</span>}
                     <span className="truncate">{selected ? selected.label : placeholder}</span>
-                    {selected?.hint && <span className="shrink-0 text-sm text-gray-500">{selected.hint}</span>}
+                    {selected?.hint && <span className={`shrink-0 text-sm ${onDark ? 'text-white/60' : 'text-gray-500'}`}>{selected.hint}</span>}
                 </span>
-                <Icon name="chevron-down" className={`h-4 w-4 shrink-0 text-gray-400 transition ${open ? 'rotate-180' : ''}`} />
+                <Icon name="chevron-down" className={`h-4 w-4 shrink-0 transition ${onDark ? 'text-white/70' : 'text-gray-400'} ${open ? 'rotate-180' : ''}`} />
             </button>
 
             {required && (

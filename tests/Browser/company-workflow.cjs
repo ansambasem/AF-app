@@ -34,6 +34,8 @@ async function signIn(username, viewport = { width: 1440, height: 900 }) {
         throw error;
     }
     await page.locator('#password').fill(PASSWORD);
+    assert.equal(await page.locator('#username').evaluate((field) => getComputedStyle(field).textAlign), 'right');
+    assert.equal(await page.locator('#password').evaluate((field) => getComputedStyle(field).textAlign), 'right');
     await page.getByRole('button', { name: 'تسجيل الدخول' }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'));
     return page;
@@ -400,6 +402,47 @@ step('a collector on a phone-sized screen takes a payment without the page spill
     await page.goto('/payments');
     await page.getByText('230').first().waitFor();
     await snap(page, 'phone-payments');
+});
+
+step('financial reports export Excel, retain rejected template names, and print summaries or filtered lines', async () => {
+    const page = people.owner;
+    await page.goto('/reports?branch=all');
+    await page.getByRole('region', { name: 'المقارنة بالفترة السابقة' }).waitFor();
+    await snap(page, 'financial-reports-comparison');
+    await page.getByRole('button', { name: 'تصدير Excel' }).click();
+    const studio = page.getByRole('dialog', { name: 'تصدير التقرير إلى Excel' });
+    const templateName = studio.getByLabel('اسم قالب الشركة', { exact: true });
+    await templateName.fill('تقرير الشركة التجريبي');
+    await studio.getByRole('button', { name: 'حفظ للشركة', exact: true }).click();
+    await studio.getByRole('button', { name: 'تقرير الشركة التجريبي', exact: false }).first().waitFor();
+    await templateName.fill('تقرير الشركة التجريبي');
+    const rejected = page.waitForResponse((response) => response.url().endsWith('/excel-templates') && response.request().method() === 'POST' && response.status() === 422);
+    await studio.getByRole('button', { name: 'حفظ للشركة', exact: true }).click();
+    await rejected;
+    await studio.getByText('يوجد قالب بهذا الاسم، اختر اسمًا آخر.', { exact: true }).waitFor();
+    assert.equal(await templateName.inputValue(), 'تقرير الشركة التجريبي');
+    const downloadReady = page.waitForEvent('download');
+    await studio.getByRole('button', { name: 'تنزيل ملف Excel' }).click();
+    const download = await downloadReady;
+    const workbook = new (require('exceljs').Workbook)();
+    await workbook.xlsx.readFile(await download.path());
+    assert.ok(workbook.worksheets.some((sheet) => sheet.name === 'الحركات'));
+    assert.ok(workbook.worksheets.some((sheet) => sheet.name === 'معايير التقرير'));
+    await studio.waitFor({ state: 'hidden' });
+    for (const [view, label] of [['summary', 'البند'], ['lines', 'السند']]) {
+        await page.getByLabel('محتوى الطباعة').selectOption(view);
+        const opened = page.context().waitForEvent('page');
+        await page.getByRole('link', { name: 'طباعة وتخصيص / PDF' }).click();
+        const print = await opened;
+        await print.getByRole('article', { name: 'معاينة الورقة المطبوعة' }).waitFor();
+        assert.ok(await print.getByRole('article', { name: 'معاينة الورقة المطبوعة' }).getByText(label, { exact: true }).count());
+        await print.getByLabel('حفظ التصميم كقالب جديد').waitFor();
+        await print.emulateMedia({ media: 'print' });
+        assert.equal(await print.locator('.report-print').count(), 0);
+        assert.equal(await print.getByRole('article', { name: 'معاينة الورقة المطبوعة' }).isVisible(), true);
+        await snap(print, `financial-print-${view}`);
+        await print.close();
+    }
 });
 
 step('staff are kept out of the work that is not theirs', async () => {

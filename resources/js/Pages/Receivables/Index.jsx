@@ -1,5 +1,6 @@
 import { Head, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner';
 import MeterBar from '@/Components/Charts/MeterBar';
 import DataTableFilterMenu from '@/Components/DataTable/DataTableFilterMenu';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
@@ -88,7 +89,7 @@ function AgeBreakdown({ buckets, summary }) {
  * last payment of each. Every figure follows the search and the filters;
  * a row opens the subscription's statement over the page.
  */
-export default function Index({ debtors, summary, buckets, scopeLabel, filters, filterOptions, statement }) {
+export default function Index({ debtors, summary, buckets, scopeLabel, branchScope, filters, filterOptions, statement }) {
     const { can } = usePage().props;
     const { search, setSearch, sort, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/receivables', filters);
     const rowClick = useRowClick();
@@ -96,6 +97,8 @@ export default function Index({ debtors, summary, buckets, scopeLabel, filters, 
     const columnCount = 4 + buckets.length;
     const pageTotal = debtors.data.reduce((total, debtor) => total + Number(debtor.balance), 0);
     const overdue = summary.buckets.older;
+    // The Super Admin picks the branch in the banner above the report, not among the filters; clearing those keeps it.
+    const branchFilter = splitBranchFilter(branchScope, filterOptions, filterValues);
 
     /** A debtor, in the shape the statement window's header reads. */
     function openStatement(debtor) {
@@ -111,11 +114,13 @@ export default function Index({ debtors, summary, buckets, scopeLabel, filters, 
 
     return (
         <AuthenticatedLayout
+            scope={branchScope?.name ?? null}
             header={
-                <PageHeader eyebrow={scopeLabel} title="أعمار الديون" info="المشتركون المدينون، وكم يمضي على ما عليهم منذ تحميله. المبالغ بالشيكل والأعمار بالأيام." />
+                <PageHeader eyebrow={branchScope ? null : scopeLabel} title="أعمار الديون" info="المشتركون المدينون، وكم يمضي على ما عليهم منذ تحميله. المبالغ بالشيكل والأعمار بالأيام." />
             }
         >
             <Head title="أعمار الديون" />
+            {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن ديون مشتركي" group={branchFilter.branch} value={filterValues.branch_id} onChange={(value) => setFilter('branch_id', value)} />}
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                 <KpiTile
@@ -157,11 +162,11 @@ export default function Index({ debtors, summary, buckets, scopeLabel, filters, 
                     filterMenu={
                         <DataTableFilterMenu
                             tableKey="receivables"
-                            groups={filterOptions}
-                            values={filterValues}
+                            groups={branchFilter.groups}
+                            values={branchFilter.values}
                             onChange={setFilter}
                             onChangeMany={setFilters}
-                            onClear={clearFilters}
+                            onClear={() => branchFilter.clear(setFilters, clearFilters)}
                         />
                     }
                 />

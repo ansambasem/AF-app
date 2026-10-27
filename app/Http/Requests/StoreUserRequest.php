@@ -33,7 +33,7 @@ class StoreUserRequest extends FormRequest
         $rules = [
             'name' => ['required', 'string', 'max:255'],
             'user_type_id' => ['nullable', 'integer', Rule::exists('user_types', 'id')],
-            'username' => ['required', 'string', 'max:255', 'regex:/^[\w.-]+$/', Rule::unique('users', 'username')],
+            'username' => ['required', 'string', 'max:255', 'regex:/\A[\p{L}\p{M}\p{N}_. -]+\z/u', Rule::unique('users', 'username')],
             'password' => ['required', 'confirmed', Password::defaults()],
             'role' => ['prohibited'],
             'max_devices' => ['sometimes', 'required', 'integer', 'between:1,20'],

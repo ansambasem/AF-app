@@ -117,6 +117,7 @@ class ActionPermissionIsolationTest extends TestCase
         $this->actingAs($actor);
         $this->get(route('reports.index'))->assertOk()->assertInertia(fn ($page) => $page->where('canExport', false));
         $this->get(route('reports.export'))->assertForbidden();
+        $this->getJson(route('reports.lines'))->assertForbidden();
         $actor->permissions()->syncWithoutDetaching(Permission::idsFor([PermissionKey::ExportFinancialReports]));
         $actor->unsetRelation('permissions');
         $this->get(route('reports.export'))->assertOk();
@@ -125,6 +126,7 @@ class ActionPermissionIsolationTest extends TestCase
         SubscriptionTransaction::recordCharge($foreignSubscription, $actor, ChargeType::Penalty, '50', 'Foreign confidential charge');
         $response = $this->get(route('reports.export', ['branch' => $foreign->id]))->assertOk();
         $this->assertStringNotContainsString('Foreign confidential charge', $response->streamedContent());
+        $this->getJson(route('reports.lines', ['branch' => $foreign->id]))->assertOk()->assertDontSee('Foreign confidential charge');
     }
 
     public function test_malformed_permission_payload_cannot_silently_clear_grants(): void

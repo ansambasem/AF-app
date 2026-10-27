@@ -24,6 +24,7 @@ use App\Models\SubArea;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
+use App\Support\BranchScope;
 use App\Support\DailySeries;
 use App\Support\Messaging\MessageComposer;
 use App\Support\Messaging\SmsGateway;
@@ -105,9 +106,13 @@ class DisconnectionListController extends Controller
             $filterOptions[] = $this->branchFilterGroup();
         }
 
+        // The Super Admin narrows the page to one branch in the banner: the figures above the lists follow it.
+        $branchId = $actor->isSuperAdmin() && is_numeric($request->input('filter.branch_id')) ? (int) $request->input('filter.branch_id') : null;
+
         return Inertia::render('Disconnections/Index', [
             'lists' => $lists,
-            'summary' => $this->summary($actor),
+            'summary' => $this->summary($actor, $branchId),
+            'branchScope' => fn () => BranchScope::shownTo($actor) ? BranchScope::forFilter($actor, $branchId) : null,
             'canCreate' => $actor->can('create', DisconnectionList::class),
             'branchOptions' => $actor->isSuperAdmin() ? $this->modelOptions(Branch::orderBy('name')->get()) : [],
             'filters' => $this->dataTableState($request, 'created_at', 'desc'),
@@ -315,26 +320,26 @@ class DisconnectionListController extends Controller
     /**
      * Where the user's lists stand together: active lists, waiting and
      * overdue subscriptions, the week ahead, warnings, disconnections and the
-     * fees they charged this month.
+     * fees they charged this month — of one branch when `$branchId` is given.
      *
      * @return array<string, int|string>
      */
-    private function summary(User $actor): array
+    private function summary(User $actor, ?int $branchId = null): array
     {
         $today = DailySeries::today();
         $monthStart = $today->startOfMonth()->setTimezone('UTC');
-        $items = fn (): Builder => DisconnectionListItem::query()->visibleTo($actor);
+        $items = fn (): Builder => DisconnectionListItem::query()->visibleTo($actor)->when($branchId, fn (Builder $query) => $query->where('branch_id', $branchId));
         $scheduled = fn (): Builder => $items()->where('status', DisconnectionItemStatus::Scheduled);
 
         return [
-            'openLists' => DisconnectionList::query()->visibleTo($actor)->whereNull('closed_at')->count(),
+            'openLists' => DisconnectionList::query()->visibleTo($actor)->when($branchId, fn (Builder $query) => $query->where('branch_id', $branchId))->whereNull('closed_at')->count(),
             'scheduled' => $scheduled()->count(),
             'overdue' => $scheduled()->whereDate('scheduled_for', '<', $today->toDateString())->count(),
             'upcoming' => $scheduled()->whereDate('scheduled_for', '>=', $today->toDateString())->whereDate('scheduled_for', '<=', $today->addDays(7)->toDateString())->count(),
             'warningsThisMonth' => DisconnectionEvent::query()
                 ->where('type', DisconnectionEventType::Warned)
                 ->where('created_at', '>=', $monthStart)
-                ->whereHas('item', fn (Builder $item) => $item->visibleTo($actor))
+                ->whereHas('item', fn (Builder $item) => $item->visibleTo($actor)->when($branchId, fn (Builder $query) => $query->where('branch_id', $branchId)))
                 ->count(),
             'disconnectedThisMonth' => $items()->where('status', DisconnectionItemStatus::Disconnected)->where('disconnected_at', '>=', $monthStart)->count(),
             'feesThisMonth' => number_format((float) $items()->where('status', DisconnectionItemStatus::Disconnected)->where('disconnected_at', '>=', $monthStart)->sum('fee_amount'), 2, '.', ''),

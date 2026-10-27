@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import AddButton from '@/Components/AddButton';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
 import DataTableFilterMenu from '@/Components/DataTable/DataTableFilterMenu';
+import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner';
 import SortableTh from '@/Components/DataTable/SortableTh';
 import StatusPill from '@/Components/DataTable/StatusPill';
 import RowIdentity from '@/Components/DataTable/RowIdentity';
@@ -67,18 +68,22 @@ function NewListModal({ branchOptions, onClose }) {
  * The branch's disconnection lists: how many wait, how many are overdue,
  * and what was disconnected and charged. Each list opens to its subscribers.
  */
-export default function Index({ lists, summary, canCreate, branchOptions, filters, filterOptions }) {
+export default function Index({ lists, summary, canCreate, branchOptions, branchScope, filters, filterOptions }) {
     const [creating, setCreating] = useState(false);
     const rowClick = useRowClick();
     const { search, setSearch, sort, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/disconnection-lists', filters);
+    // The Super Admin picks the branch in the banner above the figures, not among the filters; clearing those keeps it.
+    const branchFilter = splitBranchFilter(branchScope, filterOptions, filterValues);
 
     return (
         <AuthenticatedLayout
+            scope={branchScope?.name ?? null}
             header={
                 <PageHeader title="قوائم القطع" info="قوائم يديرها كل فرع يدويًا: الإدراج والمواعيد والإنذارات وتأكيد القطع الفعلي." actions={canCreate && <AddButton onClick={() => setCreating(true)}>قائمة جديدة</AddButton>} />
             }
         >
             <Head title="قوائم القطع" />
+            {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن قوائم القطع لـ" group={branchFilter.branch} value={filterValues.branch_id} onChange={(value) => setFilter('branch_id', value)} />}
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <KpiTile hero label="بانتظار القطع" value={formatNumber(summary.scheduled)} unit="مشترك" hint={`في ${formatNumber(summary.openLists)} قائمة مفتوحة`} />
@@ -96,7 +101,7 @@ export default function Index({ lists, summary, canCreate, branchOptions, filter
                 total={lists.total}
                 printable={false}
                 filterMenu={
-                    <DataTableFilterMenu tableKey="disconnection_lists" groups={filterOptions} values={filterValues} onChange={setFilter} onChangeMany={setFilters} onClear={clearFilters} />
+                    <DataTableFilterMenu tableKey="disconnection_lists" groups={branchFilter.groups} values={branchFilter.values} onChange={setFilter} onChangeMany={setFilters} onClear={() => branchFilter.clear(setFilters, clearFilters)} />
                 }
             />
 

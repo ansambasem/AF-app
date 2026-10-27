@@ -85,6 +85,27 @@ test('closing and reviewing boxes lives in the financial boxes link, whose tabs 
     assert.equal(isActiveLink(links[0], '/payments/cash-boxes/entries?branch_id=2'), true);
 });
 
+test('financial boxes navigation opens movements for branch staff and keeps every box tab active', () => {
+    const groups = navigationGroups({ viewCashBoxes: true, viewBranchBoxes: true });
+    const finance = groups.find((group) => group.id === 'finance');
+    const boxes = finance.links.find((link) => link.label === 'الصناديق المالية');
+
+    assert.equal(boxes.href, '/payments/cash-boxes/entries');
+    assert.equal(groupLandingLink(finance).href, '/payments/cash-boxes/entries');
+    for (const url of ['/payments/cash-boxes/entries', '/payments/cash-boxes?place=open', '/payments/cash-boxes?place=closed', '/payments/cash-boxes/12']) {
+        assert.equal(isActiveLink(boxes, url), true, url);
+        assert.equal(pageTrail(groups, url).link, boxes);
+    }
+    assert.equal(isActiveLink(boxes, '/payments/cash-boxes-archive'), false);
+});
+
+test('auditors keep the closed boxes destination even with branch box access', () => {
+    const groups = allowedNavigationGroups({ viewCashBoxes: true, viewBranchBoxes: true, auditOnly: true });
+    const finance = groups.find((group) => group.id === 'finance');
+
+    assert.equal(groupLandingLink(finance).href, '/payments/cash-boxes');
+});
+
 test('the top bar keeps every section and page for every user, locking those they may not open', () => {
     const everything = Object.fromEntries([...MAIN_LINKS, ...SETTINGS_LINKS].filter((link) => link.can).map((link) => [link.can, true]));
     const collector = navigationGroups({ recordPayments: true, viewOwnCashBoxes: true, viewCashBoxes: true });

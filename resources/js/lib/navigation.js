@@ -79,7 +79,7 @@ export function navigationGroups(can) {
         const links = hrefs.map((href) => linksByHref.get(href));
         const open = new Set(allowedLinks(links, can));
 
-        return { ...group, links: links.map((link) => ({ ...ownLabel(link, can), locked: !open.has(link) })) };
+        return { ...group, links: links.map((link) => ({ ...navigationLink(link, can), locked: !open.has(link) })) };
     });
 }
 
@@ -90,8 +90,12 @@ export function allowedNavigationGroups(can) {
         .filter((group) => group.links.length > 0);
 }
 
-/** A collector's own boxes named as theirs. */
-function ownLabel(link, can) {
+/** Branch staff open the movements tab; collectors and auditors keep their box lists. */
+function navigationLink(link, can) {
+    if (link.href === '/payments/cash-boxes' && can?.viewBranchBoxes && !can?.auditOnly) {
+        return { ...link, href: '/payments/cash-boxes/entries', activePaths: [link.href] };
+    }
+
     return seesOwnBoxesOnly(can) && OWN_LABELS[link.href] ? { ...link, label: OWN_LABELS[link.href] } : link;
 }
 

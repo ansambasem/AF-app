@@ -841,6 +841,61 @@
     }
 }
 
+/* The reports page prints its sheet of the period and its summaries alone (Pages/Reports/ReportPrintSheet). */
+.report-print {
+    display: none;
+}
+
+@page report {
+    size: A4 portrait;
+    margin: 12mm 11mm 14mm;
+}
+
+@media print {
+    body:has(.report-print) *:not(:has(.report-print)):not(.report-print):not(.report-print *) {
+        display: none !important;
+    }
+
+    html:has(.report-print),
+    body:has(.report-print) {
+        background: #fff !important;
+    }
+
+    body:has(.report-print) :has(.report-print) {
+        display: block !important;
+        position: static !important;
+        overflow: visible !important;
+        width: auto !important;
+        max-width: none !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .report-print {
+        display: block !important;
+        page: report;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .report-print .report-print-block,
+    .report-print tr {
+        break-inside: avoid;
+    }
+
+    .report-print h2 {
+        break-after: avoid;
+    }
+}
+
 @page statement {
     size: A4 landscape;
     margin: 10mm;

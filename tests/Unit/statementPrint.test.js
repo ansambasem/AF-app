@@ -63,7 +63,7 @@ test('the statement print URL preserves filters, view and expanded history witho
     const previous = globalThis.window;
     globalThis.window = { location: { origin: 'https://example.test' } };
     try {
-        const url = new URL(statementPrintUrl(41, { view: 'compact', filters: { ...filters, search: 'مرجع & شركة', type: 'debit', dateFrom: '2026-10-01' }, openHistories: new Set([3]) }));
+        const url = new URL(statementPrintUrl(41, { view: 'compact', filters: { ...filters, search: 'مرجع & شركة', type: 'debit', dateFrom: '2026-10-01', sort: 'bank_desc' }, openHistories: new Set([3]) }));
         assert.equal(url.pathname, '/subscriptions/statement-print');
         assert.equal(url.searchParams.get('subscription'), '41');
         assert.equal(url.searchParams.get('print'), '1');
@@ -71,6 +71,7 @@ test('the statement print URL preserves filters, view and expanded history witho
         assert.equal(url.searchParams.get('filter[search]'), 'مرجع & شركة');
         assert.equal(url.searchParams.get('filter[type]'), 'debit');
         assert.equal(url.searchParams.get('filter[dateFrom]'), '2026-10-01');
+        assert.equal(url.searchParams.get('filter[sort]'), 'bank_desc');
         assert.deepEqual(url.searchParams.getAll('history[]'), ['3']);
     } finally {
         globalThis.window = previous;
@@ -97,6 +98,20 @@ test('printing applies the selected filters while retaining recorded balances an
     assert.match(html, /ملخص الحساب الكامل/);
     assert.match(html, /الرصيد 20 شيكل/);
     assert.deepEqual(lineIds(render({ filters: { ...filters, dateFrom: '2026-10-20', dateTo: '2026-10-19' } })), []);
+});
+
+test('printing preserves bank arrival sorting with missing dates last and reports the selected order', () => {
+    const payments = [
+        { ...entries[3], id: 11, bankReceivedOn: '2026-10-10', balance: '20.00' },
+        { ...entries[3], id: 12, bankReceivedOn: null, balance: '10.00' },
+        { ...entries[3], id: 13, bankReceivedOn: '2026-10-15', balance: '0.00' },
+    ];
+    const selectedFilters = { ...filters, sort: 'bank_desc' };
+
+    assert.deepEqual(lineIds(render({ filters: selectedFilters }, { entries: payments })), [13, 11, 12]);
+    assert.match(render({ filters: selectedFilters }, { entries: payments }), /وصول البنك: الأحدث أولًا/);
+    const details = statementPrintDetails({ subscription, printOptions: { view: 'full', filters: selectedFilters } });
+    assert.deepEqual(details.find((item) => item.key === 'sort'), { key: 'sort', label: 'ترتيب الحركات', value: 'وصول البنك: الأحدث أولًا' });
 });
 
 test('print totals subtract credits, net the reading discount and exclude folded history and running balances', () => {

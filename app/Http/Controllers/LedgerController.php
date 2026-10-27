@@ -8,6 +8,7 @@ use App\Http\Concerns\FiltersDataTable;
 use App\Models\Branch;
 use App\Models\SubscriptionTransaction;
 use App\Models\User;
+use App\Support\BranchScope;
 use App\Support\DailySeries;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -102,6 +103,8 @@ class LedgerController extends Controller
             'branchTotals' => $this->branchTotals($onSide($inPeriod())),
             'today' => DailySeries::today()->toDateString(),
             'scopeLabel' => $this->scopeLabel($request, $actor),
+            // An auditor of several branches reads, large above the log, which branch it holds.
+            'branchScope' => fn () => BranchScope::shownTo($actor) ? BranchScope::forFilter($actor, $this->filterValue($request, 'branch_id')) : null,
             'filters' => $this->dataTableState($request, 'created_at', 'desc', self::DEFAULT_PER_PAGE),
             'filterOptions' => $this->filterOptions($actor),
             // A line's subscription's statement, opened over the log.

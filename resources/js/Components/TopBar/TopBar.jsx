@@ -22,9 +22,9 @@ function badgeOf(group, badges) {
  * The floating glass bar at the top of every page: the logo, the sections in
  * the middle with a dark light that follows the pointer, and the tools (search,
  * activity, account; the menu button on phones). Once the page's title has
- * scrolled away, `where` ({ section, page }) takes the branch's place under
- * the name, and the page's name sits beside the logo on phones, so the user
- * still sees where they are. A section's pages open in one panel under it
+ * scrolled away, `where` ({ section, page, scope? }) takes the branch's place
+ * under the name, and the page's name sits beside the logo on phones, so the
+ * user still sees where they are — and, with `scope`, whose figures they read. A section's pages open in one panel under it
  * that reshapes itself as the pointer moves between sections; a mouse click
  * on a section opens its first page, while touch and the keyboard, with no
  * hover, open the panel.
@@ -35,7 +35,7 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
     const user = auth?.user;
     const items = topBarItems(groups);
     const current = currentGroup(groups, url);
-    const pageLabel = where ? [where.section, where.page].filter(Boolean).join(' · ') : null;
+    const pageLabel = where ? (where.scope ? [where.page, where.scope] : [where.section, where.page]).filter(Boolean).join(' · ') : null;
 
     const [scrolled, setScrolled] = useState(false);
     const [hoverKey, setHoverKey] = useState(null);
@@ -460,7 +460,7 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
                                 </span>
                             </span>
                         </Link>
-                        {where && <span key={where.page} className="tn-where" aria-hidden="true">{where.page}</span>}
+                        {where && <span key={where.page} className="tn-where" aria-hidden="true">{[where.page, where.scope].filter(Boolean).join(' · ')}</span>}
                     </div>
 
                     <nav

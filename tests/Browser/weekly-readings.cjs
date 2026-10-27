@@ -11,7 +11,7 @@ const path = require('node:path');
     assert.ok(path.basename(path.dirname(clock)).startsWith('powercollect-browser-'));
     const browser = await chromium.launch({ headless: !process.env.HEADED,
         ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
-    const page = await browser.newPage({ baseURL: process.env.BASE_URL, viewport: { width: 1600, height: 1050 }, locale: 'ar' });
+    const page = await browser.newPage({ baseURL: process.env.BASE_URL, viewport: { width: 1600, height: 1050 }, locale: 'ar', reducedMotion: 'reduce' });
     const errors = [];
     const evidence = [];
     const network = [];
@@ -35,7 +35,10 @@ const path = require('node:path');
 
     async function openHistory() {
         await page.goto(`/subscriptions?${new URLSearchParams({ search: subject.account })}`);
-        await page.getByRole('row').filter({ hasText: subject.account }).getByRole('button', { name: 'إجراءات أخرى', exact: true }).click();
+        await page.evaluate(() => document.fonts.ready);
+        const trigger = page.getByRole('row').filter({ hasText: subject.account }).getByRole('button', { name: 'إجراءات أخرى', exact: true });
+        await trigger.scrollIntoViewIfNeeded();
+        await trigger.click();
         await page.getByRole('menuitem', { name: /سجل القراءات/ }).click();
         await history().waitFor();
     }

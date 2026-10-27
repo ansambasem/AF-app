@@ -15,6 +15,7 @@ import {
     netOfReadingDiscount,
     relatedLineChains,
     statementCsv,
+    STATEMENT_SORT_OPTIONS,
     withReadingDiscounts,
 } from '@/lib/accountStatement';
 import { balanceTone } from '@/lib/balance';
@@ -45,7 +46,7 @@ export const STATEMENT_COLUMNS = [
 
 const COLUMN_WIDTHS = [4, 4, 6, 18, 9, 8, 14, 5, 4, 7, 6, 3, 6, 6];
 
-const EMPTY_FILTERS = { search: '', type: '', method: '', dateFrom: '', dateTo: '' };
+const EMPTY_FILTERS = { search: '', type: '', method: '', dateFrom: '', dateTo: '', sort: '' };
 
 // The time printed on the statement, in the app's Arabic with Western digits.
 const PRINTED_AT_FORMAT = new Intl.DateTimeFormat('ar-SY-u-nu-latn', { dateStyle: 'long', timeStyle: 'short' });
@@ -339,6 +340,7 @@ function filtersCaption(filters, transactionTypes, paymentMethods) {
     return [
         filters.type && `نوع الحركة: ${typeLabel ?? filters.type}`,
         filters.method && `طريقة الدفع: ${methodLabel ?? filters.method}`,
+        filters.sort && `الترتيب: ${STATEMENT_SORT_OPTIONS.find((option) => option.value === filters.sort)?.label ?? ''}`,
         filters.dateFrom && `من ${filters.dateFrom}`,
         filters.dateTo && `إلى ${filters.dateTo}`,
         filters.search.trim() && `بحث: «${filters.search.trim()}»`,
@@ -805,7 +807,7 @@ export default function AccountStatement({ subscription, entries, summary, payme
                             طباعة وتخصيص
                         </button>}
                     </div>
-                    <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                    <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-8">
                         <label className="block text-sm text-gray-600 sm:col-span-2">
                             بحث
                             <input
@@ -848,7 +850,14 @@ export default function AccountStatement({ subscription, entries, summary, payme
                             إلى تاريخ
                             <DateInput aria-label="إلى تاريخ" className="mt-1" value={filters.dateTo} min={filters.dateFrom || undefined} onChange={(value) => setFilter('dateTo', value)} />
                         </div>
+                        <label className="block text-sm text-gray-600 sm:col-span-2">
+                            ترتيب الحركات
+                            <select value={filters.sort ?? ''} onChange={(event) => setFilter('sort', event.target.value)} className="mt-1 block w-full text-sm">
+                                {STATEMENT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                        </label>
                     </div>
+                    {filters.sort?.startsWith('bank_') && <p className="mt-2 text-sm text-gray-500">الحركات دون تاريخ وصول للبنك تظهر أخيرًا. الرصيد بجانب كل حركة هو رصيدها وقت التسجيل.</p>}
                     {invalidDates && (
                         <p role="alert" className="mt-2 text-sm text-red-600">
                             تاريخ البداية يجب أن يسبق تاريخ النهاية.

@@ -52,7 +52,7 @@ export default function UserForm({ data, setData, errors, isEdit, branches, canC
                 dotClass={data.is_active ? 'bg-emerald-500' : 'bg-gray-400'}
                 title={name || 'مستخدم جديد'}
                 subtitle={data.username.trim() ? `@${data.username.trim()}` : null}
-                subtitleDir="ltr"
+                subtitleDir="auto"
                 chips={[
                     data.company_wide ? 'مدير عام' : userType?.label,
                     data.company_wide ? 'كل الفروع' : branch?.name,
@@ -69,11 +69,11 @@ export default function UserForm({ data, setData, errors, isEdit, branches, canC
 
                 <FormField id="username" label="اسم المستخدم" required error={errors.username}>
                     <TextInput
-                        dir="ltr"
+                        dir="auto"
                         required
-                        pattern="[A-Za-z0-9_.\-]+"
+                        pattern="[\p{L}\p{M}\p{N}_. \-]+"
                         data-feedback
-                        title="اسم المستخدم بالحروف الإنجليزية والأرقام والرموز . _ - فقط، بلا مسافات"
+                        title="يمكن استخدام الحروف العربية والإنجليزية والأرقام والمسافات والرموز . _ -"
                         autoComplete="off"
                         className="block h-11 w-full"
                         value={data.username}

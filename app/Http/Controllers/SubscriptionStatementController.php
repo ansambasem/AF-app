@@ -27,7 +27,7 @@ class SubscriptionStatementController extends Controller
             ...($subscription ? $this->subscriptionStatement($request->user(), $subscription) : ['subscription' => null, 'entries' => []]),
             'printOptions' => [
                 'view' => $request->validated('view', 'full'),
-                'filters' => collect(['search', 'type', 'method', 'dateFrom', 'dateTo'])
+                'filters' => collect(['search', 'type', 'method', 'dateFrom', 'dateTo', 'sort'])
                     ->mapWithKeys(fn (string $key): array => [$key => $request->validated('filter.'.$key) ?? ''])->all(),
                 'openHistories' => array_map(intval(...), $request->validated('history', [])),
             ],

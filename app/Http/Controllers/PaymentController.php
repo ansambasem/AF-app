@@ -33,6 +33,7 @@ use App\Support\BankTransferAuditing;
 use App\Support\BranchBoxes;
 use App\Support\BranchClosingAccess;
 use App\Support\BranchClosingWorkflow;
+use App\Support\BranchScope;
 use App\Support\ClosingPeriods;
 use App\Support\DailySeries;
 use Carbon\CarbonInterface;
@@ -267,6 +268,8 @@ class PaymentController extends Controller
         return Inertia::render('Payments/Entries', [
             'started' => $started,
             'branch' => $branch, 'branches' => $branches, 'people' => $people,
+            // The general management reads, large above the boxes, which branch they are.
+            'branchScope' => $branches->count() > 1 && BranchScope::shownTo($actor) ? BranchScope::describe(collect([$branch])) : null,
             'tabs' => $this->boxTabs($branches, $branch, $actor),
             ...$list,
             'closableBoxes' => $started && BranchClosingAccess::receive($actor, $branch->id) ? $this->closableBoxes($branch->id, $actor, $person?->id) : null,
@@ -388,6 +391,8 @@ class PaymentController extends Controller
         $periodPreview = fn (): array => $this->branchBoxes->periodAudit($searchingTransfers ? $this->branchBoxes->rows($branch->id, $actor, 'closed', week: $week) : $boxes, $branch->id, $week);
 
         return Inertia::render('Payments/BranchCashBoxes', [
+            // The general management reads, large above the boxes, which branch they are.
+            'branchScope' => $branches->count() > 1 && BranchScope::shownTo($actor) ? BranchScope::describe(collect([$branch])) : null,
             'branch' => $branch, 'branches' => $branches, 'started' => $started || $periods->contains(fn (array $period): bool => $period['count'] > 0),
             'place' => $place,
             'tabs' => $this->boxTabs($branches, $branch, $actor),

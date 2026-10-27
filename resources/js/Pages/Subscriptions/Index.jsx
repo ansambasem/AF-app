@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Head, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import AddButton from '@/Components/AddButton';
+import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
 import DataTableFilterMenu from '@/Components/DataTable/DataTableFilterMenu';
 import AreaChip from '@/Components/DataTable/AreaChip';
@@ -101,6 +102,7 @@ export default function Index({
     canEditKilowattPrice,
     filters,
     filterOptions,
+    branchScope,
     readingWeekOptions,
     statement,
     bulkActions,
@@ -121,7 +123,7 @@ export default function Index({
     const [archiveSubscription, setArchiveSubscription] = useState(null);
     const historySubscription = subscriptions.data.find((subscription) => subscription.id === historySubscriptionId) ?? null;
     const { search, setSearch, sort, setPage, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/subscriptions', filters, {}, {
-        only: ['subscriptions', 'filters', 'filterOptions', 'can', 'canCreate', 'canViewArchived', 'showArchived', 'archiveToday', 'canRecordReadings', 'bulkActions', 'canEditMinimumCharge', 'canEditKilowattPrice', 'readingWeekOptions'],
+        only: ['subscriptions', 'filters', 'filterOptions', 'branchScope', 'can', 'canCreate', 'canViewArchived', 'showArchived', 'archiveToday', 'canRecordReadings', 'bulkActions', 'canEditMinimumCharge', 'canEditKilowattPrice', 'readingWeekOptions'],
     });
     const rowClick = useRowClick();
     // Subscriptions ticked for a bulk action (kept across pages), or every match of the filters.
@@ -140,6 +142,9 @@ export default function Index({
     const filtersPending = search.trim() !== (filters.search ?? '') || localFilterKey !== serverFilterKey;
     const balanceLabel = balanceFilterLabel(filters.filter);
     const standardFilterValues = Object.fromEntries(Object.entries(filterValues).filter(([key]) => key !== 'archived' && !BALANCE_FILTER_KEYS.includes(key)));
+    // Whoever sees every branch picks the branch in the banner above the table, not among the other filters; clearing those keeps it.
+    const branchFilter = splitBranchFilter(branchScope, filterOptions, standardFilterValues);
+    const keptOnClear = [...(showArchived ? ['archived'] : []), ...branchFilter.kept];
     const canSelect = !showArchived && (bulkActions.minimumCharge || bulkActions.status || bulkActions.message || bulkActions.meterBox);
 
     // A new search or filter is a new list: start the choice over.
@@ -340,6 +345,7 @@ export default function Index({
 
     return (
         <AuthenticatedLayout
+            scope={branchScope?.name ?? null}
             header={
                 <PageHeader
                     title="المشتركون"
@@ -354,6 +360,8 @@ export default function Index({
         >
             <Head title="المشتركون" />
 
+            {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن مشتركي" group={branchFilter.branch} value={filterValues.branch_id} onChange={(value) => setFilter('branch_id', value)} />}
+
             {canViewArchived && <div className="mb-5 flex flex-wrap items-center gap-1"><SegmentedTabs label="قائمة الاشتراكات" value={showArchived ? 'archived' : 'current'} options={[{ value: 'current', label: 'الاشتراكات الحالية' }, { value: 'archived', label: 'الاشتراكات المؤرشفة' }]} onChange={(value) => setFilter('archived', value === 'archived' ? '1' : '')} /><InfoTip label="عن الأرشيف">{showArchived ? 'ملفات محفوظة بعد إنهاء الخدمة؛ الأرصدة والحركات السابقة باقية.' : 'أرشفة الاشتراك المنتهي متاحة من قائمة إجراءاته حسب الصلاحية.'}</InfoTip></div>}
 
             <DataTableToolbar
@@ -366,11 +374,11 @@ export default function Index({
                 filterMenu={
                     <DataTableFilterMenu
                         tableKey="subscriptions"
-                        groups={filterOptions}
-                        values={standardFilterValues}
+                        groups={branchFilter.groups}
+                        values={branchFilter.values}
                         onChange={setFilter}
                         onChangeMany={setFilters}
-                        onClear={() => showArchived ? setFilters(Object.fromEntries(Object.keys(filterValues).filter((key) => key !== 'archived').map((key) => [key, '']))) : clearFilters()}
+                        onClear={() => keptOnClear.length ? setFilters(Object.fromEntries(Object.keys(filterValues).filter((key) => !keptOnClear.includes(key)).map((key) => [key, '']))) : clearFilters()}
                     >
                         <BalanceFilter values={filterValues} onChange={setFilters} errors={errors} />
                     </DataTableFilterMenu>

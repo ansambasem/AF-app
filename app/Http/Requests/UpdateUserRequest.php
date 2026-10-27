@@ -38,7 +38,7 @@ class UpdateUserRequest extends FormRequest
         $rules = [
             'name' => ['required', 'string', 'max:255'],
             'user_type_id' => ['nullable', 'integer', Rule::exists('user_types', 'id')],
-            'username' => ['required', 'string', 'max:255', 'regex:/^[\w.-]+$/', Rule::unique('users', 'username')->ignore($target->id)],
+            'username' => ['required', 'string', 'max:255', 'regex:/\A[\p{L}\p{M}\p{N}_. -]+\z/u', Rule::unique('users', 'username')->ignore($target->id)],
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'is_active' => ['boolean'],
             'role' => ['prohibited'],

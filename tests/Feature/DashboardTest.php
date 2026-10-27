@@ -27,6 +27,9 @@ class DashboardTest extends TestCase
         $this->actingAs($superAdmin)->get(route('dashboard'))->assertInertia(fn ($page) => $page
             ->where('scope.company', true)
             ->where('scope.label', 'كل الفروع')
+            ->where('branchScope.level', 'all')
+            ->where('branchScope.name', 'جميع الفروع')
+            ->where('branchScope.branches', Branch::count())
             ->where('sections.collections.total', 140)
             ->where('sections.collections.byBranch.0.name', $north->name)
             ->where('sections.collections.byBranch.0.share', 71)
@@ -43,10 +46,34 @@ class DashboardTest extends TestCase
 
         $this->actingAs($superAdmin)->get(route('dashboard', ['branch' => $south->id, 'days' => 7]))->assertInertia(fn ($page) => $page
             ->where('scope.label', $south->name)
+            ->where('branchScope.level', 'branch')
+            ->where('branchScope.name', $south->name)
             ->where('filters.days', 7)
             ->where('sections.collections.total', 40)
             ->where('sections.collections.byBranch', null)
             ->has('latestPayments.rows.data', 1));
+    }
+
+    public function test_the_banner_names_the_governorate_the_super_admin_narrowed_to(): void
+    {
+        $superAdmin = User::factory()->superAdmin()->create();
+        $governorate = Governorate::create(['name' => 'محافظة الوسطى']);
+        [, $second] = Branch::factory()->count(2)->create(['governorate_id' => $governorate->id]);
+        Branch::factory()->create();
+
+        $this->actingAs($superAdmin)->get(route('dashboard', ['governorate' => $governorate->id]))->assertInertia(fn ($page) => $page
+            ->where('branchScope.level', 'governorate')
+            ->where('branchScope.name', 'محافظة الوسطى')
+            ->where('branchScope.branches', 2));
+        $this->get(route('dashboard', ['governorate' => $governorate->id, 'branch' => $second->id]))->assertInertia(fn ($page) => $page
+            ->where('branchScope.level', 'branch')
+            ->where('branchScope.name', $second->name));
+        // A governorate with no branch yet still names itself, so the banner and its pickers stay to choose another.
+        $empty = Governorate::create(['name' => 'محافظة الشمال']);
+        $this->get(route('dashboard', ['governorate' => $empty->id]))->assertInertia(fn ($page) => $page
+            ->where('branchScope.level', 'governorate')
+            ->where('branchScope.name', 'محافظة الشمال')
+            ->where('branchScope.branches', 0));
     }
 
     public function test_a_branch_manager_sees_only_their_branch(): void
@@ -59,6 +86,7 @@ class DashboardTest extends TestCase
         $this->actingAs($manager)->get(route('dashboard', ['branch' => $other->id]))->assertInertia(fn ($page) => $page
             ->where('scope.company', false)
             ->where('scope.label', $own->name)
+            ->where('branchScope', null)
             ->where('branchOptions', null)
             ->where('sections.collections.total', 75)
             ->where('sections.subscriptions.active', 1)

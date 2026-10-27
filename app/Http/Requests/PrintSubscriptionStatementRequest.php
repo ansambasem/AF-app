@@ -27,12 +27,13 @@ class PrintSubscriptionStatementRequest extends FormRequest
         return [
             'subscription' => ['nullable', 'integer', 'min:1'],
             'view' => ['sometimes', Rule::in(['compact', 'full'])],
-            'filter' => ['sometimes', 'array:search,type,method,dateFrom,dateTo'],
+            'filter' => ['sometimes', 'array:search,type,method,dateFrom,dateTo,sort'],
             'filter.search' => ['nullable', 'string', 'max:500'],
             'filter.type' => ['nullable', 'string', 'max:100'],
             'filter.method' => ['nullable', 'string', 'max:100'],
             'filter.dateFrom' => ['nullable', 'date_format:Y-m-d'],
             'filter.dateTo' => ['nullable', 'date_format:Y-m-d'],
+            'filter.sort' => ['nullable', Rule::in(['bank_asc', 'bank_desc', 'date_asc', 'date_desc'])],
             'history' => ['sometimes', 'array', 'max:1000'],
             'history.*' => ['integer', 'min:1'],
         ];

@@ -37,8 +37,10 @@ function isTyping(target) {
  * the page, the section's other pages, the page's title, then the page itself.
  * Only the top bar stays on screen while scrolling, so tables keep the room.
  * `badges` counts what waits on a page, by its link: { '/payments/summary': 2 }.
+ * `scope` names the branch (or "جميع الفروع") whose figures the page shows;
+ * the bar keeps it beside the page's name once the title has scrolled away.
  */
-export default function AuthenticatedLayout({ header, badges = NO_BADGES, children, beforePrint }) {
+export default function AuthenticatedLayout({ header, badges = NO_BADGES, scope = null, children, beforePrint }) {
     const { props, url } = usePage();
     const { can } = props;
     const { dark, changePreference } = useTheme();
@@ -195,7 +197,7 @@ export default function AuthenticatedLayout({ header, badges = NO_BADGES, childr
             <TopBar
                 groups={groups}
                 badges={badges}
-                where={pastTitle && trail ? { section: trail.group?.shortLabel, page: trail.link.label } : null}
+                where={pastTitle && trail ? { section: trail.group?.shortLabel, page: trail.link.label, scope } : null}
                 drawerOpen={drawerOpen}
                 layerOpen={anyLayerOpen}
                 onOpenPalette={() => onPaletteOpenChange(true)}
