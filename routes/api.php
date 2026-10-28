@@ -13,7 +13,7 @@ use App\Http\Controllers\Mobile\MobileSubscriptionController;
 use App\Http\Controllers\SubscriptionMessageController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('mobile')->name('mobile.')->group(function (): void {
+Route::prefix('mobile')->name('mobile.')->middleware('mobile.supported')->group(function (): void {
     Route::post('/login', [MobileSessionController::class, 'store'])->name('login');
 
     Route::middleware('mobile.auth')->group(function (): void {

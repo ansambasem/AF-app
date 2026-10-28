@@ -7,8 +7,8 @@ import SearchableSelect from '@/Components/SearchableSelect';
  * `blockedMessage` while what it depends on is not chosen ("pick a
  * governorate first"), `emptyMessage` when that has no options at all.
  */
-export default function FormSelect({ id, label, value, onChange, options, placeholder = '— اختر —', blockedMessage = null, emptyMessage = null, required, error, hint, searchable = false }) {
-    const message = blockedMessage ?? (options.length === 0 ? emptyMessage : null);
+export default function FormSelect({ id, label, value, onChange, options, placeholder = '— اختر —', blockedMessage = null, emptyMessage = null, required, error, hint, searchable = false, onCreate = null, createLabel }) {
+    const message = blockedMessage ?? (options.length === 0 && !onCreate ? emptyMessage : null);
 
     return (
         <FormField id={id} label={label} required={required} error={error} hint={hint}>
@@ -21,6 +21,8 @@ export default function FormSelect({ id, label, value, onChange, options, placeh
                 disabled={message !== null}
                 required={required}
                 portal
+                onCreate={onCreate}
+                createLabel={createLabel}
             /> : <select
                 className="block w-full disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
                 value={value}

@@ -20,18 +20,18 @@ import PageHeader from '@/Components/PageHeader';
  */
 export default function Entries({ started, branch, branches, branchScope = null, people, tabs, entries, filters, counts, closableBoxes = null, pendingCount, urls }) {
     const [closingByType, setClosingByType] = useState(false);
-    const extraParams = { branch_id: branch.id };
+    const extraParams = { branch_id: branch?.id ?? '' };
     const table = useDataTable(urls.index, filters, extraParams);
 
     return <AuthenticatedLayout badges={{ '/payments/summary': pendingCount }} scope={branchScope?.name ?? null} header={<PageHeader
-        eyebrow={branchScope ? null : branches.length > 1 ? <select aria-label="الفرع" className="rounded-control border-gray-200 py-1 text-sm" value={branch.id} onChange={(event) => router.get(urls.index, { branch_id: event.target.value })}>{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : branch.name}
+        eyebrow={branchScope ? null : branch?.name}
         title="الصناديق المالية"
         titleAddon={<BoxTabs tabs={tabs} current="entries" />}
         info={started ? 'تعرض هذه الصفحة حركات الصناديق المفتوحة فقط؛ حركات الصناديق المغلقة تجدها داخل كل صندوق في تبويب «الصناديق».' : null}
         actions={started && closableBoxes && <PrimaryButton type="button" onClick={() => setClosingByType(true)} disabled={!closableBoxes.length}><Icon name="lock" className="h-4 w-4" />إغلاق الصناديق حسب النوع{closableBoxes.length > 0 && <span className="rounded-full bg-white/20 px-2 py-0.5 font-display text-xs">{closableBoxes.length}</span>}</PrimaryButton>}
     />}>
         <Head title="الحركات" />
-        {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن حركات صناديق" group={{ options: branches.map((item) => ({ value: String(item.id), label: item.name })) }} value={String(branch.id)} onChange={(value) => value && router.get(urls.index, { branch_id: value })} allowAll={false} />}
+        {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن حركات صناديق" group={{ options: branches.map((item) => ({ value: String(item.id), label: item.name })) }} value={branch ? String(branch.id) : ''} onChange={(value) => router.get(urls.index, { branch_id: value })} />}
         {!started ? <p className="rounded-panel border border-dashed border-gray-200 bg-surface p-6 text-sm leading-7 text-gray-500">تُفتح الصناديق تلقائيًا عند تسجيل أول دفعة أو مقاصة في الفرع.</p> : (
             <OpenEntriesTable table={table} entries={entries} filters={filters} counts={counts} url={urls.index} extraParams={extraParams} people={people} label="حركات الفرع" />
         )}

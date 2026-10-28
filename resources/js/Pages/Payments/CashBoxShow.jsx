@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ExcelButton from '@/Components/ExcelButton';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import KpiTile from '@/Components/KpiTile';
@@ -51,7 +52,7 @@ export default function CashBoxShow({ box, entries, collectionUrls, pendingCount
                     <div className="flex flex-wrap items-center gap-2"><BoxTypeChip type={box.type} /><BoxStage box={box} /></div>
                     <div className="flex flex-wrap items-center gap-2">
                         <a href={printUrl('تقرير تفاصيل الصندوق', `/payments/cash-boxes/report?box=${box.id}`)} target="_blank" rel="noopener noreferrer" className={`${reportButton} tone-print`}><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص / PDF</a>
-                        <a href={box.urls.export} className={`${reportButton} tone-excel`}><Icon name="excel" className="h-4 w-4" />Excel</a>
+                        <ExcelButton title="تقرير تفاصيل الصندوق" base={`/payments/cash-boxes/report?box=${box.id}`} className={reportButton} />
                         {action && <PrimaryButton onClick={() => setShowAction(true)}>{actionLabel(box)}</PrimaryButton>}
                     </div>
                 </div>

@@ -257,6 +257,26 @@ void main() {
   });
 
   testWidgets(
+      'an app the server says to update stops uploading and keeps every reading',
+      (tester) async {
+    final api = ReviewApi()
+      ..errors[1] = const ApiException('حدّث التطبيق إلى آخر نسخة.', 426);
+    final store = await openReview(tester, api);
+    await tester.tap(find.byKey(const ValueKey('upload-all-readings')));
+    await tester.pumpAndSettle();
+    await confirmUpload(tester);
+    expect(api.requests, hasLength(1));
+    expect(store.queuedReadings, hasLength(3));
+    expect(
+        store.queuedReadings.where((reading) =>
+            reading.containsKey('sync_error') ||
+            reading.containsKey('upload_uncertain')),
+        isEmpty);
+    expect(find.textContaining('حدّث التطبيق إلى آخر نسخة.'), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
       'an uncertain upload cannot be edited and retries the same operation without duplicates',
       (tester) async {
     final api = ReviewApi()..timeoutOnce = true;

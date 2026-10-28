@@ -52,7 +52,7 @@ then compare a few counts (`select count(*) from subscriptions`, the latest `clo
 flutter build apk --release --dart-define=API_BASE_URL=https://your-domain
 ```
 
-Raise `version:` in `mobile/pubspec.yaml` for every upload, and put the download link in `MOBILE_APP_URL` so the website can point field accounts to it.
+Raise `version:` in `mobile/pubspec.yaml` for every upload, and put the download link in `MOBILE_APP_URL` so the website can point field accounts to it. Raise `appBuildNumber` in `mobile/lib/api_client.dart` with the build number (a test checks they match). When a release changes what the mobile API sends or expects, set `MOBILE_APP_MIN_BUILD` to its build number: older apps are then told to update (with the `MOBILE_APP_URL` link) instead of failing, and the readings saved on their phones stay there until they do.
 
 ## About Laravel
 

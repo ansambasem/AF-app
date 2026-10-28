@@ -78,7 +78,7 @@ export default function BranchCashBoxes({ branch, branches, branchScope = null, 
     const reviewedBoxes = currentPeriod?.reviewed ?? 0;
     const periodBoxes = currentPeriod?.count ?? 0;
     const shown = inPlace.filter((box) => (!type || box.type === type) && (!person || String(box.user?.id) === person) && (!auditState || Boolean(box.audit) === (auditState === 'reviewed')) && financialBoxMatches(box, search));
-    const navigation = { branch_id: branch.id, place, week, ...(searchingTransfers ? { view: 'transfers' } : {}) };
+    const navigation = { branch_id: branch?.id ?? '', place, week, ...(searchingTransfers ? { view: 'transfers' } : {}) };
     function searchTransfers(values) {
         const visit = ++searchVisit.current;
         router.get(urls.index, { ...navigation, ...values }, {
@@ -108,7 +108,7 @@ export default function BranchCashBoxes({ branch, branches, branchScope = null, 
     }
 
     function perform(kind, record, extra = {}, options = {}) {
-        router.post(`${urls.actions}/${kind}${record ? `/${record.id}` : ''}`, { branch_id: branch.id, ...extra }, { preserveScroll: true, ...options });
+        router.post(`${urls.actions}/${kind}${record ? `/${record.id}` : ''}`, { branch_id: record?.branch_id ?? selectedBox?.branch_id ?? branch?.id, ...extra }, { preserveScroll: true, ...options });
     }
 
     function sortBy(key) {
@@ -117,15 +117,16 @@ export default function BranchCashBoxes({ branch, branches, branchScope = null, 
 
     const summary = Object.keys(boxTypes).map((key) => ({ key, icon: <BoxTypeIcon type={key} className="h-10 w-10" />, label: boxTypes[key], boxes: inPlace.filter((box) => box.type === key), hint: { open: 'صناديق مفتوحة', closed: 'صناديق مغلقة في الفترة' }[place], active: type === key, onClick: () => setType(type === key ? '' : key) }));
 
-    return <AuthenticatedLayout badges={{ '/payments/summary': pendingCount }} scope={branchScope?.name ?? null} header={<PageHeader eyebrow={branchScope ? null : branches.length > 1 ? <select aria-label="الفرع" className="rounded-control border-gray-200 py-1 text-sm" value={branch.id} onChange={(event) => router.get(urls.index, { ...navigation, branch_id: event.target.value })}>{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : branch.name} title="الصناديق المالية" info={started && !searchingTransfers ? placeHints[place] : null} titleAddon={<BoxTabs tabs={tabs} current={place} />} />}>
+    return <AuthenticatedLayout badges={{ '/payments/summary': pendingCount }} scope={branchScope?.name ?? null} header={<PageHeader eyebrow={branchScope ? null : branches.length > 1 ? <select aria-label="الفرع" className="rounded-control border-gray-200 py-1 text-sm" value={branch?.id ?? ''} onChange={(event) => router.get(urls.index, { ...navigation, branch_id: event.target.value })}><option value="">جميع الفروع</option>{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : branch?.name} title="الصناديق المالية" info={started && !searchingTransfers ? placeHints[place] : null} titleAddon={<BoxTabs tabs={tabs} current={place} />} />}>
         <Head title="الصناديق المالية" />
-        {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن صناديق" group={{ options: branches.map((item) => ({ value: String(item.id), label: item.name })) }} value={String(branch.id)} onChange={(value) => value && router.get(urls.index, { ...navigation, branch_id: value })} allowAll={false} />}
+        {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="تعرض الآن صناديق" group={{ options: branches.map((item) => ({ value: String(item.id), label: item.name })) }} value={branch ? String(branch.id) : ''} onChange={(value) => router.get(urls.index, { place, branch_id: value })} />}
+        {!branch && place === 'closed' && <p className="mb-4 text-sm text-gray-500">تعرض الصناديق من آخر فترة متاحة لكل فرع. اختر فرعًا لعرض فتراته الأسبوعية أو اعتماد فترة كاملة.</p>}
         {!started ? <div className="flex flex-wrap items-center justify-between gap-4 rounded-panel border border-dashed border-gray-200 bg-surface p-6 text-sm leading-7 text-gray-500">
             <p>تُفتح الصناديق تلقائيًا عند تسجيل أول دفعة أو مقاصة في الفرع، وتُضاف كل حركة إلى صندوق الموظف حسب نوعها.</p>
         </div> : <div className="financial-boxes financial-surface space-y-5">
             {errors?.action && <p role="alert" className="rounded-control bg-red-500/10 p-4 text-sm text-red-700">{errors.action}</p>}
             {canSearchTransfers && place === 'closed' && <SegmentedTabs label="مساحة التدقيق" value={searchingTransfers ? 'transfers' : 'boxes'} onChange={(value) => router.get(urls.index, { branch_id: branch.id, place: 'closed', week, ...(value === 'transfers' ? { view: 'transfers' } : {}) })} options={[{ value: 'boxes', label: <><Icon name="wallet" className="inline h-4 w-4" /> الصناديق</> }, { value: 'transfers', label: <><Icon name="search" className="inline h-4 w-4" /> البحث عن حوالة</> }]} />}
-            {place === 'closed' && <div className="flex flex-wrap items-end justify-between gap-4 rounded-card border border-gray-100 bg-surface p-4 shadow-card sm:p-5">
+            {branch && place === 'closed' && <div className="flex flex-wrap items-end justify-between gap-4 rounded-card border border-gray-100 bg-surface p-4 shadow-card sm:p-5">
                 <div className="flex min-w-0 flex-1 items-start gap-3"><Icon name="calendar" className="mt-1 h-5 w-5 shrink-0 text-gray-500" /><div className="space-y-2"><h3 className="font-bold text-gray-900">فترة الصناديق المغلقة</h3><p className="text-xs text-gray-500">دُقّق {reviewedBoxes} من {periodBoxes} صندوقًا في الفترة المختارة.</p><StatusPill tone={periodBoxes > 0 && reviewedBoxes === periodBoxes ? 'green' : 'amber'} label={periodBoxes > 0 && reviewedBoxes === periodBoxes ? 'اكتمل تدقيق الفترة' : 'لم يكتمل تدقيق الفترة'} /></div></div>
                 <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto">{(searchingTransfers ? canApprovePeriod && periodBoxes > reviewedBoxes : periodAudit?.boxes > 0) && <PrimaryButton disabled={busy} onClick={reviewPeriod}><Icon name="check" className="h-4 w-4" />{busy ? 'جارٍ تحديث الملخص…' : 'اعتماد الفترة كاملة'}</PrimaryButton>}<div className="w-full sm:w-96"><label htmlFor="closed-box-week" className="mb-1 block text-sm font-medium text-gray-700">الفترة الأسبوعية</label><SearchableSelect id="closed-box-week" value={week} clearable={false} options={periods.map((period) => ({ value: period.start, label: `${periodDate(period.start)} — ${periodDate(period.end)}`, hint: `${period.count} صندوق · ${period.reviewed === period.count ? 'تم التدقيق' : `دُقّق ${period.reviewed}`}` }))} onChange={(value) => router.get(urls.index, { ...navigation, week: value }, { preserveScroll: true })} /></div></div>
             </div>}

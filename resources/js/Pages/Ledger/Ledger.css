@@ -160,6 +160,8 @@
 .ledger-page .ledger-table th button { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
 .ledger-page .ledger-table th button svg { width: 12px; height: 12px; }
 .ledger-page .row td { min-width: 0; padding: 0; border: 0; }
+.ledger-page .row .am { display: inline-block; }
+.ledger-page .row .am, .ledger-page .row .blc { max-width: 100%; overflow-x: auto; vertical-align: top; scrollbar-width: thin; }
 .ledger-page .ledger-table th:nth-last-child(-n+2), .ledger-page .am-c, .ledger-page .bal-c { text-align: left; }
 .ledger-page .day-row { display: block; }
 .ledger-page .day-row > td { display: block; padding: 0; border: 0; }

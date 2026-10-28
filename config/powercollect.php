@@ -161,6 +161,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Oldest Field App Served
+    |--------------------------------------------------------------------------
+    |
+    | The lowest field app build number (the number after "+" in
+    | mobile/pubspec.yaml's version) the mobile API still serves. An older
+    | app is told to update, with the download link above. Raise it when a
+    | release changes what the API sends or expects; unset or 0 serves every
+    | build, including those from before builds were sent.
+    |
+    */
+
+    'mobile_app_min_build' => (int) env('MOBILE_APP_MIN_BUILD', 0),
+
+    /*
+    |--------------------------------------------------------------------------
     | Security Headers
     |--------------------------------------------------------------------------
     |

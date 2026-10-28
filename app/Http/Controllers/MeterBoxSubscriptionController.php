@@ -22,11 +22,19 @@ class MeterBoxSubscriptionController extends Controller
             return redirect()->route('meter-boxes.index');
         }
 
+        $validated = $request->validate([
+            'sort' => ['nullable', 'in:name,account_number'],
+            'direction' => ['nullable', 'in:asc,desc'],
+        ]);
+        $sort = $validated['sort'] ?? 'name';
+        $direction = $validated['direction'] ?? 'asc';
+
         $subscriptions = $meterBox->subscriptions()->visibleTo($actor)
+            ->select('subscriptions.*')
+            ->selectRaw("COALESCE(NULLIF(subscription_name, ''), full_name) AS display_name")
             ->with('circuitBreaker:id,ampere', 'latestMeterReading')
-            ->withSum('transactions as outstanding_balance', 'amount')
-            ->orderBy('account_number')->orderBy('subscriptions.id')
-            ->paginate(15)
+            ->orderBy($sort === 'name' ? 'display_name' : 'account_number', $direction)->orderBy('subscriptions.id')
+            ->paginate(15)->withQueryString()
             ->through(fn (Subscription $subscription): array => [
                 'id' => $subscription->id,
                 'display_name' => $subscription->displayName(),
@@ -35,7 +43,6 @@ class MeterBoxSubscriptionController extends Controller
                 'status' => $subscription->status->value,
                 'statusLabel' => __($subscription->status->label()),
                 'circuitBreakerAmpere' => $subscription->circuitBreaker?->ampere,
-                'outstandingBalance' => number_format((float) ($subscription->outstanding_balance ?? 0), 2, '.', ''),
                 'lastReading' => $subscription->latestMeterReading?->nextPreviousReading() ?? $subscription->initial_reading,
                 'statementUrl' => route('subscriptions.statement', $subscription, absolute: false),
             ]);

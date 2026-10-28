@@ -694,7 +694,7 @@ export default function Index({
 
             <div className="re-table-wrap">
                 {/* While a last reading can be edited, its column keeps the editor's width, so opening it moves nothing. */}
-                <table className={`re-table w-full text-sm text-start ${rows.data.some((row) => row.lastReading?.canEdit || row.initialReading?.canEdit) ? 'has-last-edit' : ''}`} {...printFieldsProps(PRINT_FIELDS)}>
+                <table data-excel-source="custom" className={`re-table w-full text-sm text-start ${rows.data.some((row) => row.lastReading?.canEdit || row.initialReading?.canEdit) ? 'has-last-edit' : ''}`} {...printFieldsProps(PRINT_FIELDS)}>
                     <thead>
                         <tr>
                             <SortableTh column="full_name" label="المشترك" sortState={filters} onSort={sort} className="re-sub" />

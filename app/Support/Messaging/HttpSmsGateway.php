@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
  * provider's own field names, a bearer token, and any fixed fields it
  * needs (an API key, a message type). A reply that isn't 2xx — or, when
  * `success_match` is set, doesn't contain that text — counts as refused.
+ * No connection, a 429 or a 5xx is a temporary refusal, worth trying again.
  */
 class HttpSmsGateway implements SmsGateway
 {
@@ -59,13 +60,16 @@ class HttpSmsGateway implements SmsGateway
                 ? $request->get($this->config['url'], $fields)
                 : $request->asForm()->post($this->config['url'], $fields);
         } catch (ConnectionException $exception) {
-            throw new SmsDeliveryFailed('تعذّر الاتصال ببوابة الرسائل: '.$exception->getMessage(), previous: $exception);
+            throw new SmsDeliveryFailed('تعذّر الاتصال ببوابة الرسائل: '.$exception->getMessage(), isTemporary: true, previous: $exception);
         }
 
         $successMatch = $this->config['success_match'];
 
         if (! $response->successful() || (filled($successMatch) && ! str_contains($response->body(), $successMatch))) {
-            throw new SmsDeliveryFailed('رفضت بوابة الرسائل الإرسال ('.$response->status().'): '.Str::limit($response->body(), 150));
+            throw new SmsDeliveryFailed(
+                'رفضت بوابة الرسائل الإرسال ('.$response->status().'): '.Str::limit($response->body(), 150),
+                isTemporary: $response->tooManyRequests() || $response->serverError(),
+            );
         }
     }
 

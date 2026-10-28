@@ -13,6 +13,7 @@ before(async () => {
         input: 'reading-approval-components', platform: 'node', transform: { jsx: 'react-jsx' },
         resolve: { alias: { '@': path.resolve(import.meta.dirname, '../../resources/js') } },
         plugins: [{ name: 'reading-components', resolveId(id) {
+            if (id === 'exceljs') return { id: import.meta.resolve(id), external: true };
             if (id === 'reading-approval-components') return '\0entry';
             if (/^react(?:-dom)?(?:\/|$)/.test(id) || id === '@inertiajs/react') return { id: import.meta.resolve(id), external: true };
             if (id.endsWith('.css')) return '\0css';

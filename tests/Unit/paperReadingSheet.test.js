@@ -11,6 +11,7 @@ before(async () => {
         input: 'paper-preview-tests', platform: 'node', transform: { jsx: 'react-jsx' },
         resolve: { alias: { '@': path.resolve(import.meta.dirname, '../../resources/js') } },
         plugins: [{ name: 'paper-preview', resolveId(id) {
+            if (id === 'exceljs') return { id: import.meta.resolve(id), external: true };
             if (id === 'paper-preview-tests') return '\0entry';
             if (id === '@inertiajs/react') return '\0inertia';
             if (id.startsWith('file:')) return { id, external: true };
@@ -35,7 +36,7 @@ before(async () => {
         } }],
     });
     try {
-        const { output } = await bundle.generate({ format: 'esm' });
+        const { output } = await bundle.generate({ format: 'esm', codeSplitting: false });
         ({ Paper, Designer, state } = await import(`data:text/javascript;base64,${Buffer.from(output[0].code).toString('base64')}`));
     } finally { await bundle.close(); }
 });

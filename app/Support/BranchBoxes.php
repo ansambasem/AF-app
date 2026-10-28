@@ -47,11 +47,12 @@ class BranchBoxes
      * The people who had boxes in the branch, by name, to narrow its boxes
      * and entries to one of them.
      *
+     * @param  int|list<int>  $branchId
      * @return EloquentCollection<int, User>
      */
-    public function people(int $branchId): EloquentCollection
+    public function people(int|array $branchId): EloquentCollection
     {
-        return User::query()->whereIn('id', CashBox::query()->where('branch_id', $branchId)->whereNotNull('user_id')->select('user_id'))->orderBy('name')->get(['id', 'name']);
+        return User::query()->whereIn('id', CashBox::query()->whereIn('branch_id', (array) $branchId)->whereNotNull('user_id')->select('user_id'))->orderBy('name')->get(['id', 'name']);
     }
 
     /** The two states of a financial box, independent of its historical audit metadata. */
@@ -191,9 +192,10 @@ class BranchBoxes
     /**
      * How many of the branch's boxes are in each place, for the tabs.
      *
+     * @param  int|list<int>  $branchId
      * @return array<string, int>
      */
-    public function counts(int $branchId): array
+    public function counts(int|array $branchId): array
     {
         return collect(self::PLACES)->mapWithKeys(fn (string $place): array => [$place => $this->in($branchId, $place)->count()])->all();
     }
@@ -210,11 +212,12 @@ class BranchBoxes
      * The branch's boxes in one place. An open box shows once it holds an
      * entry; closed boxes retain their original records.
      *
+     * @param  int|list<int>  $branchId
      * @return Builder<CashBox>
      */
-    private function in(int $branchId, string $place): Builder
+    private function in(int|array $branchId, string $place): Builder
     {
-        $boxes = CashBox::query()->where('branch_id', $branchId);
+        $boxes = CashBox::query()->whereIn('branch_id', (array) $branchId);
 
         return match ($place) {
             'open' => $boxes->whereIn('status', ['open', 'pending'])->whereHas('payments', fn (Builder $entries) => $entries->visibleInBox())->latest('id'),

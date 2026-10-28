@@ -9,7 +9,7 @@
     padding: 14px 16px 16px;
     border-top: 0;
     border-radius: 0 0 18px 18px;
-    background: rgb(var(--gray-50));
+    background: rgb(var(--surface));
     text-align: start;
     box-shadow: none;
 }
@@ -18,15 +18,26 @@
     grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.meter-box-table tbody tr.meter-box-region-header td {
+    border-radius: 14px;
+    background: rgb(var(--brand-500) / 0.07);
+    padding: 12px 16px;
+}
+
 .meter-box-subscription-name {
     grid-column: 1;
     grid-row: 1;
 }
 
-.meter-box-subscription-balance {
+.meter-box-subscription-action {
     grid-column: 2;
     grid-row: 1;
     text-align: end;
+}
+
+.meter-box-subscription-status {
+    grid-column: 1;
+    grid-row: 2;
 }
 
 .meter-box-subscription-reading,
@@ -37,7 +48,7 @@
 @container (min-width: 880px) {
     .meter-box-subscription-columns {
         display: grid;
-        grid-template-columns: minmax(180px, 2fr) minmax(70px, 0.8fr) minmax(65px, 0.7fr) minmax(95px, 1fr) minmax(100px, 1fr) 36px;
+        grid-template-columns: minmax(180px, 2fr) minmax(70px, 0.8fr) minmax(65px, 0.7fr) minmax(95px, 1fr) 36px;
     }
 
     .meter-box-subscription-columns > * {
@@ -54,12 +65,14 @@
         display: none;
     }
 
-    .meter-box-subscription-balance {
-        text-align: start;
-    }
 }
 
 @container (max-width: 640px) {
+    .meter-box-table tbody tr.meter-box-region-header,
+    .meter-box-table tbody tr.meter-box-region-header td {
+        display: block;
+    }
+
     .meter-box-table tbody tr.meter-box-expanded {
         border-bottom: 0;
         border-radius: 18px 18px 0 0;
@@ -70,7 +83,7 @@
         margin-top: 0;
         padding: 0;
         border-radius: 0 0 18px 18px;
-        background: rgb(var(--gray-50));
+        background: rgb(var(--surface));
     }
 
     .meter-box-table tbody tr.meter-box-detail td {

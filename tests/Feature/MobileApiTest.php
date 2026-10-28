@@ -224,6 +224,41 @@ class MobileApiTest extends TestCase
             ->getJson(route('mobile.me'))->assertUnauthorized();
     }
 
+    public function test_an_app_older_than_the_minimum_build_is_told_to_update_before_signing_in(): void
+    {
+        config(['powercollect.mobile_app_min_build' => 9, 'powercollect.mobile_app_url' => 'https://example.test/powercollect.apk']);
+        $user = User::factory()->branchAdmin()->create();
+        $credentials = ['username' => $user->username, 'password' => 'password'];
+
+        $this->postJson(route('mobile.login'), $credentials)
+            ->assertStatus(426)
+            ->assertJsonPath('download_url', 'https://example.test/powercollect.apk');
+        $this->withHeader('X-App-Build', '8')->postJson(route('mobile.login'), $credentials)->assertStatus(426);
+        $this->withHeader('X-App-Build', '9abc')->postJson(route('mobile.login'), $credentials)->assertStatus(426);
+
+        $this->withHeader('X-App-Build', '9')->postJson(route('mobile.login'), $credentials)->assertOk();
+        $this->assertDatabaseCount('mobile_access_tokens', 1);
+    }
+
+    public function test_a_signed_in_app_below_the_minimum_build_is_refused_but_can_still_sign_out(): void
+    {
+        config(['powercollect.mobile_app_min_build' => 9]);
+        $user = User::factory()->branchAdmin()->create();
+        $this->withHeaders(['Authorization' => 'Bearer '.MobileAccessToken::issue($user), 'X-App-Build' => '8']);
+
+        $this->getJson(route('mobile.me'))->assertStatus(426);
+        $this->postJson(route('mobile.logout'))->assertOk();
+        $this->assertDatabaseCount('mobile_access_tokens', 0);
+    }
+
+    public function test_every_app_build_is_served_while_no_minimum_build_is_set(): void
+    {
+        $user = User::factory()->branchAdmin()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($user))
+            ->getJson(route('mobile.me'))->assertOk();
+    }
+
     public function test_mobile_roster_is_scoped_to_the_staff_branch(): void
     {
         $branch = Branch::factory()->create();

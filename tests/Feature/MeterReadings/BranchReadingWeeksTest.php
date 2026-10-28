@@ -153,12 +153,15 @@ class BranchReadingWeeksTest extends TestCase
         $this->assertSame(0, MeterReading::count());
     }
 
-    public function test_the_super_admins_sheet_is_held_to_one_branch_when_the_branches_read_on_different_weeks(): void
+    public function test_the_super_admin_sees_every_branch_before_choosing_a_sheet_when_reading_weeks_differ(): void
     {
         $this->actingAs(User::factory()->superAdmin()->create())->get(route('meter-readings.index'))->assertInertia(fn ($page) => $page
-            // Alpha, the first by name, reads on Saturdays.
-            ->where('filters.filter.branch_id', (string) $this->saturdays->id)
-            ->where('week', '2026-09-13'));
+            ->component('MeterReadings/Branches')
+            ->where('branchScope.level', 'all')
+            ->where('branches.0.id', $this->saturdays->id)
+            ->where('branches.0.weekStart', '2026-09-13')
+            ->where('branches.1.id', $this->thursdays->id)
+            ->where('branches.1.weekStart', '2026-09-18'));
 
         $this->get(route('meter-readings.index', ['filter' => ['branch_id' => $this->thursdays->id]]))->assertInertia(fn ($page) => $page
             ->where('filters.filter.branch_id', (string) $this->thursdays->id)

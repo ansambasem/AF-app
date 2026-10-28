@@ -13,7 +13,7 @@ import RowActionsMenu from '@/Components/DataTable/RowActionsMenu';
 import ActionsTh from '@/Components/DataTable/ActionsTh';
 import Pagination from '@/Components/DataTable/Pagination';
 import StatusPill from '@/Components/DataTable/StatusPill';
-import { BankMark } from '@/Pages/Subscriptions/PaymentModal';
+import { BankMark } from '@/Components/Banks';
 
 function BankLogoInput({ id, file, currentLogo, bankName, onChange, disabled, ...props }) {
     const [preview, setPreview] = useState(null);

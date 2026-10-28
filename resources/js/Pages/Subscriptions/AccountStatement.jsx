@@ -6,6 +6,8 @@ import StatusPill from '@/Components/DataTable/StatusPill';
 import Balance from '@/Components/Balance';
 import LatePaymentDetails from '@/Components/LatePaymentDetails';
 import Icon from '@/Components/Icon';
+import ExcelButton from '@/Components/ExcelButton';
+import { statementExcelParts } from '@/lib/detailExcelParts';
 import StatementViewTabs from './StatementViewTabs';
 import { COMPANY_NAME } from '@/Layouts/GuestLayout';
 import {
@@ -14,12 +16,10 @@ import {
     filterStatementEntries,
     netOfReadingDiscount,
     relatedLineChains,
-    statementCsv,
     STATEMENT_SORT_OPTIONS,
     withReadingDiscounts,
 } from '@/lib/accountStatement';
 import { balanceTone } from '@/lib/balance';
-import { downloadCsv } from '@/lib/csv';
 import { formatAmount } from '@/lib/currency';
 import { notify } from '@/lib/notify';
 import SplitPaymentBadge from '@/Pages/Payments/SplitPaymentBadge';
@@ -44,7 +44,7 @@ export const STATEMENT_COLUMNS = [
     'اسم المستخدم',
 ];
 
-const COLUMN_WIDTHS = [4, 4, 6, 18, 9, 8, 14, 5, 4, 7, 6, 3, 6, 6];
+const COLUMN_WIDTHS = [52, 72, 88, 180, 116, 150, 220, 130, 76, 104, 116, 88, 148, 136];
 
 const EMPTY_FILTERS = { search: '', type: '', method: '', dateFrom: '', dateTo: '', sort: '' };
 
@@ -726,10 +726,6 @@ export default function AccountStatement({ subscription, entries, summary, payme
         };
     }, []);
 
-    function exportEntries() {
-        downloadCsv(statementCsv(visibleEntries), `statement-${subscription.accountNumber}.csv`);
-    }
-
     /** The modals work on the line as the server sent it, not as the compact view shows it. */
     function actOn(action, entry) {
         onAction(action, entriesById.get(entry.id) ?? entry);
@@ -743,7 +739,7 @@ export default function AccountStatement({ subscription, entries, summary, payme
         .join(' · ');
 
     return (
-        <div className={printOptions ? 'statement-print-source' : 'account-statement'}>
+        <div data-excel-source="custom" className={printOptions ? 'statement-print-source' : 'account-statement'}>
             {!printOptions && <PrintHeading subscription={subscription} caption={printCaption} />}
             {printOptions && <p className="data-table-totals">
                 ملخص الحساب الكامل: الرصيد {formatAmount(summary.balance)} شيكل · التحميلات {formatAmount(summary.charged)} شيكل · التسديدات {formatAmount(summary.paid)} شيكل · الخصومات {formatAmount(summary.discounted)} شيكل · المقاصات {formatAmount(summary.cleared)} شيكل.
@@ -786,16 +782,7 @@ export default function AccountStatement({ subscription, entries, summary, payme
                         <div className="me-auto">
                             <StatementViewTabs value={view} onChange={chooseView} />
                         </div>
-                        <button
-                            type="button"
-                            onClick={exportEntries}
-                            disabled={visibleEntries.length === 0}
-                            title="تنزيل الحركات المعروضة بصيغة CSV المتوافقة مع Excel"
-                            className={`${TOOL_BUTTON} tone-excel`}
-                        >
-                            <Icon name="excel" className="h-4 w-4" />
-                            تصدير Excel
-                        </button>
+                        <ExcelButton title={`كشف حساب ${subscription.fullName}`} storageKey="statements" templateKind="statements" disabled={!visibleEntries.length} className={TOOL_BUTTON} loadParts={async () => statementExcelParts(rows.flatMap((entry) => [entry, ...(openHistories.has(entry.id) ? entry.history ?? [] : [])]), summary)} meta={{ lines: [`رقم الحساب: ${subscription.accountNumber}`, subscription.branchName, printCaption].filter(Boolean), criteria: [['المشترك', subscription.fullName], ['رقم الحساب', subscription.accountNumber], ['التصفية', printCaption || 'كل الحركات ضمن العرض المختار']] }} />
                         {subscription.canPrint !== false && <button
                             type="button"
                             onClick={() => window.open(statementPrintUrl(subscription.id, { view, filters, openHistories }), '_blank', 'noopener')}
@@ -866,10 +853,10 @@ export default function AccountStatement({ subscription, entries, summary, payme
                 </div>
 
                 <div className="data-table-container">
-                    <table className="data-table data-table-ledger w-full text-start text-sm">
+                    <table className="data-table data-table-ledger w-full text-start text-sm" style={{ '--statement-table-width': `${COLUMN_WIDTHS.reduce((total, width) => total + width, hasLineMenus ? 64 : 0)}px` }}>
                         <colgroup>
-                            {COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width: `${width * (hasLineMenus ? 0.955 : 1)}%` }} />)}
-                            {hasLineMenus && <col className="statement-screen-only" style={{ width: '4.5%' }} />}
+                            {COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width: `${width}px` }} />)}
+                            {hasLineMenus && <col className="statement-screen-only" style={{ width: '64px' }} />}
                         </colgroup>
                         <thead>
                             <tr>

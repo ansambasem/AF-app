@@ -6,7 +6,6 @@ import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
 import DataTableFilterMenu from '@/Components/DataTable/DataTableFilterMenu';
 import AreaChip from '@/Components/DataTable/AreaChip';
-import FarBehindMark from '@/Components/DataTable/FarBehindMark';
 import MeterBoxCell from '@/Components/DataTable/MeterBoxCell';
 import SortableTh from '@/Components/DataTable/SortableTh';
 import TariffTag from '@/Components/DataTable/TariffTag';
@@ -70,7 +69,7 @@ function statementHeader(subscription) {
 /** The details printing can show as columns of their own (see printFieldsProps). */
 const PRINT_FIELDS = [
     { key: 'display_name', label: 'اسم المشترك' },
-    { key: 'contact_phone', label: 'رقم الجوال' },
+    { key: 'contact_phone', label: 'رقم الهاتف', default: true, after: 'اسم الاشتراك' },
     { key: 'account_number', label: 'رقم الاشتراك' },
     { key: 'subscriber_number', label: 'رقم المشترك' },
     { key: 'meterBoxName', label: 'اسم الطبلون' },
@@ -472,7 +471,7 @@ export default function Index({
                                             </span>
                                         )}
                                     </td>
-                                    <td>
+                                    <td data-print-value={subscription.display_name}>
                                         <RowIdentity
                                             name={subscription.display_name}
                                             onNameClick={() =>
@@ -499,7 +498,6 @@ export default function Index({
                                     <td className="whitespace-nowrap text-gray-600">{formatCurrency(subscription.weeklyMinimumPayment)}</td>
                                     <td className="whitespace-nowrap font-semibold">
                                         <Balance value={subscription.outstandingBalance} chip />
-                                        {isFarBehind(subscription.outstandingBalance, subscription.weeklyMinimumPayment) && <FarBehindMark />}
                                     </td>
                                     <td>
                                         <StatusPill tone={STATUS_TONES[subscription.status]} label={subscription.statusLabel} />

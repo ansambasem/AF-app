@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import TextInput from '@/Components/TextInput';
 
-export default function PasswordInput({ className = '', toggleTabIndex = -1, ...props }) {
+/**
+ * A password field with a button that shows or hides it. The button and the
+ * room kept for it sit at the end of the field's own direction, so text typed
+ * in a left-to-right field never runs under it. A masked password's direction
+ * can't be told from its dots, so `dir="auto"` keeps the page's direction.
+ */
+export default function PasswordInput({ className = '', toggleTabIndex = -1, dir, ...props }) {
     const [visible, setVisible] = useState(false);
+    const direction = dir === 'ltr' || dir === 'rtl' ? dir : undefined;
 
     return (
-        <div className="relative">
-            <TextInput {...props} type={visible ? 'text' : 'password'} className={`pe-10 ${className}`} />
+        <div className="relative" dir={direction}>
+            <TextInput {...props} dir={direction} type={visible ? 'text' : 'password'} className={`pe-10 ${className}`} />
             <button
                 type="button"
                 tabIndex={toggleTabIndex}

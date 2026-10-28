@@ -40,7 +40,14 @@ class ReadingPrintData
             $data[] = self::row($cells, $fields, $values);
         }
 
-        return self::report($labels, $fields, $data, $context, $rows->total());
+        return [
+            ...self::report($labels, $fields, $data, $context, $rows->total()),
+            'pagination' => [
+                'current_page' => $rows->currentPage(),
+                'total' => $rows->total(),
+                'next_page_url' => $rows->nextPageUrl(),
+            ],
+        ];
     }
 
     /** @param list<array<string, mixed>> $boxes

@@ -16,39 +16,106 @@ class UserTypeTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_user_type_chips_count_all_visible_accounts_independently_of_the_users_search(): void
+    {
+        $actor = User::factory()->superAdmin()->create();
+        $unused = UserType::factory()->create(['name' => 'أمين']);
+        $used = UserType::factory()->create(['name' => 'محصل']);
+        User::factory()->count(2)->for($used, 'userType')->create();
+
+        $this->actingAs($actor)->get(route('users.index', ['search' => 'لا توجد نتيجة بهذا الاسم']))->assertInertia(fn ($page) => $page
+            ->where('users.total', 0)->has('userTypeItems', 2)
+            ->where('userTypeItems.0.id', $unused->id)->where('userTypeItems.0.count', 0)
+            ->where('userTypeItems.0.canUpdate', true)->where('userTypeItems.0.canDelete', true)
+            ->where('userTypeItems.1.id', $used->id)->where('userTypeItems.1.count', 2)
+            ->where('userTypeItems.1.canUpdate', true)->where('userTypeItems.1.canDelete', false));
+    }
+
+    public function test_user_type_chips_keep_other_branches_account_counts_private_and_protect_used_types(): void
+    {
+        $actor = User::factory()->collector()->withPermissions([PermissionKey::ViewUsers, PermissionKey::ViewUserTypes, PermissionKey::UpdateUserTypes, PermissionKey::DeleteUserTypes])->create();
+        $local = UserType::factory()->create(['name' => 'أمين']);
+        $foreign = UserType::factory()->create(['name' => 'محصل']);
+        User::factory()->for($local, 'userType')->create(['branch_id' => $actor->branch_id]);
+        User::factory()->for($foreign, 'userType')->create();
+
+        $this->actingAs($actor)->get(route('users.index'))->assertInertia(fn ($page) => $page
+            ->where('userTypeItems.0.id', $local->id)->where('userTypeItems.0.count', 1)
+            ->where('userTypeItems.1.id', $foreign->id)->where('userTypeItems.1.count', 0)
+            ->where('userTypeItems.1.canUpdate', true)->where('userTypeItems.1.canDelete', false));
+    }
+
+    public function test_read_only_type_access_has_no_chip_management_actions(): void
+    {
+        $actor = User::factory()->collector()->withPermissions([PermissionKey::ViewUsers, PermissionKey::ViewUserTypes])->create();
+        UserType::factory()->create();
+
+        $this->actingAs($actor)->get(route('users.index'))->assertInertia(fn ($page) => $page
+            ->where('canCreateUserType', false)->has('userTypeItems', 1)
+            ->where('userTypeItems.0.canUpdate', false)->where('userTypeItems.0.canDelete', false));
+    }
+
     public function test_a_guest_cannot_open_type_management(): void
     {
         $this->get(route('user-types.index'))->assertRedirect(route('login'));
     }
 
-    public function test_an_administrator_adds_a_type_and_returns_to_the_types_tab_on_the_users_page(): void
+    public function test_an_administrator_adds_a_type_and_returns_to_the_normal_users_page(): void
     {
         $actor = User::factory()->superAdmin()->create();
-        $collectorType = UserType::factory()->create(['name' => 'محصل']);
-        User::factory()->for($collectorType, 'userType')->count(2)->create();
+        UserType::factory()->create(['name' => 'محصل']);
 
         $this->actingAs($actor)->post(route('user-types.store'), ['name' => 'فني صيانة'])
             ->assertSessionHasNoErrors()->assertSessionHas('status', 'user-type-created')
-            ->assertRedirect(route('users.index', ['tab' => 'types']));
+            ->assertRedirect(route('users.index'));
 
         $this->assertDatabaseHas('user_types', ['name' => 'فني صيانة']);
         $this->assertSame(['action' => 'user-type-created', 'subject' => 'فني صيانة'], $actor->notifications()->sole()->data);
         $this->get(route('users.index', ['tab' => 'types']))
             ->assertInertia(fn ($page) => $page->component('Users/Index')
-                ->where('tab', 'types')
                 ->where('canCreateUserType', true)
-                ->has('userTypes', 2)
-                ->where('userTypes.0.name', 'فني صيانة')
-                ->where('userTypes.0.usersCount', 0)
-                ->where('userTypes.1.name', 'محصل')
-                ->where('userTypes.1.usersCount', 2));
+                ->missing('tab')->missing('userTypes')
+                ->has('userTypeOptions', 2)
+                ->where('userTypeOptions.0.label', 'فني صيانة')
+                ->where('userTypeOptions.1.label', 'محصل'));
     }
 
-    public function test_the_old_types_page_opens_the_types_tab(): void
+    public function test_the_old_types_page_opens_the_users_page(): void
     {
         $this->actingAs(User::factory()->superAdmin()->create())
             ->get(route('user-types.index'))
-            ->assertRedirect(route('users.index', ['tab' => 'types']));
+            ->assertRedirect(route('users.index'));
+    }
+
+    public function test_inline_type_creation_returns_a_selected_option_and_keeps_user_creation_permissions_separate(): void
+    {
+        $actor = User::factory()->superAdmin()->create();
+        $response = $this->actingAs($actor)->postJson(route('user-types.store'), ['name' => 'فني صيانة'])
+            ->assertCreated()->assertJsonStructure(['id', 'name'])->assertJsonPath('name', 'فني صيانة');
+        $this->assertDatabaseHas('user_types', ['id' => $response->json('id'), 'name' => 'فني صيانة']);
+        $this->assertSame(['action' => 'user-type-created', 'subject' => 'فني صيانة'], $actor->notifications()->sole()->data);
+        $this->get(route('users.create'))->assertInertia(fn ($page) => $page
+            ->where('canCreateUserType', true)->where('userTypeOptions.0.value', $response->json('id')));
+        $this->postJson(route('user-types.store'), ['name' => 'فني صيانة'])->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->postJson(route('user-types.store'), ['name' => ''])->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->assertDatabaseCount('user_types', 1);
+    }
+
+    public function test_branch_user_forms_offer_existing_types_but_keep_shared_type_creation_on_the_central_domain(): void
+    {
+        config(['app.url' => 'https://admin.company.test', 'powercollect.branch_domains_enabled' => true]);
+        Branch::factory()->create(['domain' => 'branch.company.test', 'domain_enabled' => true]);
+        $type = UserType::factory()->create();
+        $actor = User::factory()->superAdmin()->create();
+
+        $this->actingAs($actor)->get('https://branch.company.test/users/create')->assertInertia(fn ($page) => $page
+            ->where('canCreateUserType', false)->where('userTypeOptions.0.value', $type->id));
+        $this->get('https://branch.company.test/users')->assertInertia(fn ($page) => $page
+            ->where('userTypeItems.0.canUpdate', false)->where('userTypeItems.0.canDelete', false));
+        $this->postJson('https://branch.company.test/user-types', ['name' => 'مسمى مشترك'])->assertForbidden();
+        $this->assertDatabaseMissing('user_types', ['name' => 'مسمى مشترك']);
+        $this->get('https://admin.company.test/users/create')->assertInertia(fn ($page) => $page
+            ->where('canCreateUserType', true)->where('userTypeOptions.0.value', $type->id));
     }
 
     public function test_the_users_page_has_no_types_tab_without_the_permission(): void
@@ -59,7 +126,9 @@ class UserTypeTest extends TestCase
 
         $this->actingAs($actor)->get(route('users.index', ['tab' => 'types']))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('tab', 'users')->where('userTypes', null)->where('canCreateUserType', false));
+            ->assertInertia(fn ($page) => $page->missing('tab')->missing('userTypes')->where('canCreateUserType', false)->where('userTypeItems', null));
+        $this->postJson(route('user-types.store'), ['name' => 'غير مسموح'])->assertForbidden();
+        $this->assertDatabaseMissing('user_types', ['name' => 'غير مسموح']);
     }
 
     #[TestWith(['', 'حقل اسم نوع المستخدم مطلوب.'])]
@@ -97,7 +166,7 @@ class UserTypeTest extends TestCase
 
         $this->actingAs($actor)->put(route('user-types.update', $type), ['name' => 'فني كهرباء'])
             ->assertSessionHasNoErrors()->assertSessionHas('status', 'user-type-updated')
-            ->assertRedirect(route('users.index', ['tab' => 'types']));
+            ->assertRedirect(route('users.index'));
 
         $this->assertDatabaseHas('user_types', ['id' => $type->id, 'name' => 'فني كهرباء']);
         $this->assertSame('فني كهرباء', $employee->fresh()->userType->name);

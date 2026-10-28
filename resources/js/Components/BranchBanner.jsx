@@ -133,7 +133,7 @@ export function BranchFilterBanner({ scope, eyebrow, group, value, onChange, all
                             value={value ?? ''}
                             onChange={onChange}
                             options={group.options}
-                            placeholder={allowAll ? scope.allName : scope.name}
+                            placeholder={allowAll ? (scope.allName ?? 'جميع الفروع') : scope.name}
                             searchPlaceholder="ابحث عن فرع..."
                             active={allowAll && Boolean(value)}
                             clearable={allowAll}

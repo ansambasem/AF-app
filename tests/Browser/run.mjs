@@ -7,8 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const suite = process.argv[2] === '--print' ? 'print-templates.cjs' : process.argv[2] === '--distribution' ? 'reading-distribution.cjs' : process.argv[2] === '--readings' ? 'weekly-readings.cjs' : 'company-workflow.cjs';
-if (process.argv.slice(2).some((argument) => !['--print', '--distribution', '--readings'].includes(argument)) || process.argv.length > 3) throw new Error('Usage: node tests/Browser/run.mjs [--print|--distribution|--readings]');
+const suite = process.argv[2] === '--print' ? 'print-templates.cjs' : process.argv[2] === '--distribution' ? 'reading-distribution.cjs' : process.argv[2] === '--readings' ? 'weekly-readings.cjs' : process.argv[2] === '--branches' ? 'branch-defaults.cjs' : process.argv[2] === '--meter-boxes' ? 'meter-boxes.cjs' : 'company-workflow.cjs';
+if (process.argv.slice(2).some((argument) => !['--print', '--distribution', '--readings', '--branches', '--meter-boxes'].includes(argument)) || process.argv.length > 3) throw new Error('Usage: node tests/Browser/run.mjs [--print|--distribution|--readings|--branches|--meter-boxes]');
 const work = mkdtempSync(path.join(tmpdir(), 'powercollect-browser-'));
 const output = path.join(root, 'storage/logs/browser-tests', path.basename(work));
 mkdirSync(output, { recursive: true });
@@ -78,6 +78,12 @@ try {
         'App\\Models\\User::factory()->superAdmin()->create(["name" => "مالك الشركة", "username" => "owner", "password" => "Strong-Pass-2026"]);']);
     if (suite === 'reading-distribution.cjs') {
         await run('php', ['artisan', 'tinker', '--no-interaction', '--execute', 'require base_path("tests/Browser/reading-distribution-fixture.php");']);
+    }
+    if (suite === 'branch-defaults.cjs') {
+        await run('php', ['artisan', 'tinker', '--no-interaction', '--execute', 'require base_path("tests/Browser/branch-defaults-fixture.php");']);
+    }
+    if (suite === 'meter-boxes.cjs') {
+        await run('php', ['artisan', 'tinker', '--no-interaction', '--execute', 'require base_path("tests/Browser/meter-boxes-fixture.php");']);
     }
     if (suite === 'weekly-readings.cjs') {
         await run('php', ['artisan', 'tinker', '--no-interaction', '--execute', 'require base_path("tests/Browser/weekly-readings-fixture.php");']);

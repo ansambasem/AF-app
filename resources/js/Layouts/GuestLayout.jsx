@@ -1,4 +1,4 @@
-import { usePage } from '@inertiajs/react';
+import AnimatedLogo from '@/Components/AnimatedLogo';
 import Icon from '@/Components/Icon';
 import ThemeToggle from '@/Components/ThemeToggle';
 import AppFooter from '@/Components/AppFooter';
@@ -18,15 +18,13 @@ const FEATURES = [
  * form shows, with the logo above it.
  */
 export default function GuestLayout({ children }) {
-    const { appName } = usePage().props;
-
     return (
         <div className="grid min-h-screen bg-gray-50 text-gray-900 lg:grid-cols-2">
             <div className="login-form-panel relative flex flex-col px-6 py-8 sm:px-12">
                 <ThemeToggle className="absolute end-6 top-6 sm:end-8 sm:top-8" />
 
                 <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10 sm:py-12">
-                    <img src="/images/logo-af.webp" alt={appName} className="mx-auto mb-10 h-24 w-auto lg:hidden" />
+                    <AnimatedLogo className="af-logo--form" />
                     {children}
                 </div>
 
@@ -34,21 +32,12 @@ export default function GuestLayout({ children }) {
             </div>
 
             <div className="login-brand-panel relative hidden flex-col items-center justify-center overflow-hidden border-s border-gray-100 px-10 py-12 text-center lg:flex">
-                <span className="absolute top-12 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-surface/70 px-3 py-1 text-xs font-semibold text-gray-700 backdrop-blur">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden="true" />
-                    {appName}
-                </span>
-
                 <div className="relative">
                     <div
                         className="animate-glow-breathe absolute -start-6 top-1/2 h-56 w-56 -translate-y-1/2 rounded-full bg-brand-500/25 blur-3xl"
                         aria-hidden="true"
                     />
-                    <img
-                        src="/images/logo-af.webp"
-                        alt={appName}
-                        className="animate-logo-float relative h-48 w-auto drop-shadow-[0_18px_30px_rgba(16,24,40,0.35)]"
-                    />
+                    <AnimatedLogo className="af-logo--brand" />
                 </div>
 
                 <p className="mt-8 text-xl font-bold text-gray-900">{COMPANY_NAME}</p>

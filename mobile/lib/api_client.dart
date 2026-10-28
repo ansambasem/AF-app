@@ -11,6 +11,11 @@ const apiBaseUrl = String.fromEnvironment('API_BASE_URL',
     defaultValue:
         bool.fromEnvironment('dart.vm.product') ? '' : 'http://10.0.2.2:8000');
 
+/// This app's build number, the number after "+" in pubspec.yaml's version
+/// (raise both together). Every request sends it as X-App-Build, so the
+/// server can tell an app older than MOBILE_APP_MIN_BUILD to update (426).
+const appBuildNumber = 8;
+
 class ApiException implements Exception {
   const ApiException(this.message, this.statusCode, {this.errors = const {}});
   final String message;
@@ -184,6 +189,7 @@ class ApiClient {
           .timeout(const Duration(seconds: 12));
       request.followRedirects = false;
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      request.headers.set('X-App-Build', '$appBuildNumber');
       if (requestToken != null)
         request.headers
             .set(HttpHeaders.authorizationHeader, 'Bearer $requestToken');

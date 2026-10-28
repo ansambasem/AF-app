@@ -14,6 +14,7 @@ before(async () => {
         input: 'print-customization-tests', platform: 'node', transform: { jsx: 'react-jsx' },
         resolve: { alias: { '@': path.resolve(import.meta.dirname, '../../resources/js') } },
         plugins: [{ name: 'print-test-boundaries', resolveId(id) {
+            if (id === 'exceljs') return { id: import.meta.resolve(id), external: true };
             if (id === 'print-customization-tests') return '\0entry';
             if (id === '@inertiajs/react') return '\0inertia';
             if (id === 'react/jsx-runtime') return '\0jsx';

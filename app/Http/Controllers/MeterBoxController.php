@@ -17,7 +17,9 @@ use App\Models\SubArea;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
+use App\Support\BranchDomainContext;
 use App\Support\BranchScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -29,7 +31,7 @@ class MeterBoxController extends Controller
 {
     use DeletesRecords, FiltersDataTable;
 
-    private const SORTABLE = ['name', 'box_number', 'created_at', 'subscriptions_count', 'debt'];
+    private const SORTABLE = ['name', 'box_number', 'created_at', 'subscriptions_count'];
 
     /**
      * Display a listing of the resource.
@@ -41,14 +43,12 @@ class MeterBoxController extends Controller
         $actor = auth()->user();
 
         $canViewSubscriptions = $actor->can('viewAny', Subscription::class);
-        $balances = Subscription::query()->visibleTo($actor)
-            ->select(['subscriptions.id', 'meter_box_id', 'status'])
-            ->withSum('transactions as outstanding_balance', 'amount');
-        $totals = DB::query()->fromSub($balances, 'subscription_balances')
+        $subscriptions = Subscription::query()->visibleTo($actor)
+            ->select(['subscriptions.id', 'meter_box_id', 'status']);
+        $totals = DB::query()->fromSub($subscriptions, 'visible_subscriptions')
             ->select('meter_box_id')
             ->selectRaw('COUNT(*) AS subscriptions_count')
             ->selectRaw('SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS active_subscriptions_count', [SubscriptionStatus::Active->value])
-            ->selectRaw('SUM(CASE WHEN outstanding_balance > 0 THEN outstanding_balance ELSE 0 END) AS debt')
             ->groupBy('meter_box_id');
 
         $query = MeterBox::query()->visibleTo($actor)
@@ -56,18 +56,31 @@ class MeterBoxController extends Controller
             ->select('meter_boxes.*')
             ->selectRaw('COALESCE(subscription_totals.subscriptions_count, 0) AS subscriptions_count')
             ->selectRaw('COALESCE(subscription_totals.active_subscriptions_count, 0) AS active_subscriptions_count')
-            ->selectRaw('COALESCE(subscription_totals.debt, 0) AS debt')
             ->with('branch.governorate', 'branch.area', 'subArea');
         $query->matchingLabel($this->searchTerm($request));
-        $sortable = $canViewSubscriptions ? self::SORTABLE : array_diff(self::SORTABLE, ['debt']);
-        $this->applyDataTableFilters($query, $request, [], $sortable, 'box_number');
+        $this->applyDataTableFilters($query, $request, [], self::SORTABLE, 'box_number');
+        if ($request->input('sort') === 'name') {
+            $query->orderBy('name_suffix', $this->sortDirection($request));
+        }
+        $query->orderBy('meter_boxes.id');
         $this->applyDataTableFilterSelects($query, $request, ['branch_id', 'sub_area_id']);
+        $name = $request->input('filter.meter_box_name');
+        if (is_string($name) && $name !== '') {
+            $query->where('meter_boxes.name', $name);
+        }
+        $boxId = $request->input('filter.meter_box_id');
+        if (filled($boxId)) {
+            $query->where('meter_boxes.id', $boxId);
+        }
+
+        $branchId = BranchDomainContext::id() ?? ($actor->isSuperAdmin() ? $request->input('filter.branch_id') : $actor->workBranchId());
+        $selectedBranch = filled($branchId) ? Branch::query()->find((int) $branchId, ['id', 'area_id']) : null;
 
         $summary = DB::query()->fromSub((clone $query)->reorder(), 'matching_boxes')
             ->selectRaw('COUNT(*) AS total, COALESCE(SUM(subscriptions_count), 0) AS subscriptions')
             ->selectRaw('COALESCE(SUM(active_subscriptions_count), 0) AS active')
-            ->selectRaw('COALESCE(SUM(debt), 0) AS debt')
             ->selectRaw('COALESCE(SUM(CASE WHEN subscriptions_count = 0 THEN 1 ELSE 0 END), 0) AS empty_boxes')
+            ->selectRaw('COUNT(DISTINCT sub_area_id) AS regions, COALESCE(SUM(CASE WHEN sub_area_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS located_boxes')
             ->first();
 
         $meterBoxes = $query->paginate($this->dataTablePerPage($request))
@@ -80,7 +93,6 @@ class MeterBoxController extends Controller
                 'subAreaName' => $meterBox->subArea?->name,
                 'subscriptionsCount' => (int) $meterBox->subscriptions_count,
                 'activeSubscriptionsCount' => (int) $meterBox->active_subscriptions_count,
-                'debt' => $canViewSubscriptions ? number_format((float) $meterBox->debt, 2, '.', '') : null,
                 'canUpdate' => $actor->can('update', $meterBox),
                 'canDelete' => $actor->can('delete', $meterBox),
             ]);
@@ -96,10 +108,12 @@ class MeterBoxController extends Controller
                 'subscriptions' => (int) $summary->subscriptions,
                 'active' => (int) $summary->active,
                 'empty' => (int) $summary->empty_boxes,
-                'debt' => $canViewSubscriptions ? number_format((float) $summary->debt, 2, '.', '') : null,
+                'regions' => (int) $summary->regions,
+                'located' => (int) $summary->located_boxes,
             ],
             'filters' => $this->dataTableState($request, 'box_number'),
-            'filterOptions' => $this->filterOptions($actor),
+            'filterOptions' => $this->filterOptions($actor, $request, $selectedBranch),
+            'selectedBranch' => $selectedBranch?->only(['id', 'area_id']),
             // The Super Admin reads, large above the list, which branch's boxes it holds.
             'branchScope' => fn () => BranchScope::shownTo($actor) ? BranchScope::forFilter($actor, $request->input('filter.branch_id')) : null,
             ...$this->formOptions(),
@@ -196,7 +210,7 @@ class MeterBoxController extends Controller
      * don't need any of this — except their own branch's area, so the
      * sub-area picker can still be scoped to it.
      *
-     * @return array{branches: Collection, canChooseBranch: bool, governorates: Collection, areas: Collection, subAreas: Collection, currentBranchAreaId: ?int}
+     * @return array{branches: Collection, canChooseBranch: bool, canCreateSubArea: bool, governorates: Collection, areas: Collection, subAreas: Collection, currentBranchAreaId: ?int}
      */
     private function formOptions(): array
     {
@@ -206,6 +220,7 @@ class MeterBoxController extends Controller
         return [
             'branches' => $canChooseBranch ? Branch::with(['governorate', 'area'])->orderBy('name')->get() : collect(),
             'canChooseBranch' => $canChooseBranch,
+            'canCreateSubArea' => $actor->can('create', SubArea::class),
             'governorates' => $canChooseBranch ? Governorate::orderBy('name')->get() : collect(),
             'areas' => $canChooseBranch ? Area::orderBy('name')->get() : collect(),
             'subAreas' => SubArea::orderBy('name')->get(),
@@ -220,10 +235,13 @@ class MeterBoxController extends Controller
      *
      * @return array<int, array{key: string, label: string, options: array<int, array{value: string, label: string}>}>
      */
-    private function filterOptions(User $actor): array
+    private function filterOptions(User $actor, Request $request, ?Branch $selectedBranch = null): array
     {
         $groups = [
-            $this->subAreaFilterGroup(SubArea::visibleTo($actor)->orderBy('name')->get()),
+            $this->subAreaFilterGroup(SubArea::visibleTo($actor)
+                ->when($selectedBranch, fn (Builder $query): Builder => $query->where('area_id', $selectedBranch->area_id))
+                ->orderBy('name')->get()),
+            ...$this->meterBoxFilterGroupsFor($actor, $request, $actor->isSuperAdmin() ? fn (MeterBox $box): string => $box->branch->name : null),
         ];
 
         if ($actor->isSuperAdmin()) {

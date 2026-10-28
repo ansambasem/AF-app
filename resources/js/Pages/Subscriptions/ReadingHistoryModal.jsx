@@ -4,9 +4,10 @@ import ConfirmDialog from '@/Components/ConfirmDialog';
 import LastReadingConfirmDialog from '@/Components/LastReadingConfirmDialog';
 import Icon from '@/Components/Icon';
 import Modal from '@/Components/Modal';
-import { downloadCsv } from '@/lib/csv';
+import ExcelButton from '@/Components/ExcelButton';
+import { readingHistoryExcelParts } from '@/lib/detailExcelParts';
 import { formatMoney, formatNumber } from '@/lib/format';
-import { groupReadingsByMonth, readingHistoryCsv, readingTotals, readingsInPeriod } from '@/lib/readingHistory';
+import { groupReadingsByMonth, readingTotals, readingsInPeriod } from '@/lib/readingHistory';
 import { consumptionBetween, steppedReading, weeklyCharges } from '@/lib/readings';
 import { useLastReadingEdit } from '@/hooks/useLastReadingEdit';
 import ReadingPricingField from './ReadingPricingField';
@@ -316,13 +317,9 @@ export default function ReadingHistoryModal({ subscription, onClose, readingWeek
     const readingAfterLast = lastReadingIndex > 0 ? allReadings[lastReadingIndex - 1] : null;
     const liveRowShown = newLine || (editableId !== null && visibleReadings.some((reading) => reading.id === editableId));
 
-    function exportReadings() {
-        downloadCsv(readingHistoryCsv(visibleReadings), `readings-${subscription.account_number}.csv`);
-    }
-
     return (
         <Modal show={Boolean(subscription)} onClose={onClose} maxWidth="full" panelClassName="!my-0">
-            {subscription && <div className="reading-history" role="dialog" aria-modal="true" aria-labelledby={titleId} dir="rtl">
+            {subscription && <div data-excel-source="custom" className="reading-history" role="dialog" aria-modal="true" aria-labelledby={titleId} dir="rtl">
                 <header className="rh-header">
                     <img className="rh-print-logo" src="/images/logo-af.webp" alt="AF PowerCollect" />
                     <span className="rh-gauge"><Icon name="gauge" className="h-[23px] w-[23px]" /></span>
@@ -336,7 +333,7 @@ export default function ReadingHistoryModal({ subscription, onClose, readingWeek
                         </div>
                     </div>
                     <div className="rh-actions">
-                        <button type="button" className="tone-excel tone-on-dark" onClick={exportReadings} disabled={!visibleReadings.length} title="تصدير القراءات المعروضة بصيغة CSV المتوافقة مع Excel"><Icon name="excel" />تصدير Excel</button>
+                        <ExcelButton title={`سجل قراءات ${subscription.display_name}`} storageKey="reading-history" templateKind="reading-history" className="tone-on-dark" disabled={!visibleReadings.length} loadParts={async () => readingHistoryExcelParts(visibleReadings)} meta={{ lines: [`رقم الحساب: ${subscription.account_number}`, subscription.branchName].filter(Boolean), criteria: [['الفترة', PERIODS.find(([value]) => value === period)[1]], ['الحالة', STATUSES.find(([value]) => value === status)[1]]] }} />
                         <button type="button" className="tone-print tone-on-dark" onClick={() => window.print()} disabled={!visibleReadings.length}><Icon name="printer" />طباعة</button>
                         <button type="button" className="rh-close" onClick={onClose} aria-label="إغلاق"><Icon name="close" /></button>
                     </div>

@@ -51,6 +51,53 @@ class SubAreaAuthorizationTest extends TestCase
         $this->assertDatabaseHas('sub_areas', ['name' => 'Downtown North', 'area_id' => null]);
     }
 
+    public function test_inline_creation_returns_the_saved_option_without_redirecting_the_meter_box_form(): void
+    {
+        $owner = User::factory()->superAdmin()->create();
+        $area = Area::factory()->create();
+
+        $response = $this->actingAs($owner)->postJson(route('sub-areas.store'), [
+            'name' => 'حي جديد', 'area_id' => $area->id,
+        ])->assertCreated()->assertJsonStructure(['id', 'name', 'area_id'])
+            ->assertJsonPath('name', 'حي جديد')->assertJsonPath('area_id', $area->id);
+
+        $this->assertDatabaseHas('sub_areas', ['id' => $response->json('id'), 'name' => 'حي جديد', 'area_id' => $area->id]);
+    }
+
+    public function test_inline_creation_validates_names_and_the_branch_area(): void
+    {
+        $area = Area::factory()->create();
+        $branchAdmin = User::factory()->branchAdmin()->for(Branch::factory()->inArea($area))->create();
+        $otherArea = Area::factory()->create();
+        SubArea::factory()->for($area)->create(['name' => 'حي موجود']);
+
+        $this->actingAs($branchAdmin)->postJson(route('sub-areas.store'), [
+            'name' => 'حي جديد', 'area_id' => $area->id,
+        ])->assertCreated()->assertJsonPath('area_id', $area->id);
+        $this->assertDatabaseHas('sub_areas', ['name' => 'حي جديد', 'area_id' => $area->id]);
+
+        $this->postJson(route('sub-areas.store'), ['name' => 'حي خارج الفرع', 'area_id' => $otherArea->id])
+            ->assertUnprocessable()->assertJsonValidationErrors('area_id');
+        $this->assertDatabaseMissing('sub_areas', ['name' => 'حي خارج الفرع']);
+        $this->postJson(route('sub-areas.store'), ['name' => 'حي موجود', 'area_id' => $area->id])
+            ->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->postJson(route('sub-areas.store'), ['name' => '', 'area_id' => $area->id])
+            ->assertUnprocessable()->assertJsonValidationErrors('name');
+        $this->assertDatabaseCount('sub_areas', 2);
+    }
+
+    public function test_inline_creation_requires_authentication_and_create_sub_area_permission(): void
+    {
+        $area = Area::factory()->create();
+        $collector = User::factory()->collector()->withPermissions([PermissionKey::CreateMeterBoxes])->for(Branch::factory()->inArea($area))->create();
+        $payload = ['name' => 'حي جديد', 'area_id' => $area->id];
+
+        $this->postJson(route('sub-areas.store'), $payload)->assertUnauthorized();
+        $this->actingAs($collector)->postJson(route('sub-areas.store'), $payload)->assertForbidden();
+        $this->assertDatabaseMissing('sub_areas', ['name' => 'حي جديد']);
+        $this->get(route('meter-boxes.create'))->assertInertia(fn ($page) => $page->where('canCreateSubArea', false));
+    }
+
     public function test_super_admin_can_update_a_sub_area(): void
     {
         $superAdmin = User::factory()->superAdmin()->create();

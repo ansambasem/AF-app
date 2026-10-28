@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import ChoiceChips from '@/Components/ChoiceChips';
 import FormField from '@/Components/Form/FormField';
 import FormPreview, { countFilled } from '@/Components/Form/FormPreview';
@@ -6,10 +7,10 @@ import FormSection from '@/Components/Form/FormSection';
 import Icon from '@/Components/Icon';
 import InputError from '@/Components/InputError';
 import PasswordInput from '@/Components/PasswordInput';
-import SearchableSelect from '@/Components/SearchableSelect';
 import Switch from '@/Components/Switch';
 import TextInput from '@/Components/TextInput';
 import { initials } from '@/lib/format';
+import UserTypeSelect from './UserTypeSelect';
 
 function DeviceResetCheckbox({ id, checked, onChange }) {
     return <label htmlFor={id} className="flex min-h-[2.75rem] cursor-pointer items-center gap-3 rounded-control border border-gray-200 px-3 py-2 text-sm leading-6">
@@ -38,9 +39,11 @@ export function userFormData(user) {
     };
 }
 
-export default function UserForm({ data, setData, errors, isEdit, branches, canChooseBranch, canUpdatePassword = false, userTypeOptions = [] }) {
+export default function UserForm({ data, setData, errors, isEdit, branches, canChooseBranch, canCreateUserType = false, canUpdatePassword = false, userTypeOptions = [] }) {
+    const [createdTypes, setCreatedTypes] = useState([]);
+    const availableTypes = [...new Map([...userTypeOptions, ...createdTypes].map((type) => [String(type.value), type])).values()];
     const name = data.name.trim();
-    const userType = userTypeOptions.find((option) => String(option.value) === String(data.user_type_id));
+    const userType = availableTypes.find((option) => String(option.value) === String(data.user_type_id));
     const branch = branches.find((option) => String(option.id) === String(data.branch_id));
     // A new account needs its password; an existing one keeps theirs unless a new one is typed.
     const requiredFields = ['name', 'username', ...(isEdit ? [] : ['password'])];
@@ -110,16 +113,9 @@ export default function UserForm({ data, setData, errors, isEdit, branches, canC
             </FormSection>}
 
             <FormSection icon="badge" title="النوع والفرع والحالة" columns={2}>
-                <FormField id="user_type_id" label="نوع المستخدم / المسمى الوظيفي" hint="للتصنيف فقط. الصلاحيات مستقلة عنه: بعد الحفظ حدّدها من صفحة الصلاحيات أو انسخ صلاحيات موظف آخر." error={errors.user_type_id}>
-                    <SearchableSelect
-                        value={data.user_type_id}
-                        onChange={(value) => setData('user_type_id', value)}
-                        options={userTypeOptions}
-                        placeholder="— اختر نوع المستخدم —"
-                        searchPlaceholder="ابحث عن نوع المستخدم..."
-                        emptyLabel="لا توجد أنواع مطابقة"
-                    />
-                </FormField>
+                <UserTypeSelect value={data.user_type_id} options={availableTypes} canCreate={canCreateUserType} error={errors.user_type_id}
+                    onChange={(value) => setData('user_type_id', value)}
+                    onCreated={(type) => { setCreatedTypes((types) => [...types, type]); setData('user_type_id', String(type.value)); }} />
 
                 {canChooseBranch && (
                     <FormField

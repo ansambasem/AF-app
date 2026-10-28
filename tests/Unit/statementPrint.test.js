@@ -15,6 +15,7 @@ before(async () => {
         external: ['axios'],
         resolve: { alias: { '@': path.resolve(import.meta.dirname, '../../resources/js') } },
         plugins: [{ name: 'use-installed-react', resolveId(id) {
+            if (id === 'exceljs') return { id: import.meta.resolve(id), external: true };
             if (/^react(?:-dom)?(?:\/|$)/.test(id)) return { id: import.meta.resolve(id), external: true };
             if (id.endsWith('.css')) return '\0css';
         }, load(id) {
@@ -22,7 +23,7 @@ before(async () => {
         } }],
     });
     try {
-        const { output } = await bundle.generate({ format: 'esm' });
+        const { output } = await bundle.generate({ format: 'esm', codeSplitting: false });
         AccountStatement = (await import(`data:text/javascript;base64,${Buffer.from(output[0].code).toString('base64')}`)).default;
     } finally {
         await bundle.close();

@@ -7,12 +7,13 @@ import MeterBar from '@/Components/Charts/MeterBar';
 import Pagination from '@/Components/DataTable/Pagination';
 import DateInput from '@/Components/DateInput';
 import Icon from '@/Components/Icon';
+import ExcelButton from '@/Components/ExcelButton';
 import KpiTile from '@/Components/KpiTile';
 import PageHeader from '@/Components/PageHeader';
 import SearchableSelect from '@/Components/SearchableSelect';
 import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import SegmentedTabs from '@/Components/SegmentedTabs';
-import { reportExcelParts } from '@/lib/reportExcelParts';
+import { accountsPart, branchesPart, collectorsPart, currenciesPart, daysPart, flowPart, linesPart, readingsPart, reportExcelParts } from '@/lib/reportExcelParts';
 import { loadReportLines } from '@/lib/reportLines';
 import { isPrintMode, printUrl } from '@/lib/print';
 import { reportMoney, shortDate } from '@/lib/reportFormatting';
@@ -248,15 +249,17 @@ function Comparison({ comparison }) {
 }
 
 /** A white card with an icon and a title, as the dashboard's panels. */
-function Panel({ icon, title, hint = null, className = '', children }) {
+function Panel({ icon, title, hint = null, className = '', excelParts, children }) {
+    const { canExport, auth, scopeLabel, filters } = usePage().props;
     return (
-        <section className={`rounded-panel border border-gray-100 bg-surface p-5 shadow-card sm:p-6 ${className}`}>
+        <section data-excel-source={excelParts ? 'custom' : undefined} className={`rounded-panel border border-gray-100 bg-surface p-5 shadow-card sm:p-6 ${className}`}>
             <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-2">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-100 bg-gray-50 text-gray-500">
                     <Icon name={icon} className="h-[18px] w-[18px]" />
                 </span>
                 <h3 className="font-bold text-gray-900">{title}</h3>
                 {hint && <span className="text-xs text-gray-500">{hint}</span>}
+                {canExport && excelParts && <div className="ms-auto"><ExcelButton title={title} storageKey={`reports:${title}`} templateKind="reports" loadParts={async (options) => (await excelParts(options)).map((part) => ({ ...part, default: true }))} meta={{ lines: [scopeLabel, `${filters.from} – ${filters.to}`].filter(Boolean), criteria: [['أعدّه', auth?.user?.name ?? ''], ['من', filters.from], ['إلى', filters.to]] }} /></div>}
             </div>
             {children}
         </section>
@@ -399,7 +402,7 @@ function FlowStatement({ flow }) {
     const sum = 'border-t border-gray-200 bg-gray-50 font-bold';
 
     return (
-        <Panel icon="ledger" title="حركة الأرصدة" hint="من الرصيد الافتتاحي إلى الختامي">
+        <Panel icon="ledger" title="حركة الأرصدة" hint="من الرصيد الافتتاحي إلى الختامي" excelParts={async () => [flowPart(flow)]}>
             <p className="mb-3 rounded-control bg-gray-50 px-3 py-2 text-xs leading-6 text-gray-600">
                 الرصيد الافتتاحي + التحميلات − الدفعات والخصومات ± الإلغاءات والقيود العكسية = الرصيد الختامي
             </p>
@@ -474,7 +477,7 @@ function CollectionsBreakdown({ collections, compact = false }) {
 
     return (
         <>
-            <Panel icon="wallet" title={compact ? 'التحصيل حسب الحساب' : 'حسب الحساب'} hint={`${collections.count} دفعة · ${reportMoney(collections.total)} ₪`}>
+            <Panel icon="wallet" title={compact ? 'التحصيل حسب الحساب' : 'حسب الحساب'} hint={`${collections.count} دفعة · ${reportMoney(collections.total)} ₪`} excelParts={async () => [accountsPart(collections)]}>
                 <ul className="space-y-3">
                     {collections.accounts.map((account) => (
                         <li key={account.key}>
@@ -493,7 +496,7 @@ function CollectionsBreakdown({ collections, compact = false }) {
             </Panel>
 
             {!compact && foreign && (
-                <Panel icon="currency" title="حسب العملة">
+                <Panel icon="currency" title="حسب العملة" excelParts={async () => [currenciesPart(collections)]}>
                     <table className="w-full text-sm">
                         <thead>
                             <tr>
@@ -518,7 +521,7 @@ function CollectionsBreakdown({ collections, compact = false }) {
             )}
 
             {!compact && (
-                <Panel icon="users" title="حسب المحصِّل">
+                <Panel icon="users" title="حسب المحصِّل" excelParts={async () => [collectorsPart(collections)]}>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
@@ -563,7 +566,7 @@ function CollectionsBreakdown({ collections, compact = false }) {
 
 function Readings({ readings }) {
     return (
-        <Panel icon="gauge" title="القراءات">
+        <Panel icon="gauge" title="القراءات" excelParts={async () => [readingsPart(readings)]}>
             <dl className="grid grid-cols-3 gap-3 text-center">
                 <div className="rounded-control bg-gray-50 px-2 py-3">
                     <dt className="text-xs text-gray-500">أُدخلت</dt>
@@ -590,7 +593,7 @@ function Readings({ readings }) {
 /** What was collected each day of the period. */
 function DailyCollections({ days }) {
     return (
-        <Panel icon="chart" title="التحصيل اليومي" hint="بالشيكل">
+        <Panel icon="chart" title="التحصيل اليومي" hint="بالشيكل" excelParts={async () => [daysPart(days)]}>
             <BarChart data={days.map((day) => ({ date: day.day, value: Number(day.payments), count: day.lines }))} label="التحصيل اليومي في الفترة" formatValue={(value) => `${reportMoney(value)} ₪`} countLabel="حركة" height={220} />
         </Panel>
     );
@@ -601,7 +604,7 @@ function DaysTable({ days, onOpenDay }) {
     const total = (key) => reportMoney(days.reduce((sum, day) => sum + cents(day[key]), 0) / 100);
 
     return (
-        <Panel icon="calendar" title="يومًا بيوم" hint="اضغط يومًا لفتح تقريره">
+        <Panel icon="calendar" title="يومًا بيوم" hint="اضغط يومًا لفتح تقريره" excelParts={async () => [daysPart(days)]}>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                     <thead>
@@ -650,7 +653,7 @@ function BranchComparison({ rows, filters }) {
     const sum = (pick) => reportMoney(rows.reduce((total, row) => total + cents(pick(row)), 0) / 100);
 
     return (
-        <Panel icon="layers" title="مقارنة الفروع" hint="نفس الفترة · الأعلى تحصيلًا أولًا · اضغط اسم الفرع لتقريره">
+        <Panel icon="layers" title="مقارنة الفروع" hint="نفس الفترة · الأعلى تحصيلًا أولًا · اضغط اسم الفرع لتقريره" excelParts={async () => [branchesPart(sorted)]}>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                     <thead>
@@ -696,7 +699,7 @@ function BranchComparison({ rows, filters }) {
 /** Every line of the period, newest first, narrowed to one kind. */
 function Transactions({ transactions, kinds, filters, showDay, showBranch, onKind }) {
     return (
-        <Panel icon="list" title="الحركات" hint={`${transactions.total} حركة`}>
+        <Panel icon="list" title="الحركات" hint={`${transactions.total} حركة`} excelParts={async (options) => [linesPart(await loadReportLines(new URLSearchParams(Object.entries(filters).filter(([, value]) => value != null)).toString(), options), { showBranch })]}>
             <p className="mb-3 text-xs leading-6 text-gray-500">تصفية النوع تخص الحركات التفصيلية وتصديرها فقط؛ الملخص والتحصيل يعرضان جميع أنواع الحركات للفترة والفرع المحددين.</p>
             <div className="mb-4 overflow-x-auto pb-1">
                 <SegmentedTabs label="نوع الحركات" value={filters.kind} onChange={onKind} options={kinds} />

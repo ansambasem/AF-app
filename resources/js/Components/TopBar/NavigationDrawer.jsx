@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, usePage } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
-import { shouldPrefetchPage, HOME_LINK, currentGroup, isActiveLink, lockedLinkProps } from '@/lib/navigation';
+import { shouldPrefetchPage, HOME_LINK, currentGroup, isActiveLink, lockedLinkProps, sectionLinks } from '@/lib/navigation';
 import { Avatar, LogoutForm } from './AccountMenu';
 import { LockMark } from './MegaMenu';
 import ThemeSegments from './ThemeSegments';
@@ -146,7 +146,7 @@ export default function NavigationDrawer({ open, groups, badges, onClose, onOpen
                                     <div className={`tn-drawer-pages ${isOpen ? 'is-open' : ''}`} inert={!isOpen}>
                                         <div>
                                             <div className="grid gap-0.5 py-1 ps-3">
-                                                {group.links.map((link) => (
+                                                {sectionLinks(group).map((link) => (
                                                     <Link key={link.href} href={link.href} prefetch={!link.locked && shouldPrefetchPage(link.href)} className="tn-drawer-link" aria-current={isActiveLink(link, url) ? 'page' : undefined} {...lockedLinkProps(link)}>
                                                         <Icon name={link.icon} />
                                                         <span className="flex-1">{link.label}</span>

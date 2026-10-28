@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ExcelButton from '@/Components/ExcelButton';
 import { Link } from '@inertiajs/react';
 import AuditApprovalDialog from './AuditApprovalDialog';
 import BankTransferAuditForm from './BankTransferAuditForm';
@@ -12,7 +13,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import SegmentedTabs from '@/Components/SegmentedTabs';
 import SearchableSelect from '@/Components/SearchableSelect';
-import { BankMark } from '@/Pages/Subscriptions/PaymentModal';
+import { BankMark } from '@/Components/Banks';
 import { formatMoney } from '@/lib/format';
 import { printUrl } from '@/lib/print';
 import { boxTypes, currencies, dateTime, BoxTypeIcon } from './CollectorCashBox';
@@ -125,7 +126,7 @@ export default function BoxDetails({ box, onClose, perform, initialSearch = '' }
                 </div>
             </div>
             <div className="flex items-center gap-3">
-                {box.canPrint !== false && <a href={printUrl('تقرير تفاصيل الصندوق', `/payments/cash-boxes/report?box=${box.id}`)} target="_blank" rel="noopener noreferrer" className="tone-print inline-flex items-center gap-2 rounded-control border px-3 py-2 text-sm font-semibold"><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص</a>}
+                {box.canPrint !== false && <><ExcelButton title="تقرير تفاصيل الصندوق" base={`/payments/cash-boxes/report?box=${box.id}`} /><a href={printUrl('تقرير تفاصيل الصندوق', `/payments/cash-boxes/report?box=${box.id}`)} target="_blank" rel="noopener noreferrer" className="tone-print inline-flex items-center gap-2 rounded-control border px-3 py-2 text-sm font-semibold"><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص</a></>}
                 <StatusPill tone={statusTone} label={statusLabel} />
                 {!editable && <StatusPill tone={box.audit ? 'green' : 'amber'} label={box.audit ? 'اكتمل التدقيق' : 'بانتظار اكتمال التدقيق'} />}
                 <button type="button" onClick={onClose} aria-label="إغلاق النافذة" className="rounded-control p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"><Icon name="close" className="h-5 w-5" /></button>

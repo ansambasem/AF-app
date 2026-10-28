@@ -3,7 +3,7 @@ import SettingsLayout from '@/Layouts/SettingsLayout';
 import { useResourceForm } from '@/hooks/useResourceForm';
 import MeterBoxForm, { meterBoxFormData } from './MeterBoxForm';
 
-export default function Create({ branches, canChooseBranch, governorates, areas, subAreas, currentBranchAreaId }) {
+export default function Create({ branches, canChooseBranch, canCreateSubArea, governorates, areas, subAreas, currentBranchAreaId }) {
     const form = useResourceForm('/meter-boxes', null, meterBoxFormData(null));
 
     return (
@@ -14,6 +14,7 @@ export default function Create({ branches, canChooseBranch, governorates, areas,
                 errors={form.errors}
                 branches={branches}
                 canChooseBranch={canChooseBranch}
+                canCreateSubArea={canCreateSubArea}
                 governorates={governorates}
                 areas={areas}
                 subAreas={subAreas}

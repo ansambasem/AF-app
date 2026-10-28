@@ -13,10 +13,8 @@ import ActionsTh from '@/Components/DataTable/ActionsTh';
 import Icon from '@/Components/Icon';
 import Balance from '@/Components/Balance';
 import { useDataTable } from '@/hooks/useDataTable';
-import { csvText, downloadCsv } from '@/lib/csv';
 import { printFieldsProps, printRowProps } from '@/lib/print';
 import { formatMoney, formatNumber } from '@/lib/format';
-import { balanceWord } from '@/lib/balance';
 import { itemTone } from '@/lib/disconnections';
 import ActionModal from './ActionModal';
 import HistoryModal from './HistoryModal';
@@ -52,17 +50,6 @@ function Stat({ label, value, tone = 'text-gray-900', hint }) {
             <p className={`mt-1 font-display text-2xl font-bold ${tone}`}>{value}</p>
             {hint && <p className="mt-0.5 text-xs text-gray-500">{hint}</p>}
         </div>
-    );
-}
-
-/** The rows the page shows, as a CSV file. */
-function exportRows(items) {
-    downloadCsv(
-        csvText([
-            ['المشترك', 'رقم الاشتراك', 'الطبلون', 'منطقة 2', 'السبب', 'ملاحظة', 'موعد القطع', 'الحالة', 'الرصيد الآن', 'حالة الرصيد', 'الرصيد عند الإدراج', 'الإنذارات', 'التمديدات', 'رسوم القطع'],
-            ...items.map((item) => [item.name, item.accountNumber, item.meterBoxNumber ?? '', item.subAreaName ?? '', item.reasonLabel, item.note ?? '', item.scheduledFor, item.isOverdue ? 'متأخر' : item.statusLabel, item.balance, balanceWord(item.balance), item.balanceWhenAdded, item.warningsCount, item.extensionsCount, item.fee ?? '']),
-        ]),
-        'disconnection-list.csv',
     );
 }
 
@@ -227,10 +214,6 @@ export default function Show({ list, items, summary, abilities, reasonOptions, c
                 filterMenu={
                     <div className="flex w-full flex-wrap items-center gap-2">
                         <DataTableFilterMenu tableKey="disconnection_items" groups={filterOptions} values={filterValues} onChange={setFilter} onChangeMany={setFilters} onClear={clearFilters} />
-                        <button type="button" onClick={() => exportRows(items.data)} className="tone-excel inline-flex h-[34px] items-center gap-1.5 rounded-control border px-3 text-sm font-semibold">
-                            <Icon name="excel" className="h-4 w-4" />
-                            Excel (هذه الصفحة)
-                        </button>
                     </div>
                 }
             />

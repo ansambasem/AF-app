@@ -3,6 +3,8 @@ import { router, usePage } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
+import ExcelButton from '@/Components/ExcelButton';
+import { tableExcelPart } from '@/lib/tableExcel';
 import { extractSummary, extractTable, paginatedProp, printScopeUrl } from '@/lib/print';
 import { defaultLayout, fitLayout, pageCss, paperSize, rememberedLayout, rememberLayout } from '@/lib/printLayout';
 import PrintPaper from './PrintPaper';
@@ -293,6 +295,7 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
                     {loadingRows && <span role="status" className="animate-pulse text-sm text-gray-600">جارٍ تحديث المعاينة...</span>}
                     {printError && <p role="alert" className="text-sm text-red-600">{printError}</p>}
                     {widthWarning && <p role="alert" className="max-w-xs text-xs text-amber-800">{widthWarning}</p>}
+                    <ExcelButton title={settings.title || document.title} disabled={isCut || !table || loadingRows} storageKey={`table:${pageKey}`} loadParts={async () => [tableExcelPart(table, { name: settings.title || document.title })]} meta={{ lines: [context.branchName, summary].filter(Boolean), criteria: [['أعدّه', context.userName ?? '']] }} />
                     <PrimaryButton type="button" className="tone-print tone-solid" onClick={print} disabled={!layout || printing || loadingRows || !visibleColumns.length || Boolean(widthWarning) || !table?.rows.some((row) => row.type === 'row')} autoFocus>
                         <Icon name="printer" className="h-4 w-4" />
                         طباعة / حفظ PDF

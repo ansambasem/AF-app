@@ -123,6 +123,29 @@ class BranchClosingWorkflowTest extends TestCase
         $this->assertSame('submitted', $legacy->fresh()->status->value);
     }
 
+    #[TestWith(['2026-10-27 12:00:00', false])]
+    #[TestWith(['2026-10-27 23:59:59', true])]
+    public function test_the_first_payment_is_captured_when_workflow_startup_crosses_a_second(string $recordedAt, bool $late): void
+    {
+        $this->travelTo(CarbonImmutable::parse($recordedAt, config('app.business_timezone')));
+        $branch = Branch::factory()->create();
+        $collector = User::factory()->collector()->for($branch)->create();
+        ClosingSetting::company()->update(['week_starts_on' => 3]);
+        SubscriptionTransaction::withoutEvents(fn () => $this->payment($branch, $collector, extra: ['branch_id' => $branch->id, 'created_at' => now()->subDay()]));
+        $payment = SubscriptionTransaction::withoutEvents(fn () => $this->payment($branch, $collector, method: 'bank_transfer', extra: ['branch_id' => $branch->id]))->refresh();
+
+        $this->travel(2)->seconds();
+        $workflow = app(BranchClosingWorkflow::class);
+        $workflow->capture($payment);
+
+        $this->assertDatabaseHas('cash_box_payments', ['subscription_transaction_id' => $payment->id, 'amount' => '100.00']);
+        $this->assertSame($late, $payment->fresh()->boxEntry->is_late);
+        $this->assertSame($payment->created_at->toDateTimeString(), ClosingSetting::ownFor($branch)->workflow_started_at->toDateTimeString());
+        $workflow->capture($payment);
+        $workflow->refresh($branch->id);
+        $this->assertDatabaseCount('cash_box_payments', 1);
+    }
+
     #[TestWith(['subscription_fee', 'active'])]
     #[TestWith(['payment', 'cancelled'])]
     public function test_non_collection_or_cancelled_transaction_does_not_open_boxes(string $type, string $status): void

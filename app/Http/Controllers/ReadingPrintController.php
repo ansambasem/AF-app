@@ -23,6 +23,7 @@ class ReadingPrintController extends Controller
             'area_ids' => ['nullable', 'array', 'max:200'], 'area_ids.*' => ['string', 'regex:/^(none|[0-9]+)$/'],
             'box_id' => ['nullable', 'integer', 'min:1'], 'assignment' => ['nullable', 'string', 'regex:/^(assigned|available|paper|reader:[0-9]+)$/'],
             'print_page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'in:15,25,50,100'],
+            'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $cycles = ReadingCycle::query()->visibleTo($request->user())->with('branch');
         $cycle = isset($validated['cycle']) ? $cycles->findOrFail($validated['cycle']) : $cycles->latest('week_start')->first();
@@ -63,7 +64,8 @@ class ReadingPrintController extends Controller
         })->values();
         $total = $boxes->count();
         $limit = $request->boolean('print_all') ? 2000 : (int) ($filters['per_page'] ?? 25);
-        $offset = $request->boolean('print_all') ? 0 : ((int) ($filters['print_page'] ?? 1) - 1) * $limit;
+        $page = $request->boolean('excel') ? (int) ($filters['page'] ?? 1) : (int) ($filters['print_page'] ?? 1);
+        $offset = $request->boolean('print_all') && ! $request->boolean('excel') ? 0 : ($page - 1) * $limit;
         $rows = $boxes->slice($offset, $limit)->map(function (MeterBox $box) use ($assignments): array {
             $assignment = $assignments->get($box->id);
             $assigned = $assignment !== null && $assignment->status !== ReadingAssignmentStatus::Unassigned;
@@ -74,6 +76,13 @@ class ReadingPrintController extends Controller
                 'approvedBy' => $assigned ? $assignment->approvedBy?->name : null, 'approvedAt' => $assigned ? $assignment->approved_at?->timezone(config('app.business_timezone'))->format('Y-m-d H:i') : null];
         })->values()->all();
 
-        return ReadingPrintData::distribution($rows, $context, $total);
+        return [
+            ...ReadingPrintData::distribution($rows, $context, $total),
+            'pagination' => [
+                'current_page' => $page,
+                'total' => $total,
+                'next_page_url' => $offset + count($rows) < $total ? $request->fullUrlWithQuery(['page' => $page + 1]) : null,
+            ],
+        ];
     }
 }

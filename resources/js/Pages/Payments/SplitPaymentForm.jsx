@@ -9,7 +9,8 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import { describeBalance } from '@/lib/accountStatement';
 import { formatMoney, initials, normalizeDecimalInput } from '@/lib/format';
 import { balanceText, BALANCE_CHIPS, FieldLabel } from '@/Pages/Subscriptions/AccountFormParts';
-import { BankDropdown, BankRow, inputClass } from '@/Pages/Subscriptions/PaymentModal';
+import { BankDropdown, BankRow } from '@/Components/Banks';
+import { inputClass } from '@/Pages/Subscriptions/PaymentModal';
 
 /** The most subscriptions one transfer is divided between (the server's limit). */
 const MAX_PARTS = 20;

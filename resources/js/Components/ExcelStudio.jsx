@@ -55,7 +55,7 @@ const store = {
  * under the same key — the default of which is where someone with no
  * settings of their own starts.
  */
-export default function ExcelStudio({ show, onClose, title, storageKey, loadParts, defaults, meta = {} }) {
+export default function ExcelStudio({ show, onClose, title, storageKey, templateKind = storageKey, loadParts, defaults, meta = {} }) {
     const id = useId();
     const [parts, setParts] = useState(null);
     const [failed, setFailed] = useState(false);
@@ -87,7 +87,7 @@ export default function ExcelStudio({ show, onClose, title, storageKey, loadPart
         setLoadedRows(0);
         setError('');
         setTemplates(store.read(`excel-templates:${storageKey}`, []));
-        const companyTemplates = listHttp.get(`/excel-templates/${storageKey}`).catch(() => ({ templates: [], canManage: false }));
+        const companyTemplates = listHttp.get(`/excel-templates/${templateKind}`).catch(() => ({ templates: [], canManage: false }));
         Promise.all([loadParts({ signal: controller.signal, onProgress: setLoadedRows }), companyTemplates])
             .then(([loaded, shared]) => {
                 if (cancelled) return;
@@ -150,7 +150,7 @@ export default function ExcelStudio({ show, onClose, title, storageKey, loadPart
     }
 
     async function reloadCompany() {
-        setCompany(await listHttp.get(`/excel-templates/${storageKey}`));
+        setCompany(await listHttp.get(`/excel-templates/${templateKind}`));
     }
 
     async function sendCompany(method, url, data) {
@@ -170,7 +170,7 @@ export default function ExcelStudio({ show, onClose, title, storageKey, loadPart
     async function saveCompanyTemplate() {
         const name = companyName.trim();
         if (!name) return;
-        if (await sendCompany('post', '/excel-templates', { kind: storageKey, name, is_default: companyDefault, settings: layout() })) {
+        if (await sendCompany('post', '/excel-templates', { kind: templateKind, name, is_default: companyDefault, settings: layout() })) {
             setCompanyName('');
             setCompanyDefault(false);
         }
@@ -210,13 +210,13 @@ export default function ExcelStudio({ show, onClose, title, storageKey, loadPart
 
     return (
         <Modal show={show} onClose={saving ? undefined : onClose} maxWidth="full" panelClassName="sm:max-w-[1280px]">
-            <div role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} dir="rtl" className="flex h-[min(92dvh,900px)] min-h-0 flex-col">
+            <div data-excel-source="custom" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} dir="rtl" className="flex h-[min(92dvh,900px)] min-h-0 flex-col">
                 <DialogHeader titleId={`${id}-title`} title={title} description="ملف ‎.xlsx منسّق: اختر الأجزاء والأعمدة والعنوان، وشاهد الورقة قبل التنزيل." icon="excel" tone="primary" onClose={onClose} closeDisabled={saving} />
 
                 {failed ? (
                     <p role="alert" className="m-6 rounded-control bg-red-500/10 p-4 text-sm text-red-700">تعذّر تحميل بيانات التقرير. أغلق النافذة وأعد المحاولة.</p>
                 ) : !parts || !settings ? (
-                    <div className="flex flex-1 items-center justify-center p-10 text-sm text-gray-500" role="status">جارٍ تجهيز بيانات التقرير…{loadedRows > 0 && ` تم تحميل ${loadedRows.toLocaleString('en-US')} حركة`}</div>
+                    <div className="flex flex-1 items-center justify-center p-10 text-sm text-gray-500" role="status">جارٍ تجهيز بيانات الجدول…{loadedRows > 0 && ` تم تحميل ${loadedRows.toLocaleString('en-US')} سجل`}</div>
                 ) : (
                     <>
                         <div className="flex shrink-0 gap-1 border-b border-gray-100 p-2 lg:hidden" role="tablist">

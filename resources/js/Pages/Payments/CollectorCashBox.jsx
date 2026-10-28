@@ -1,4 +1,5 @@
 import { Link, router, useForm } from '@inertiajs/react';
+import { excelUrl } from '@/lib/tableExcel';
 import Pagination from '@/Components/DataTable/Pagination';
 import RowActionsMenu from '@/Components/DataTable/RowActionsMenu';
 import ActionsTh from '@/Components/DataTable/ActionsTh';
@@ -171,7 +172,7 @@ export function BoxReportActions({ box, onView }) {
     return (
         <RowActionsMenu onView={onView}>
             <button onClick={() => window.open(printUrl('تقرير تفاصيل الصندوق', `/payments/cash-boxes/report?box=${box.id}`), '_blank', 'noopener')}>طباعة وتخصيص</button>
-            <button onClick={() => { window.location.href = box.urls.export; }}>Excel</button>
+            <button onClick={() => window.open(excelUrl('تقرير تفاصيل الصندوق', `/payments/cash-boxes/report?box=${box.id}`), '_blank', 'noopener')}>Excel</button>
         </RowActionsMenu>
     );
 }

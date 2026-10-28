@@ -21,7 +21,7 @@ class SplitTransferAuditTest extends TestCase
     use RefreshDatabase;
 
     /** @return array{User, User, SplitPayment, CashBox} */
-    private function transfer(bool $separateBoxes = false, bool $closeSibling = true): array
+    private function transfer(bool $separateBoxes = false, bool $closeSibling = true, bool $closeBox = true): array
     {
         $this->travelTo('2026-10-22 08:00:00');
         ClosingSetting::company()->update(['week_starts_on' => 6]);
@@ -49,7 +49,9 @@ class SplitTransferAuditTest extends TestCase
                 $this->actingAs($head)->post(route('payments.cash-boxes.actions', ['action' => 'receive', 'record' => $sibling->id]), ['branch_id' => $branch->id])->assertSessionHasNoErrors();
             }
         }
-        $this->actingAs($head)->post(route('payments.cash-boxes.actions', ['action' => 'receive', 'record' => $box->id]), ['branch_id' => $branch->id])->assertSessionHasNoErrors();
+        if ($closeBox) {
+            $this->actingAs($head)->post(route('payments.cash-boxes.actions', ['action' => 'receive', 'record' => $box->id]), ['branch_id' => $branch->id])->assertSessionHasNoErrors();
+        }
 
         return [$head, $auditor, $split->fresh('payments.boxEntry'), $box];
     }
@@ -64,6 +66,42 @@ class SplitTransferAuditTest extends TestCase
                 ['transaction_id' => $split->payments[0]->id, 'bank_amount' => $first],
                 ['transaction_id' => $split->payments[1]->id, 'bank_amount' => $second],
             ]];
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_a_share_corrected_by_the_branch_head_stays_with_the_transfer_and_closes_and_audits_together(bool $approvePeriod): void
+    {
+        [$head, $auditor, $split, $box] = $this->transfer(closeBox: false);
+        $original = $split->payments[0];
+
+        $this->actingAs($head)->put(route('subscriptions.transactions.update', [$original->subscription, $original]), [
+            'amount' => '30', 'currency' => 'ILS', 'payment_method' => 'bank_transfer',
+            'bank_name' => $split->bank_name, 'sender_name' => $split->sender_name, 'reference_number' => $split->reference_number,
+            'correction_reason' => 'wrong_amount', 'correction_notes' => 'تصحيح حصة المشترك', 'confirm_overpayment' => true,
+        ])->assertSessionHasNoErrors();
+
+        $replacement = SubscriptionTransaction::query()->where('corrects_id', $original->id)->sole();
+        $this->assertSame($head->id, $replacement->recorded_by);
+        $this->assertSame($split->id, $replacement->split_payment_id);
+        $this->assertSame($box->id, $replacement->boxEntry->cash_box_id);
+        $this->assertSame('90.00', $box->fresh()->totals()['ILS']);
+
+        $this->post(route('payments.cash-boxes.actions', ['action' => 'receive', 'record' => $box->id]), ['branch_id' => $box->branch_id])->assertSessionHasNoErrors();
+        $this->actingAs($auditor);
+        if ($approvePeriod) {
+            $preview = $this->get(route('payments.cash-boxes', ['branch_id' => $box->branch_id, 'place' => 'closed', 'week' => '2026-10-17']))->inertiaProps('periodAudit');
+            $this->post(route('payments.period-audits.store'), [
+                ...array_intersect_key($preview, array_flip(['branch_id', 'week', 'box_ids', 'snapshot'])), 'confirmed' => true,
+            ])->assertSessionHasNoErrors();
+        } else {
+            $this->post(route('payments.box-audits.store', $box), ['confirmed' => true])->assertSessionHasNoErrors();
+        }
+
+        $this->assertDatabaseCount('cash_box_audits', 1);
+        $this->assertSame(2, BankTransferAudit::query()->whereNotNull('posted_at')->count());
+        $this->assertSame(70.0, $original->subscription->balance());
+        $this->assertSame(40.0, $split->payments[1]->subscription->balance());
     }
 
     #[TestWith(['0', '0', 100.0, 100.0])]

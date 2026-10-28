@@ -21,7 +21,7 @@ test('auditors see subscriber accounts and audit destinations without administra
 
 test('the settings group counts as current on any settings page, including its create and edit pages', () => {
     assert.equal(isInsideAnyLink(SETTINGS_LINKS, '/settings/permissions'), true);
-    assert.equal(isInsideAnyLink(SETTINGS_LINKS, '/meter-boxes/4/edit?tab=boxes'), true);
+    assert.equal(isInsideAnyLink(SETTINGS_LINKS, '/meter-boxes/4/edit?tab=boxes'), false);
     assert.equal(isInsideAnyLink(SETTINGS_LINKS, '/subscriptions'), false);
     assert.equal(isInsideAnyLink(SETTINGS_LINKS, '/branch-performance'), false);
 });
@@ -54,12 +54,14 @@ test('users see permitted business links and can always reach the mobile app dow
 
 test('nested and query-string pages identify their task group without matching a similar prefix', () => {
     const groups = allowedNavigationGroups({ viewMeterBoxes: true, manageSettings: true });
-    const infrastructure = groups.find((group) => group.id === 'infrastructure');
+    const subscribers = groups.find((group) => group.id === 'daily');
     const administration = groups.find((group) => group.id === 'administration');
 
-    assert.equal(isInsideAnyLink(infrastructure.links, '/meter-boxes/4/edit?tab=boxes'), true);
+    assert.equal(isInsideAnyLink(subscribers.links, '/meter-boxes/4/edit?tab=boxes'), true);
     assert.equal(isInsideAnyLink(administration.links, '/settings/permissions?tab=roles'), true);
-    assert.equal(isActiveLink(infrastructure.links[0], '/meter-boxes-archive'), false);
+    assert.equal(isActiveLink(subscribers.links[0], '/meter-boxes-archive'), false);
+    assert.equal(pageTrail(groups, '/meter-boxes').group.id, 'daily');
+    assert.equal(groups.some((group) => group.id !== 'daily' && group.links.some((link) => link.href === '/meter-boxes')), false);
 });
 
 test('retired closing destinations stay absent even with old permission flags', () => {

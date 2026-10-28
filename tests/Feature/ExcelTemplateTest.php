@@ -7,6 +7,7 @@ use App\Models\ExcelTemplate;
 use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -17,6 +18,27 @@ use Tests\TestCase;
 class ExcelTemplateTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** @return array<string, array{string}> */
+    public static function additionalExportKinds(): array
+    {
+        return ['site tables' => ['tables'], 'statements' => ['statements'], 'reading history' => ['reading-history']];
+    }
+
+    #[DataProvider('additionalExportKinds')]
+    public function test_each_new_export_can_save_and_retrieve_its_own_company_template(string $kind): void
+    {
+        ExcelTemplate::factory()->create(['kind' => 'reports', 'is_default' => true]);
+        $this->actingAs($this->manager());
+
+        $this->postJson(route('excel-templates.store'), ['kind' => $kind, 'name' => 'تصميم للطباعة', 'is_default' => true, 'settings' => ['theme' => 'plain']])
+            ->assertCreated()->assertJsonPath('template.isDefault', true);
+
+        $this->getJson(route('excel-templates.index', $kind))->assertJsonCount(1, 'templates')
+            ->assertJsonPath('templates.0.name', 'تصميم للطباعة')->assertJsonPath('templates.0.settings.theme', 'plain');
+        $this->assertDatabaseHas('excel_templates', ['kind' => $kind, 'name' => 'تصميم للطباعة', 'is_default' => true]);
+        $this->assertDatabaseHas('excel_templates', ['kind' => 'reports', 'is_default' => true]);
+    }
 
     public function test_the_editor_lists_a_kinds_templates_default_first_and_says_who_may_change_them(): void
     {

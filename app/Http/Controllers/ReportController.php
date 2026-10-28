@@ -237,7 +237,7 @@ class ReportController extends Controller
             'kind' => ['nullable', Rule::in(array_column(BranchReport::kinds(), 'value'))],
         ]);
         $requested = $validated['branch'] ?? null;
-        $all = $requested === 'all' && $branches->count() > 1;
+        $all = ($requested === null || $requested === '' || $requested === 'all') && $branches->count() > 1;
         $branch = $all ? null : ($branches->firstWhere('id', (int) $requested)
             ?? $branches->firstWhere('id', $request->user()->branch_id)
             ?? $branches->first());
