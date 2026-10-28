@@ -3,6 +3,7 @@ import { usePage } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
 import { printUrl } from '@/lib/print';
 import DensityToggle from './DensityToggle';
+import ExcelButton from '@/Components/ExcelButton';
 
 const PAGE_SIZES = [15, 25, 50, 100];
 
@@ -81,6 +82,7 @@ export default function DataTableToolbar({
                         نتيجة
                     </span>
                 )}
+                {printable && canPrint && <ExcelButton />}
                 {printable && canPrint && (
                     <button
                         type="button"

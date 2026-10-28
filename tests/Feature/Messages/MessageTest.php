@@ -17,6 +17,7 @@ use App\Models\SubscriptionTransaction;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -338,6 +339,66 @@ class MessageTest extends TestCase
         $message->refresh();
         $this->assertSame(MessageStatus::Failed, $message->status);
         $this->assertStringContainsString('Insufficient balance', $message->error);
+    }
+
+    public function test_a_queued_message_the_provider_refuses_is_marked_failed_without_another_try(): void
+    {
+        config(['services.sms.driver' => 'http', 'services.sms.http.url' => 'https://sms.example.test/send']);
+        Http::preventStrayRequests();
+        Http::fake(['https://sms.example.test/send' => Http::response('Insufficient balance', 402)]);
+        $message = SubscriptionMessage::factory()->create();
+        $job = (new SendSubscriptionMessage($message))->withFakeQueueInteractions();
+
+        app()->call([$job, 'handle']);
+
+        $job->assertNotReleased();
+        $this->assertSame(MessageStatus::Failed, $message->fresh()->status);
+    }
+
+    public function test_a_queued_message_waits_and_is_tried_again_when_the_provider_is_down(): void
+    {
+        config(['services.sms.driver' => 'http', 'services.sms.http.url' => 'https://sms.example.test/send']);
+        Http::preventStrayRequests();
+        Http::fake(['https://sms.example.test/send' => Http::response('Service unavailable', 503)]);
+        $message = SubscriptionMessage::factory()->create();
+        $job = (new SendSubscriptionMessage($message))->withFakeQueueInteractions();
+
+        app()->call([$job, 'handle']);
+
+        $job->assertReleased(delay: 60);
+        $this->assertSame(MessageStatus::Pending, $message->fresh()->status);
+    }
+
+    public function test_a_queued_message_is_tried_again_later_when_the_provider_cannot_be_reached(): void
+    {
+        config(['services.sms.driver' => 'http', 'services.sms.http.url' => 'https://sms.example.test/send']);
+        Http::preventStrayRequests();
+        Http::fake(fn () => throw new ConnectionException('Connection timed out'));
+        $message = SubscriptionMessage::factory()->create();
+        $job = (new SendSubscriptionMessage($message))->withFakeQueueInteractions();
+        $job->job->attempts = 2;
+
+        app()->call([$job, 'handle']);
+
+        $job->assertReleased(delay: 300);
+        $this->assertSame(MessageStatus::Pending, $message->fresh()->status);
+    }
+
+    public function test_a_queued_message_is_marked_failed_with_the_reason_when_its_last_try_fails(): void
+    {
+        config(['services.sms.driver' => 'http', 'services.sms.http.url' => 'https://sms.example.test/send']);
+        Http::preventStrayRequests();
+        Http::fake(['https://sms.example.test/send' => Http::response('Service unavailable', 503)]);
+        $message = SubscriptionMessage::factory()->create();
+        $job = (new SendSubscriptionMessage($message))->withFakeQueueInteractions();
+        $job->job->attempts = 3;
+
+        app()->call([$job, 'handle']);
+
+        $job->assertNotReleased();
+        $message->refresh();
+        $this->assertSame(MessageStatus::Failed, $message->status);
+        $this->assertStringContainsString('503', $message->error);
     }
 
     public function test_retrying_a_send_queues_its_failed_messages_again(): void

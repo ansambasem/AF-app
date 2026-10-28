@@ -1,4 +1,5 @@
 import BankReceivedDate from '@/Components/BankReceivedDate';
+import ExcelButton, { tableExportButtonClass } from '@/Components/ExcelButton';
 import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -18,7 +19,6 @@ import StatementModal from '@/Pages/Subscriptions/StatementModal';
 import './Ledger.css';
 import PageHeader from '@/Components/PageHeader';
 import InfoTip from '@/Components/InfoTip';
-import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import DateInput from '@/Components/DateInput';
 
 const PERIODS = [['today', 'اليوم'], ['yesterday', 'أمس'], ['7', '7 أيام'], ['30', '30 يوم'], ['month', 'هذا الشهر'], ['custom', 'مخصص']];
@@ -263,17 +263,6 @@ export default function Index({ entries, period, dateBasis = 'recorded', side, s
         router.get('/ledger', { search, sort: filters.sort, direction: filters.direction, per_page: filters.per_page, filter: filterValues, date_basis: dateBasis, period: next, ...dates }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
-    function exportCsv() {
-        const url = new URL('/ledger', window.location.origin);
-        Object.entries({ ...extraParams, search, sort: filters.sort, direction: filters.direction, format: 'csv' }).forEach(([key, value]) => {
-            if (value !== undefined && value !== null) { url.searchParams.set(key, value); }
-        });
-        Object.entries(filterValues).forEach(([key, value]) => {
-            if (value !== '' && value !== undefined && value !== null) { url.searchParams.set(`filter[${key}]`, value); }
-        });
-        window.location.assign(url.toString());
-    }
-
     /** The subscriber's statement over the page, opened at this transaction. */
     function openStatement(entry) {
         statementWindow.open({ id: entry.subscriptionId, fullName: entry.subscriptionName, accountNumber: entry.subscriptionAccountNumber, status: entry.subscriptionStatus, statusLabel: entry.subscriptionStatusLabel, branchName: entry.branchName }, null, entry.id);
@@ -292,8 +281,8 @@ export default function Index({ entries, period, dateBasis = 'recorded', side, s
                     title="السجل المالي"
                     actions={
                         <>
-                            <button type="button" className={`${secondaryButtonClass} tone-excel`} title="تنزيل ملف CSV يفتح في Excel" onClick={exportCsv}><Icon name="excel" className="h-4 w-4" />تصدير Excel</button>
-                            {can?.printAuditReports !== false && <a className={`${secondaryButtonClass} tone-print`} href={printUrl('السجل المالي')} target="_blank" rel="noopener noreferrer"><Icon name="printer" className="h-4 w-4" />طباعة</a>}
+                            <ExcelButton title="السجل المالي" />
+                            {can?.printAuditReports !== false && <a className={`${tableExportButtonClass} tone-print`} href={printUrl('السجل المالي')} target="_blank" rel="noopener noreferrer"><Icon name="printer" className="h-4 w-4" />طباعة</a>}
                         </>
                     }
                 />
@@ -340,7 +329,7 @@ export default function Index({ entries, period, dateBasis = 'recorded', side, s
                         <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-control border border-gray-200 bg-surface px-3 text-sm font-semibold text-gray-700"><input type="checkbox" className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" checked={filterValues.show_cancelled !== '0'} onChange={(event) => setFilter('show_cancelled', event.target.checked ? '' : '0')} />إظهار الملغاة</label>
                         {activeFilters > 0 && <button type="button" className="clr" onClick={clearPanelFilters}>مسح الفلاتر</button>}
                     </div>
-                    <table className="ledger-table" aria-label="السجل المالي">
+                    <table data-excel-source="custom" className="ledger-table" aria-label="السجل المالي">
                         <thead><tr>{sortHeading('created_at', 'الوقت')}<th scope="col">المشترك</th><th scope="col">النوع</th><th scope="col">السند</th><th scope="col">الطريقة والبنك</th><th scope="col">المرجع</th><th scope="col">سجّله</th>{sortHeading('amount', 'المبلغ')}<th scope="col">الرصيد بعده</th></tr></thead>
                         <tbody>{entries.data.length === 0 ? <tr className="empty"><td colSpan={9}><b>لا توجد قيود مطابقة</b>جرّب فترة أخرى أو غيّر البحث والفلاتر.</td></tr> : entries.data.map((entry, index) => <Fragment key={entry.id}>{grouped && entry.day !== entries.data[index - 1]?.day && <DayHeader day={entry.day} totals={dayTotals[entry.day]} today={today} />}<TransactionRow entry={entry} grouped={grouped} rowClick={rowClick} onOpen={can?.viewSubscriptions ? () => openStatement(entry) : null} /></Fragment>)}</tbody>
                     </table>

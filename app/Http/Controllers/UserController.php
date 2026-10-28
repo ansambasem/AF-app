@@ -16,6 +16,7 @@ use App\Notifications\ActionCompleted;
 use App\Support\UserDeviceAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
@@ -52,14 +53,15 @@ class UserController extends Controller
             ]);
 
         $canViewUserTypes = $actor->can('viewAny', UserType::class);
+        $showingTypes = $canViewUserTypes && $request->query('tab') === 'types';
 
         return Inertia::render('Users/Index', [
-            'users' => $users,
+            'users' => $showingTypes ? null : $users,
             'canCreate' => $actor->can('create', User::class),
             'filters' => $this->dataTableState($request, 'name'),
             'filterOptions' => $this->filterOptions($actor),
-            'tab' => $canViewUserTypes && $request->query('tab') === 'types' ? 'types' : 'users',
-            'userTypes' => $canViewUserTypes ? $this->userTypeRows($actor) : null,
+            'tab' => $showingTypes ? 'types' : 'users',
+            'userTypes' => $canViewUserTypes ? $this->userTypeRows($actor, $request) : null,
             'canCreateUserType' => $actor->can('create', UserType::class),
             ...$this->userBranchOptions(),
         ]);
@@ -69,19 +71,22 @@ class UserController extends Controller
      * The user types for the Users page's types tab, with how many users
      * each one is given to.
      *
-     * @return array<int, array{id: int, name: string, usersCount: int, canUpdate: bool, canDelete: bool}>
+     * @return LengthAwarePaginator<int, array{id: int, name: string, usersCount: int, canUpdate: bool, canDelete: bool}>
      */
-    private function userTypeRows(User $actor): array
+    private function userTypeRows(User $actor, Request $request): LengthAwarePaginator
     {
-        return UserType::query()->withCount('users')->orderBy('name')->get()
-            ->map(fn (UserType $userType): array => [
+        $query = UserType::query()->withCount('users');
+        $this->applyDataTableFilters($query, $request, ['name'], ['name', 'users_count'], 'name');
+
+        return $query->orderBy('id')->paginate($this->dataTablePerPage($request))
+            ->withQueryString()
+            ->through(fn (UserType $userType): array => [
                 'id' => $userType->id,
                 'name' => $userType->name,
                 'usersCount' => $userType->users_count,
                 'canUpdate' => $actor->can('update', $userType),
                 'canDelete' => $actor->can('delete', $userType),
-            ])
-            ->all();
+            ]);
     }
 
     /**

@@ -30,6 +30,9 @@ test('affected checks keep PHP, JavaScript and mobile work separate and do not b
     assert.deepEqual(backend[0].args, ['-l', 'app/Http/Controllers/MeterReadingController.php']);
     assert.ok(backend[1].args.includes('tests/Feature/MeterReadings'));
     assert.equal(backend[1].testing, true);
+    for (const file of ['app/Http/Controllers/MeterReadingAdjustmentController.php', 'app/Http/Concerns/FiltersReadingSheet.php']) {
+        assert.ok(planChecks({ files: [file] }).some((step) => step.args.includes('tests/Feature/MeterReadings')), file);
+    }
     assert.equal([...web, ...mobile, ...backend].some((step) => step.args.includes('build')), false);
 });
 

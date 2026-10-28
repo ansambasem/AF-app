@@ -20,6 +20,7 @@ before(async () => {
             plugins: [{
                 name: 'render-modal-content-without-a-browser-portal',
                 resolveId(id) {
+                    if (id === 'exceljs') return { id: import.meta.resolve(id), external: true };
                     if (/Components[/\\]Modal(?:\.jsx)?$/.test(id)) return '\0modal-content';
                     if (id.endsWith('.css')) return '\0empty-css';
                     if (/^react(?:-dom)?(?:\/|$)/.test(id)) return { id: import.meta.resolve(id), external: true };
@@ -31,7 +32,7 @@ before(async () => {
             }],
         });
         try {
-            const { output } = await bundle.generate({ format: 'esm' });
+            const { output } = await bundle.generate({ format: 'esm', codeSplitting: false });
             components.push((await import(`data:text/javascript;base64,${Buffer.from(output[0].code).toString('base64')}`)).default);
         } finally {
             await bundle.close();

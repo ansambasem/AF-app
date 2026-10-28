@@ -36,6 +36,8 @@ export default function SearchableSelect({
     searchable = true,
     portal = false,
     onDark = false,
+    onCreate = null,
+    createLabel = 'إضافة جديد',
 }) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -234,6 +236,14 @@ export default function SearchableSelect({
                             />
                         </div>
                     )}
+                    {onCreate && <button
+                        type="button"
+                        onClick={() => { const name = query.trim(); setOpen(false); setQuery(''); onCreate(name); }}
+                        className="mx-1.5 mt-1.5 flex items-center gap-2 rounded-lg bg-brand-500/10 px-3 py-2.5 text-start text-sm font-bold text-brand-600 transition hover:bg-brand-500/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+                    >
+                        <Icon name="plus" className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 truncate">{createLabel}{query.trim() && <>: <bdi>{query.trim()}</bdi></>}</span>
+                    </button>}
                     <ul className="min-h-0 max-h-56 overflow-y-auto p-1.5 text-sm">
                         {clearable && (
                             <li>

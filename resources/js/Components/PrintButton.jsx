@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import Icon from '@/Components/Icon';
 import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import { printUrl } from '@/lib/print';
+import ExcelButton from '@/Components/ExcelButton';
 
 export function readingPrintUrl(title, base, params = {}) {
     const url = new URL(printUrl(title, base));
@@ -49,6 +50,7 @@ export default function PrintButton({ title, base, params = {}, selectedIds = []
     }
 
     return <div className="flex flex-wrap items-center gap-2">
+        <ExcelButton title={title} base={href} className={`${secondaryButtonClass} ${buttonClassName}`} />
         <a href={href} target="_blank" rel="noopener noreferrer" className={`${secondaryButtonClass} tone-print ${buttonClassName}`}><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص</a>
         {selectionPage && selectedIds.length > 0 && <button type="button" className={`${secondaryButtonClass} ${buttonClassName}`} disabled={http.processing} onClick={printSelected}>طباعة المحدد ({selectedIds.length})</button>}
         {error && <p role="alert" className="text-xs text-red-600">{error}</p>}

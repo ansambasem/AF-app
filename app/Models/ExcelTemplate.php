@@ -29,6 +29,9 @@ class ExcelTemplate extends Model
      */
     public const KINDS = [
         'reports' => 'التقارير المالية',
+        'tables' => 'جداول الموقع',
+        'statements' => 'كشوف الحساب',
+        'reading-history' => 'سجل القراءات',
     ];
 
     protected function casts(): array

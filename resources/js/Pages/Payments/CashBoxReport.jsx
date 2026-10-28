@@ -1,4 +1,5 @@
 import BankReceivedDate from '@/Components/BankReceivedDate';
+import ExcelButton from '@/Components/ExcelButton';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Icon from '@/Components/Icon';
@@ -16,9 +17,10 @@ export default function CashBoxReport({ report }) {
 
     return <AuthenticatedLayout header={<PageHeader title="تقرير تفاصيل الصندوق" />}>
         <Head title="تقرير تفاصيل الصندوق" />
-        <section className="space-y-5 rounded-panel border border-gray-100 bg-surface p-6 shadow-card">
+        <section data-excel-source="custom" className="space-y-5 rounded-panel border border-gray-100 bg-surface p-6 shadow-card">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <Link href="/payments/cash-boxes" className="text-sm font-semibold text-brand-600">العودة إلى الصناديق</Link>
+                <ExcelButton title="تقرير تفاصيل الصندوق" />
                 <a href={printUrl('تقرير تفاصيل الصندوق')} target="_blank" rel="noopener noreferrer" className={`${secondaryButtonClass} tone-print`}><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص التصميم</a>
             </div>
             <div className="flex flex-wrap gap-2" aria-label="تصفية الحركات">

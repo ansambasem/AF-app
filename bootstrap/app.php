@@ -4,6 +4,7 @@ use App\Http\Middleware\AuthenticateMobileToken;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsureBranchDomainAccess;
 use App\Http\Middleware\EnsureFinancialAuditorAccess;
+use App\Http\Middleware\EnsureSupportedMobileApp;
 use App\Http\Middleware\EnsureUserDeviceAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveBranchDomain;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'mobile.auth' => AuthenticateMobileToken::class,
+            'mobile.supported' => EnsureSupportedMobileApp::class,
         ]);
         // Every response, the API's and the error pages' too, carries the security headers.
         $middleware->append(SecurityHeaders::class);

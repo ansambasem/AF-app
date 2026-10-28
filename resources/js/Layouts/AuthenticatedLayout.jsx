@@ -13,6 +13,8 @@ import { useResponsiveTables } from '@/hooks/useResponsiveTables';
 import { QUICK_MESSAGE_EVENT, openQuickMessage } from '@/lib/quickMessage';
 const CommandPalette = lazy(() => import('@/Components/CommandPalette'));
 const PrintDesigner = lazy(() => import('@/Components/Print/PrintDesigner'));
+const TableExcelDesigner = lazy(() => import('@/Components/TableExcelDesigner'));
+const TableExcelActions = lazy(() => import('@/Components/TableExcelActions'));
 const KeyboardShortcuts = lazy(() => import('@/Components/TopBar/KeyboardShortcuts'));
 const QuickTour = lazy(() => import('@/Components/TopBar/QuickTour'));
 const QuickMessageModal = lazy(() => import('@/Pages/Messages/QuickMessageModal'));
@@ -184,6 +186,9 @@ export default function AuthenticatedLayout({ header, badges = NO_BADGES, scope 
 
     // Opened from a table's print button: the page without the menus (see lib/print.js).
     if (printSettings) {
+        if (new URL(url, window.location.origin).searchParams.get('excel') === '1') {
+            return <Suspense fallback={loadingTool}><TableExcelDesigner settings={printSettings}>{children}</TableExcelDesigner></Suspense>;
+        }
         return <Suspense fallback={loadingTool}><PrintDesigner settings={printSettings} beforePrint={beforePrint}>{children}</PrintDesigner></Suspense>;
     }
 
@@ -227,6 +232,7 @@ export default function AuthenticatedLayout({ header, badges = NO_BADGES, scope 
                 returnFocusTo={menuButtonRef}
             />
             <Suspense fallback={loadingTool}>
+                <TableExcelActions />
                 {paletteOpen && <CommandPalette
                     open={paletteOpen}
                     onOpenChange={onPaletteOpenChange}

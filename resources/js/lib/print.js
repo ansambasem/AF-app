@@ -138,8 +138,7 @@ function printedTable(root) {
  * keys are their titles, so a saved layout finds them again. `root` must
  * be laid out (not display: none) for the texts to keep their line breaks.
  */
-export function extractTable(root) {
-    const table = printedTable(root);
+export function extractTable(root, table = printedTable(root)) {
 
     if (!table) {
         return null;

@@ -37,7 +37,7 @@ function summaryPart(flow, collections, comparison) {
 }
 
 /** The balance statement, line by line, as on the page. */
-function flowPart(flow) {
+export function flowPart(flow) {
     return {
         key: 'flow',
         name: 'حركة الأرصدة',
@@ -54,7 +54,7 @@ function flowPart(flow) {
     };
 }
 
-function daysPart(days) {
+export function daysPart(days) {
     return {
         key: 'days',
         name: 'يومًا بيوم',
@@ -73,7 +73,7 @@ function daysPart(days) {
     };
 }
 
-function accountsPart(collections) {
+export function accountsPart(collections) {
     return {
         key: 'accounts',
         name: 'التحصيل حسب الحساب',
@@ -82,7 +82,7 @@ function accountsPart(collections) {
     };
 }
 
-function collectorsPart(collections) {
+export function collectorsPart(collections) {
     return {
         key: 'collectors',
         name: 'التحصيل حسب المحصّل',
@@ -97,7 +97,7 @@ function collectorsPart(collections) {
     };
 }
 
-function currenciesPart(collections) {
+export function currenciesPart(collections) {
     return {
         key: 'currencies',
         name: 'التحصيل حسب العملة',
@@ -113,7 +113,7 @@ function currenciesPart(collections) {
     };
 }
 
-function readingsPart(readings) {
+export function readingsPart(readings) {
     return {
         key: 'readings',
         name: 'القراءات',
@@ -127,7 +127,7 @@ function readingsPart(readings) {
     };
 }
 
-function branchesPart(branchSummary) {
+export function branchesPart(branchSummary) {
     return {
         key: 'branches',
         name: 'مقارنة الفروع',

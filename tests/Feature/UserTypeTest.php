@@ -37,11 +37,11 @@ class UserTypeTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('Users/Index')
                 ->where('tab', 'types')
                 ->where('canCreateUserType', true)
-                ->has('userTypes', 2)
-                ->where('userTypes.0.name', 'فني صيانة')
-                ->where('userTypes.0.usersCount', 0)
-                ->where('userTypes.1.name', 'محصل')
-                ->where('userTypes.1.usersCount', 2));
+                ->has('userTypes.data', 2)
+                ->where('userTypes.data.0.name', 'فني صيانة')
+                ->where('userTypes.data.0.usersCount', 0)
+                ->where('userTypes.data.1.name', 'محصل')
+                ->where('userTypes.data.1.usersCount', 2));
     }
 
     public function test_the_old_types_page_opens_the_types_tab(): void
@@ -49,6 +49,27 @@ class UserTypeTest extends TestCase
         $this->actingAs(User::factory()->superAdmin()->create())
             ->get(route('user-types.index'))
             ->assertRedirect(route('users.index', ['tab' => 'types']));
+    }
+
+    public function test_types_use_server_search_sorting_pagination_and_the_shared_export_page_size(): void
+    {
+        $actor = User::factory()->superAdmin()->create();
+        for ($number = 1; $number <= 16; $number++) {
+            $type = UserType::factory()->create(['name' => sprintf('نوع %02d', $number)]);
+        }
+        User::factory()->for($type, 'userType')->count(2)->create();
+
+        $this->actingAs($actor)->get(route('users.index', ['tab' => 'types', 'sort' => 'name', 'direction' => 'desc']))
+            ->assertInertia(fn ($page) => $page->where('users', null)->where('userTypes.total', 16)
+                ->has('userTypes.data', 15)->where('userTypes.data.0.name', 'نوع 16')->where('userTypes.last_page', 2));
+        $this->get(route('users.index', ['tab' => 'types', 'sort' => 'name', 'direction' => 'desc', 'page' => 2]))
+            ->assertInertia(fn ($page) => $page->has('userTypes.data', 1)->where('userTypes.data.0.name', 'نوع 01'));
+        $this->get(route('users.index', ['tab' => 'types', 'search' => 'نوع 02']))
+            ->assertInertia(fn ($page) => $page->where('userTypes.total', 1)->where('userTypes.data.0.name', 'نوع 02'));
+        $this->get(route('users.index', ['tab' => 'types', 'sort' => 'users_count', 'direction' => 'desc']))
+            ->assertInertia(fn ($page) => $page->where('userTypes.data.0.id', $type->id)->where('userTypes.data.0.usersCount', 2));
+        $this->get(route('users.index', ['tab' => 'types', 'print_all' => 1]))
+            ->assertInertia(fn ($page) => $page->has('userTypes.data', 16)->where('userTypes.last_page', 1));
     }
 
     public function test_the_users_page_has_no_types_tab_without_the_permission(): void

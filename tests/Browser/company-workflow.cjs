@@ -404,6 +404,50 @@ step('a collector on a phone-sized screen takes a payment without the page spill
     await snap(page, 'phone-payments');
 });
 
+step('subscribers and their account statements export formatted Excel, with readable balances and user names', async () => {
+    const page = people.manager;
+    await page.goto('/subscriptions');
+    const opened = page.context().waitForEvent('page');
+    await page.locator('.data-table-toolbar [data-excel-button]').click();
+    const excel = await opened;
+    const tableStudio = excel.getByRole('dialog', { name: /تصدير.*إلى Excel/ });
+    await tableStudio.getByText('سالم عبد الله', { exact: false }).first().waitFor();
+    const downloadReady = excel.waitForEvent('download');
+    await tableStudio.getByRole('button', { name: 'تنزيل ملف Excel' }).click();
+    const listFile = await downloadReady;
+    const listWorkbook = new (require('exceljs').Workbook)();
+    await listWorkbook.xlsx.readFile(await listFile.path());
+    assert.ok(listWorkbook.worksheets[0].rowCount >= 3);
+    await excel.close();
+
+    await page.getByRole('row').filter({ hasText: 'سالم عبد الله' }).getByRole('button', { name: 'عرض', exact: true }).click();
+    const statement = page.locator('.account-statement');
+    await statement.locator('tbody tr').first().waitFor();
+    await statement.locator('td[data-label="اسم المستخدم"]').first().evaluate((cell) => { cell.textContent = 'Super Admin'; });
+    const balance = statement.locator('td[data-label="الرصيد (شيكل)"]').first();
+    await balance.locator(':scope > span').first().evaluate((element) => { element.textContent = '100,315.50'; });
+    const geometry = await balance.evaluate((cell) => {
+        const text = cell.firstElementChild.getBoundingClientRect();
+        const box = cell.getBoundingClientRect();
+        return { left: box.left, right: box.right, textLeft: text.left, textRight: text.right, width: box.width };
+    });
+    assert.ok(geometry.width >= 140, JSON.stringify(geometry));
+    assert.ok(geometry.textLeft >= geometry.left && geometry.textRight <= geometry.right, JSON.stringify(geometry));
+    await statement.locator('.data-table-container').evaluate((container) => { container.scrollLeft = -container.scrollWidth; });
+    await snap(page, 'statement-wide-balances');
+    await statement.getByRole('button', { name: 'Excel', exact: true }).click();
+    const studio = page.getByRole('dialog', { name: /تصدير كشف حساب.*إلى Excel/ });
+    await studio.getByRole('tab', { name: 'كشف الحساب', exact: true }).waitFor();
+    const statementDownload = page.waitForEvent('download');
+    await studio.getByRole('button', { name: 'تنزيل ملف Excel' }).click();
+    const file = await statementDownload;
+    const workbook = new (require('exceljs').Workbook)();
+    await workbook.xlsx.readFile(await file.path());
+    assert.ok(workbook.getWorksheet('كشف الحساب'));
+    assert.ok(workbook.getWorksheet('ملخص الحساب الكامل'));
+    await page.goto('/subscriptions');
+});
+
 step('financial reports export Excel, retain rejected template names, and print summaries or filtered lines', async () => {
     const page = people.owner;
     await page.goto('/reports?branch=all');

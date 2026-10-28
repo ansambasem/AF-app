@@ -24,7 +24,7 @@ export function planChecks({ full = false, scope = 'all', files = [], existingFi
         } else if (backend.length) {
             const tests = new Set(backend.filter((file) => /^tests\/.*Test\.php$/.test(file) && existingFiles.includes(file)));
             for (const file of backend) {
-                if (/MeterReadingController|Models\/MeterReading\.php/.test(file)) tests.add('tests/Feature/MeterReadings');
+                if (/MeterReading(?:Adjustment)?Controller|Concerns\/(?:FiltersReadingSheet|ApprovesCorrectedReadings)\.php|Models\/MeterReading\.php/.test(file)) tests.add('tests/Feature/MeterReadings');
                 if (/(?:ReadingCycle|ReadingAssignment|PaperSheet|ReadingPrint|PrintSelection)/.test(file)) tests.add('tests/Feature/ReadingPrintCustomizationTest.php');
                 if (/Middleware|Policies\/|Auth\//.test(file)) tests.add('tests/Feature/Auth');
             }

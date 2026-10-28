@@ -85,7 +85,7 @@
 @media screen {
     @container (min-width: 641px) {
         .account-statement .data-table-ledger {
-            min-width: 1200px;
+            min-width: var(--statement-table-width, 1740px);
             table-layout: fixed;
             border-spacing: 0 6px;
         }
@@ -138,6 +138,14 @@
             font-weight: 700;
         }
 
+        .account-statement td[data-label='المبلغ'] > span,
+        .account-statement td[data-label='الرصيد (شيكل)'] > span {
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+
         .account-statement td[data-label='#'] > span,
         .account-statement td[data-label='العملة'] {
             white-space: nowrap;
@@ -183,6 +191,10 @@
 }
 
 @media print {
+    .account-statement .data-table-ledger col {
+        width: auto !important;
+    }
+
     .statement-reference {
         display: block;
         overflow: visible;

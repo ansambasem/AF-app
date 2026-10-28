@@ -6,17 +6,15 @@ use App\Enums\MeterReadingStatus;
 use App\Enums\PermissionKey;
 use App\Enums\ReadingEntryMode;
 use App\Enums\SubscriptionStatus;
+use App\Http\Concerns\ApprovesCorrectedReadings;
 use App\Http\Concerns\FiltersDataTable;
-use App\Http\Requests\AdjustLastReadingRequest;
+use App\Http\Concerns\FiltersReadingSheet;
 use App\Http\Requests\ApproveMeterReadingsRequest;
-use App\Http\Requests\PreviewLastReadingRequest;
 use App\Http\Requests\StoreMeterReadingRequest;
 use App\Http\Requests\UpdateMeterReadingRequest;
-use App\Http\Requests\UpdateReadingPricingRequest;
 use App\Models\Area;
 use App\Models\Branch;
 use App\Models\MessageBatch;
-use App\Models\MeterBox;
 use App\Models\MeterReading;
 use App\Models\ReadingEntrySetting;
 use App\Models\StandingDiscount;
@@ -26,23 +24,23 @@ use App\Models\Tariff;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
 use App\Notifications\ReadingNeedsReapproval;
+use App\Support\BranchDomainContext;
+use App\Support\BranchScope;
 use App\Support\PrintSelection;
 use App\Support\ReadingPrintData;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
 class MeterReadingController extends Controller
 {
-    use FiltersDataTable;
+    use ApprovesCorrectedReadings, FiltersDataTable, FiltersReadingSheet;
 
     /**
      * Sortable sheet columns — the reading columns are computed per row for
@@ -62,6 +60,28 @@ class MeterReadingController extends Controller
         $request->validate(['filter.subscription_status' => ['nullable', 'in:all,active,suspended,disconnected']]);
 
         $actor = auth()->user();
+        if ($actor->isSuperAdmin() && BranchDomainContext::id() === null && ! $request->filled('filter.branch_id')) {
+            $branches = Branch::query()->orderBy('name')->get(['id', 'name']);
+            $schedules = $branches->map(fn (Branch $branch): string => json_encode([
+                ReadingEntrySetting::forBranch($branch->id)->reading_day,
+                ReadingEntrySetting::forBranch($branch->id)->reading_day_history,
+            ]))->unique();
+            if ($schedules->count() > 1) {
+                return Inertia::render('MeterReadings/Branches', [
+                    'branchScope' => BranchScope::describe($branches),
+                    'branches' => $branches->map(function (Branch $branch): array {
+                        $week = MeterReading::latestEndedWeekStart($branch->id);
+
+                        return [
+                            'id' => $branch->id, 'name' => $branch->name,
+                            'weekStart' => $week->toDateString(),
+                            'weekEnd' => MeterReading::weekEndFor($week, $branch->id)->toDateString(),
+                            'url' => route('meter-readings.index', ['filter' => ['branch_id' => $branch->id]]),
+                        ];
+                    })->values(),
+                ]);
+            }
+        }
         $weekBranchId = $this->sheetBranchId($request, $actor);
         $canBrowseWeeks = $actor->can('browseWeeks', MeterReading::class);
         $weekStart = $this->selectedWeek($request, $weekBranchId, $canBrowseWeeks);
@@ -261,162 +281,6 @@ class MeterReadingController extends Controller
         });
     }
 
-    public function previewAdjustment(AdjustLastReadingRequest $request, MeterReading $meterReading): JsonResponse
-    {
-        $newReading = $request->float('current_reading');
-        $reset = $request->isMeterChange();
-        $after = $reset ? [
-            'consumption' => $meterReading->consumption, 'amount_due' => $meterReading->amount_due, 'unusual' => false,
-        ] : $meterReading->recalculatedBetween($meterReading->previous_reading, $newReading);
-        $next = $meterReading->subscription->meterReadings()->where('week_start', '>', $meterReading->week_start)->first();
-
-        return response()->json([
-            'reset' => $reset, 'before' => $meterReading->nextPreviousReading(), 'after' => $newReading,
-            'weeks' => [$this->previewedWeek($meterReading, $meterReading->previous_reading, $reset ? $meterReading->current_reading : $newReading, $after)],
-            'clearsCurrentReading' => $next !== null,
-            'removedCurrentAmount' => $next !== null && ! $next->isPending() ? $next->amount_due : '0.00',
-        ]);
-    }
-
-    public function adjustLastReading(AdjustLastReadingRequest $request, MeterReading $meterReading): RedirectResponse
-    {
-        $actor = $request->user();
-        DB::transaction(function () use ($request, $meterReading, $actor): void {
-            $meterReading->subscription()->lockForUpdate()->firstOrFail();
-            $reading = MeterReading::query()->lockForUpdate()->findOrFail($meterReading->id);
-            $this->authorize('adjustLastReading', $reading);
-            if (round($reading->nextPreviousReading(), 2) !== round($request->float('expected_reading'), 2)) {
-                throw ValidationException::withMessages(['current_reading' => 'تغيّرت القراءة؛ حدّث الصفحة وراجع القيمة الجديدة قبل التعديل.']);
-            }
-
-            $newReading = $request->float('current_reading');
-            if (! $request->isMeterChange() && round($newReading, 2) === round($reading->nextPreviousReading(), 2)) {
-                return;
-            }
-
-            if ($request->isMeterChange()) {
-                $reading->recordAdjustment('baseline_reset', ['previousReading' => $reading->nextPreviousReading()], ['previousReading' => $newReading], $actor, $request->validated('reason'));
-                $reading->update(['next_previous_reading' => $newReading]);
-            } else {
-                $wasApproved = $reading->correct($newReading, $reading->notes, $actor);
-                $reading->update(['next_previous_reading' => null]);
-                if ($wasApproved) {
-                    $this->approveCorrectedLastReading($reading, $actor, $request->boolean('confirm_unusual'));
-                }
-            }
-
-            $next = $reading->subscription->meterReadings()->where('week_start', '>', $reading->week_start)->lockForUpdate()->first();
-            $next?->requireCurrentReadingAgain($newReading, $actor);
-        });
-
-        $actor->notify(new ActionCompleted('meter-reading-updated', $meterReading->subscription->displayName()));
-
-        return back()->with('status', 'meter-reading-updated');
-    }
-
-    public function updatePricing(UpdateReadingPricingRequest $request, MeterReading $meterReading): RedirectResponse
-    {
-        $actor = $request->user();
-        $reopened = DB::transaction(function () use ($request, $meterReading, $actor): bool {
-            $meterReading->subscription()->lockForUpdate()->firstOrFail();
-            $reading = MeterReading::query()->lockForUpdate()->findOrFail($meterReading->id);
-            foreach (['unit_price' => 'updateUnitPrice', 'minimum_payment' => 'updateMinimumPayment'] as $field => $ability) {
-                if ($request->has($field)) {
-                    $this->authorize($ability, $reading);
-                }
-            }
-            $before = $reading->only(['unit_price', 'minimum_payment']);
-            $reading->fill($request->validated());
-            if (! $reading->isDirty(['unit_price', 'minimum_payment'])) {
-                return false;
-            }
-            $reopened = $reading->correct($reading->current_reading, $reading->notes, $actor);
-            $reading->recordAdjustment('pricing', $before, $reading->only(['unit_price', 'minimum_payment']), $actor);
-
-            return $reopened;
-        });
-        if ($reopened) {
-            Notification::send($meterReading->approvers()->reject(fn (User $approver) => $approver->is($actor)), new ReadingNeedsReapproval($meterReading->subscription->displayName(), $actor->name));
-        }
-
-        return back()->with('status', $reopened ? 'meter-reading-reopened' : 'meter-reading-updated');
-    }
-
-    /**
-     * Approve again a week sent back to review by editing the last reading,
-     * as part of confirming that edit. A week the edit made unusual is held
-     * until the editor confirms it, and then nothing of the edit is saved.
-     *
-     * @throws ValidationException when the week is unusual and not confirmed
-     */
-    private function approveCorrectedLastReading(MeterReading $reading, User $actor, bool $confirmUnusual): bool
-    {
-        if (! $reading->approve($actor, $confirmUnusual)) {
-            throw ValidationException::withMessages([
-                'confirm_unusual' => 'استهلاك أسبوع '.$reading->week_start->format('d/m').' بعد التعديل ('.rtrim(rtrim(number_format((float) $reading->consumption, 2, '.', ''), '0'), '.').' كيلو) أعلى بكثير من المعتاد؛ أكّد أنه صحيح ليُعتمد.',
-            ]);
-        }
-
-        return true;
-    }
-
-    /**
-     * What editing a last reading to `current_reading` would do, shown
-     * before the edit is confirmed: for its week and, once entered, the week
-     * after it that starts from it, the readings, consumption and amount due
-     * before and after, whether the week is approved (and so approved again
-     * at once on confirming) and whether the edit makes it unusual. The week
-     * after it is worked out once its reading is typed again
-     * (`next_current_reading`); until then its `after` is null.
-     */
-    public function previewLastReading(PreviewLastReadingRequest $request, MeterReading $meterReading): JsonResponse
-    {
-        $newReading = $request->float('current_reading');
-        $nextReading = $request->nextReading();
-        $nextCurrentReading = $request->nextCurrentReading();
-        $corrected = $meterReading->recalculatedBetween($meterReading->previous_reading, $newReading);
-        $weeks = [$this->previewedWeek($meterReading, $meterReading->previous_reading, $newReading, $corrected)];
-
-        if ($nextReading !== null) {
-            $weeks[] = $this->previewedWeek($nextReading, $newReading, $nextCurrentReading, $nextCurrentReading === null ? null : $nextReading->recalculatedBetween(
-                $newReading,
-                $nextCurrentReading,
-                [$meterReading->id => $corrected['consumption']],
-            ));
-        }
-
-        return response()->json(['weeks' => $weeks]);
-    }
-
-    /**
-     * One week of the last reading's preview.
-     *
-     * @param  array{consumption: float, amount_due: string, unusual: bool}|null  $after  null until its reading is typed again
-     * @return array{id: int, weekStart: string, weekEnd: ?string, isApproved: bool, unusual: bool, before: array<string, float|string>, after: array<string, float|string>|null}
-     */
-    private function previewedWeek(MeterReading $reading, float $previousReading, ?float $currentReading, ?array $after): array
-    {
-        return [
-            'id' => $reading->id,
-            'weekStart' => $reading->week_start->toDateString(),
-            'weekEnd' => $reading->week_end?->toDateString(),
-            'isApproved' => ! $reading->isPending(),
-            'unusual' => $after['unusual'] ?? false,
-            'before' => [
-                'previousReading' => $reading->previous_reading,
-                'currentReading' => $reading->requires_reentry ? null : $reading->current_reading,
-                'consumption' => (float) $reading->consumption,
-                'amountDue' => $reading->amount_due,
-            ],
-            'after' => $after === null ? null : [
-                'previousReading' => $previousReading,
-                'currentReading' => $currentReading,
-                'consumption' => $after['consumption'],
-                'amountDue' => $after['amount_due'],
-            ],
-        ];
-    }
-
     /**
      * Approve the ticked readings, or `all` pending readings of the given
      * week among the subscriptions matching the sheet's search and filters.
@@ -473,38 +337,6 @@ class MeterReadingController extends Controller
     }
 
     /**
-     * Pending readings in the actor's branch (every branch for the Super Admin).
-     *
-     * @return Builder<MeterReading>
-     */
-    private function pendingReadings(User $actor): Builder
-    {
-        return MeterReading::query()
-            ->visibleTo($actor)
-            ->where('requires_reentry', false)
-            ->where('status', MeterReadingStatus::Pending);
-    }
-
-    /**
-     * The week's pending readings for the subscriptions the sheet shows with
-     * the request's search and filters.
-     *
-     * @return Builder<MeterReading>
-     */
-    private function pendingInSheet(Request $request, User $actor, string $week): Builder
-    {
-        $subscriptions = $this->subscriptionsInScope($actor, $request);
-        $this->applyDataTableFilters($subscriptions, $request, ['full_name', 'subscription_name', 'account_number', 'phone', 'subscription_phone'], [], 'full_name');
-        $this->applyDataTableFilterSelects($subscriptions, $request, ['branch_id', 'meter_box_id', 'tariff_id']);
-        $this->applyMeterBoxNameFilter($subscriptions, $request);
-        $this->applySheetFilters($subscriptions, $request, $week);
-
-        return $this->pendingReadings($actor)
-            ->whereDate('week_start', $week)
-            ->whereIn('subscription_id', $subscriptions->reorder()->select('subscriptions.id'));
-    }
-
-    /**
      * Whether the reading entry window of the actor's branch is open, and
      * whether it restricts this actor at all: only people who enter readings
      * are held to it, and the Super Admin may enter them any time.
@@ -525,186 +357,6 @@ class MeterReadingController extends Controller
             'closesAt' => substr($setting->closes_at, 0, 5),
             'nextOpensOn' => $setting->nextOpeningOnReadingDay()?->toDateString(),
         ];
-    }
-
-    /**
-     * Subscriptions matching the selected status, active by default.
-     *
-     * @return Builder<Subscription>
-     */
-    private function subscriptionsInScope(User $actor, Request $request): Builder
-    {
-        $status = (string) $request->input('filter.subscription_status', SubscriptionStatus::Active->value);
-
-        return Subscription::query()
-            ->visibleTo($actor)
-            ->when($status !== 'all', fn (Builder $query) => $query->where('status', SubscriptionStatus::tryFrom($status) ?? SubscriptionStatus::Active));
-    }
-
-    /**
-     * Add each row's reading values for the week as selectable (and so
-     * sortable) columns: the meter box number, the last reading the week
-     * starts from, and — once entered — the new reading, consumption and
-     * amount to pay.
-     */
-    private function withSheetColumns(Builder $query, string $week): void
-    {
-        $thisWeek = fn (string $column) => MeterReading::query()
-            ->select($column)
-            ->whereColumn('meter_readings.subscription_id', 'subscriptions.id')
-            ->whereDate('week_start', $week)
-            ->limit(1);
-
-        $lastBefore = MeterReading::query()
-            ->selectRaw('COALESCE(next_previous_reading, current_reading)')
-            ->whereColumn('meter_readings.subscription_id', 'subscriptions.id')
-            ->whereDate('week_start', '<', $week)
-            ->orderByDesc('week_start')
-            ->limit(1);
-
-        $thisWeekPrevious = $thisWeek('previous_reading');
-
-        $query->select('subscriptions.*')
-            ->selectSub(MeterBox::query()->select('box_number')->whereColumn('meter_boxes.id', 'subscriptions.meter_box_id'), 'meter_box_number')
-            ->selectSub(MeterBox::query()->select('name')->whereColumn('meter_boxes.id', 'subscriptions.meter_box_id'), 'meter_box_name')
-            ->selectSub(MeterBox::query()->select('name_suffix')->whereColumn('meter_boxes.id', 'subscriptions.meter_box_id'), 'meter_box_suffix')
-            ->selectRaw(
-                "COALESCE(({$thisWeekPrevious->toSql()}), ({$lastBefore->toSql()}), subscriptions.initial_reading, 0) as last_reading",
-                [...$thisWeekPrevious->getBindings(), ...$lastBefore->getBindings()],
-            )
-            ->selectSub($thisWeek('current_reading'), 'current_reading')
-            ->selectSub($thisWeek('consumption'), 'consumption')
-            ->selectSub($thisWeek('amount_due'), 'amount_due');
-    }
-
-    /**
-     * `?sort=meter_box`: by meter box — its name, then its suffix, then its
-     * number, numbers in numeric order (BOX-9 before BOX-10) — with
-     * subscriptions without a box last. Applied before the table's own sort,
-     * which then only breaks ties (by name).
-     */
-    private function applyMeterBoxSort(Builder $query, Request $request): void
-    {
-        if ((string) $request->string('sort') !== 'meter_box') {
-            return;
-        }
-
-        $direction = $request->string('direction')->lower()->value() === 'desc' ? 'desc' : 'asc';
-
-        $query->orderByRaw('meter_box_name IS NULL')
-            ->orderBy('meter_box_name', $direction)
-            ->orderByRaw('LENGTH(COALESCE(meter_box_suffix, \'\')) '.$direction)
-            ->orderBy('meter_box_suffix', $direction)
-            ->orderByRaw('LENGTH(meter_box_number) '.$direction)
-            ->orderBy('meter_box_number', $direction);
-    }
-
-    /**
-     * The branch whose reading weeks the sheet follows: the actor's own, or
-     * for the Super Admin the branch filtered on, else the first one. A sheet
-     * shows the weeks of one schedule, so when the branches do not all read on
-     * the same weeks, the Super Admin's sheet is held to that branch — the
-     * branch filter is set to it — instead of mixing the weeks.
-     */
-    private function sheetBranchId(Request $request, User $actor): ?int
-    {
-        if (! $actor->isSuperAdmin()) {
-            return $actor->workBranchId();
-        }
-
-        $chosen = $request->input('filter.branch_id');
-
-        if (filled($chosen)) {
-            return (int) $chosen;
-        }
-
-        $branchIds = Branch::query()->orderBy('name')->pluck('id');
-        $weeksOfBranches = $branchIds->map(function (int $branchId): string {
-            $schedule = ReadingEntrySetting::forBranch($branchId);
-
-            return json_encode([$schedule->reading_day, $schedule->reading_day_history]);
-        })->unique();
-
-        if ($weeksOfBranches->count() > 1) {
-            $request->merge(['filter' => [...(array) $request->input('filter', []), 'branch_id' => (string) $branchIds->first()]]);
-        }
-
-        return $branchIds->first();
-    }
-
-    /**
-     * The requested week (any date is snapped to the first day of its
-     * week), defaulting to the latest week that has ended and never later
-     * than it — always that week for someone who may not browse earlier ones.
-     */
-    private function selectedWeek(Request $request, ?int $branchId, bool $canBrowseWeeks): Carbon
-    {
-        $latestWeek = MeterReading::latestEndedWeekStart($branchId);
-        $requested = $request->date('week');
-
-        if ($requested === null || ! $canBrowseWeeks) {
-            return $latestWeek;
-        }
-
-        return MeterReading::weekStartFor($requested, $branchId)->min($latestWeek);
-    }
-
-    /**
-     * How many weeks the pickers offer: back to the week of the first
-     * reading the actor may see, but at least 60 and at most 520 (ten years).
-     */
-    private function weeksToOffer(User $actor, ?int $branchId): int
-    {
-        $first = MeterReading::query()->visibleTo($actor)->min('week_start');
-
-        if ($first === null) {
-            return 60;
-        }
-
-        $weeks = (int) floor(MeterReading::latestEndedWeekStart($branchId)->diffInDays(Carbon::parse($first), absolute: true) / 7) + 1;
-
-        return max(60, min(520, $weeks));
-    }
-
-    /**
-     * Filters that need a join rather than a plain column match: the
-     * area/sub-area a subscription's meter box sits in, whether this week's
-     * reading has been entered yet, and whether it has been approved.
-     */
-    private function applySheetFilters(Builder $query, Request $request, string $week, bool $includeStatus = true): void
-    {
-        $filters = (array) $request->input('filter', []);
-
-        if (filled($filters['area_id'] ?? null)) {
-            $query->whereHas('branch', fn (Builder $q) => $q->where('area_id', $filters['area_id']));
-        }
-
-        if (filled($filters['sub_area_id'] ?? null)) {
-            $query->whereHas('meterBox', fn (Builder $q) => $q->where('sub_area_id', $filters['sub_area_id']));
-        }
-
-        $this->applyCircuitBreakerFilter($query, $request);
-
-        if ($includeStatus) {
-            $this->applySheetStatusFilters($query, $request, $week);
-        }
-    }
-
-    private function applySheetStatusFilters(Builder $query, Request $request, string $week): void
-    {
-        $filters = (array) $request->input('filter', []);
-
-        match ($filters['entry'] ?? null) {
-            'entered' => $query->whereHas('meterReadings', fn (Builder $q) => $q->whereDate('week_start', $week)),
-            'missing' => $query->whereDoesntHave('meterReadings', fn (Builder $q) => $q->whereDate('week_start', $week)),
-            default => null,
-        };
-
-        $approval = MeterReadingStatus::tryFrom((string) ($filters['approval'] ?? ''));
-
-        if ($approval !== null) {
-            $query->whereHas('meterReadings', fn (Builder $q) => $q->whereDate('week_start', $week)->where('status', $approval));
-        }
     }
 
     /**

@@ -25,9 +25,11 @@ export default function Login() {
         <GuestLayout>
             <Head title="تسجيل الدخول" />
 
-            <h2 className="text-3xl font-bold text-gray-900">مرحبًا بعودتك</h2>
-            <p className="mt-2 text-sm text-gray-500">سجّل دخولك للمتابعة إلى لوحة التحكم.</p>
-            {branchContext?.current && <p className="mt-4 rounded-control border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900">تسجيل الدخول إلى <b>{branchContext.current.name}</b></p>}
+            <h2 className="login-welcome text-3xl font-bold text-gray-900">مرحبًا بعودتك</h2>
+            <p className="login-welcome mt-2 text-sm text-gray-500" style={{ '--welcome-index': 1 }}>
+                سجّل دخولك للمتابعة إلى لوحة التحكم.
+            </p>
+            {branchContext?.current && <p className="login-welcome mt-4 rounded-control border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900" style={{ '--welcome-index': 2 }}>تسجيل الدخول إلى <b>{branchContext.current.name}</b></p>}
 
             <form onSubmit={submit} className="mt-10 space-y-5">
                 <div>
@@ -49,7 +51,6 @@ export default function Login() {
                     <PasswordInput
                         id="password"
                         className="mt-2 block w-full py-3 text-right"
-                        dir="auto"
                         value={data.password}
                         autoComplete="current-password"
                         onChange={(e) => setData('password', e.target.value)}

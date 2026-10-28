@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateSubAreaRequest;
 use App\Models\Area;
 use App\Models\SubArea;
 use App\Notifications\ActionCompleted;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -34,10 +35,14 @@ class SubAreaController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreSubAreaRequest $request): RedirectResponse
+    public function store(StoreSubAreaRequest $request): JsonResponse|RedirectResponse
     {
         $subArea = SubArea::create($request->validated());
         $request->user()->notify(new ActionCompleted('sub-area-created', $subArea->name));
+
+        if ($request->expectsJson()) {
+            return response()->json($subArea->only(['id', 'name', 'area_id']), 201);
+        }
 
         return redirect()->route('governorates.index', array_filter([
             'selected' => $subArea->area?->governorate_id,

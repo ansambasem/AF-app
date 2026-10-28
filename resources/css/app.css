@@ -1604,17 +1604,270 @@ html[data-modal-open] {
     animation-delay: var(--rise-delay, 0ms);
 }
 
-/* The login page's floating logo and breathing glow. */
-@keyframes logo-float {
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-10px);
+/*
+ * The login page's animated logo (Components/AnimatedLogo.jsx). While it
+ * plays its outlines trace themselves, the dots pop in and the metal wipes
+ * across over the tinted shapes; once done it floats and a shine passes over
+ * it. Above the form on small screens, in the brand panel on large ones.
+ */
+.af-logo {
+    position: relative;
+    width: min(270px, 70vw);
+    aspect-ratio: 782 / 455;
+    margin: 0 auto 34px;
+    perspective: 600px;
+}
+
+.af-logo--brand {
+    width: 390px;
+    margin: 0;
+    filter: drop-shadow(0 18px 30px rgba(16, 24, 40, 0.35));
+}
+
+@media (min-width: 1024px) {
+    .af-logo--form {
+        display: none;
     }
 }
 
+.af-logo svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    transform-style: preserve-3d;
+    transition: transform 0.25s ease-out;
+}
+
+.af-logo .st {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    stroke-width: 3.2;
+    vector-effect: non-scaling-stroke;
+}
+
+.af-logo .st-af,
+.af-logo .st-sw {
+    stroke: #3b4049;
+}
+
+.dark .af-logo .st-af,
+.dark .af-logo .st-sw {
+    stroke: #c9ced6;
+}
+
+.af-logo .st-red,
+.af-logo .st-hole {
+    stroke: #9b262c;
+}
+
+.af-logo .st-hole {
+    stroke-width: 1.6;
+}
+
+.af-logo .tint path {
+    opacity: 0;
+}
+
+.af-logo .tint-silver {
+    fill: #dfdfe1;
+}
+
+.af-logo .tint-af {
+    fill: #bdbfc2;
+}
+
+.af-logo .tint-red {
+    fill: #681e21;
+}
+
+.af-logo .wipe {
+    transform: scaleX(0);
+    transform-origin: 0 0;
+    transform-box: view-box;
+}
+
+.af-logo .dot {
+    fill: #6b2125;
+    transform: scale(0);
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.af-logo .shine {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.85) 50%, transparent 62%) no-repeat;
+    background-size: 260% 100%;
+    background-position: 160% 0;
+}
+
+.af-logo.play .st-af {
+    animation: af-draw 1.68s cubic-bezier(0.6, 0, 0.3, 1) 0.08s forwards;
+}
+
+.af-logo.play .st-sw {
+    animation: af-draw 1.28s cubic-bezier(0.6, 0, 0.3, 1) 0.72s forwards;
+}
+
+.af-logo.play .st-red {
+    animation: af-draw 1.6s cubic-bezier(0.6, 0, 0.3, 1) 0.32s forwards;
+}
+
+.af-logo.play .st-hole {
+    animation: af-draw 0.56s ease-out 1.52s forwards;
+}
+
+.af-logo.play .dot {
+    animation: af-pop 0.67s cubic-bezier(0.3, 1.6, 0.5, 1) calc(1.36s + var(--i) * 44.8ms) forwards;
+}
+
+.af-logo.play .tint path {
+    animation: af-fade 0.64s ease-out 1.84s forwards;
+}
+
+.af-logo.play .wipe {
+    animation: af-wipe 1.2s cubic-bezier(0.7, 0, 0.25, 1) 2.32s forwards;
+}
+
+.af-logo.play .lines {
+    animation: af-out 0.8s ease-in 3.04s forwards;
+}
+
+.af-logo.play .dots {
+    animation: af-out 0.56s ease-in 3.28s forwards;
+}
+
+.af-logo.play svg {
+    animation: af-settle 0.96s cubic-bezier(0.3, 1.5, 0.5, 1) 3.44s both;
+}
+
+.af-logo.done .tint,
+.af-logo.done .lines,
+.af-logo.done .dots {
+    display: none;
+}
+
+.af-logo.done .wipe {
+    transform: none;
+}
+
+.af-logo.done svg {
+    animation: af-float 6s ease-in-out infinite;
+}
+
+.af-logo.done .shine {
+    opacity: 1;
+    animation: af-shine 5.5s ease-in-out 0.2s infinite;
+}
+
+/* The login's welcome rises in as the logo finishes drawing; --welcome-index staggers its lines. */
+.login-welcome {
+    animation: af-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(3s + var(--welcome-index, 0) * 120ms);
+}
+
+@keyframes af-draw {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes af-pop {
+    to {
+        transform: scale(1);
+    }
+}
+
+@keyframes af-fade {
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes af-wipe {
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@keyframes af-out {
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes af-settle {
+    0% {
+        transform: scale(1);
+    }
+    40% {
+        transform: scale(1.045);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes af-float {
+    0%,
+    100% {
+        translate: 0 0;
+    }
+    50% {
+        translate: 0 -5px;
+    }
+}
+
+@keyframes af-shine {
+    0% {
+        background-position: 160% 0;
+    }
+    35%,
+    100% {
+        background-position: -60% 0;
+    }
+}
+
+@keyframes af-up {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .af-logo .lines,
+    .af-logo .dots,
+    .af-logo .tint {
+        display: none;
+    }
+
+    .af-logo .wipe {
+        transform: none;
+    }
+
+    .af-logo *,
+    .login-welcome {
+        animation: none !important;
+    }
+}
+
+/* The login page's breathing glow behind the logo. */
 @keyframes glow-breathe {
     0%,
     100% {
@@ -1625,10 +1878,6 @@ html[data-modal-open] {
         opacity: 0.9;
         transform: scale(1.08);
     }
-}
-
-.animate-logo-float {
-    animation: logo-float 7s ease-in-out infinite;
 }
 
 .animate-glow-breathe {

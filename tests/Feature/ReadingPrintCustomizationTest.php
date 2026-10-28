@@ -92,6 +92,26 @@ class ReadingPrintCustomizationTest extends TestCase
         $this->get(route('reading-cycles.print', ['print' => 1, 'cycle' => $otherCycle->id]))->assertNotFound();
     }
 
+    public function test_excel_distribution_pages_advance_without_losing_the_cycle_or_filters(): void
+    {
+        $work = $this->work();
+        MeterBox::factory()->count(15)->has(Subscription::factory()->state(['branch_id' => $work['branch']->id, 'circuit_breaker_id' => $work['subscription']->circuit_breaker_id]), 'subscriptions')->create(['branch_id' => $work['branch']->id]);
+        $this->actingAs($work['manager']);
+        $url = route('reading-cycles.print', ['print' => 1, 'excel' => 1, 'cycle' => $work['cycle']->id, 'per_page' => 15]);
+
+        $first = $this->printData($url);
+        $second = $this->printData($first['pagination']['next_page_url']);
+
+        $this->assertCount(15, $first['rows']);
+        $this->assertCount(1, $second['rows']);
+        $this->assertSame(2, $second['pagination']['current_page']);
+        $this->assertSame(16, $second['pagination']['total']);
+        $this->assertNull($second['pagination']['next_page_url']);
+        $this->assertNotContains($second['rows'][0]['cells']['field:boxNumber'], array_column(array_column($first['rows'], 'cells'), 'field:boxNumber'));
+        $foreign = ReadingCycle::factory()->create();
+        $this->get(route('reading-cycles.print', ['print' => 1, 'excel' => 1, 'cycle' => $foreign->id, 'page' => 2]))->assertNotFound();
+    }
+
     public function test_printing_marks_cancelled_bills_and_does_not_print_stale_reentry_charges(): void
     {
         $work = $this->work();

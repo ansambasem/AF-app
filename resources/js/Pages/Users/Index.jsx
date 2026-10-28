@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import AddButton from '@/Components/AddButton';
@@ -36,16 +36,13 @@ export default function Index({
 }) {
     const [modalUser, setModalUser] = useState(null);
     const [creating, setCreating] = useState(false);
-    const [tab, setTab] = useState(initialTab);
+    const tab = initialTab;
     const [addTypeRequested, setAddTypeRequested] = useState(false);
     const showingTypes = tab === 'types' && userTypes !== null;
 
-    useEffect(() => setTab(initialTab), [initialTab]);
-
     /** Switch tabs, keeping the tab in the address so a refresh or a save comes back to it. */
     function switchTab(next) {
-        setTab(next);
-        router.get('/users', next === 'types' ? { tab: 'types' } : {}, { only: ['tab'], preserveState: true, preserveScroll: true, replace: true });
+        router.get('/users', next === 'types' ? { tab: 'types' } : {}, { preserveState: false, preserveScroll: true, replace: true });
     }
     const rowClick = useRowClick();
     const { requestDelete, deleteDialog } = useDeleteRecord('المستخدم');
@@ -99,6 +96,7 @@ export default function Index({
             {showingTypes ? (
                 <UserTypesTab
                     userTypes={userTypes}
+                    filters={filters}
                     canCreate={canCreateUserType}
                     addRequested={addTypeRequested}
                     onAddHandled={() => setAddTypeRequested(false)}

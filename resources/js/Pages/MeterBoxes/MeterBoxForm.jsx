@@ -5,6 +5,7 @@ import FormSelect, { namedOptions } from '@/Components/Form/FormSelect';
 import FormSection from '@/Components/Form/FormSection';
 import Icon from '@/Components/Icon';
 import TextInput from '@/Components/TextInput';
+import MeterBoxSubAreaSelect from './MeterBoxSubAreaSelect';
 
 /**
  * The form's starting values: the meter box's own when editing,
@@ -20,22 +21,24 @@ export function meterBoxFormData(meterBox) {
     };
 }
 
-export default function MeterBoxForm({ data, setData, errors, branches, canChooseBranch, governorates, areas, subAreas, currentBranchAreaId }) {
+export default function MeterBoxForm({ data, setData, errors, branches, canChooseBranch, canCreateSubArea, governorates, areas, subAreas, currentBranchAreaId }) {
     const selectedBranch = canChooseBranch ? branches.find((branch) => String(branch.id) === String(data.branch_id)) : null;
 
     const [governorateId, setGovernorateId] = useState(selectedBranch?.governorate_id ?? '');
     const [areaId, setAreaId] = useState(selectedBranch?.area_id ?? '');
+    const [createdSubAreas, setCreatedSubAreas] = useState([]);
 
     // The area whose sub-areas ("منطقة 2") are selectable: the cascading
-    // picker's choice for a Super Admin, or the actor's own (fixed)
-    // branch's area for everyone else.
-    const effectiveAreaId = canChooseBranch ? areaId : currentBranchAreaId;
+    // selected branch's area for a Super Admin, or the actor's own
+    // (fixed) branch's area for everyone else.
+    const effectiveAreaId = canChooseBranch ? selectedBranch?.area_id : currentBranchAreaId;
 
     const areasInGovernorate = governorateId ? areas.filter((area) => String(area.governorate_id) === String(governorateId)) : [];
 
     const branchesInArea = areaId ? branches.filter((branch) => String(branch.area_id) === String(areaId)) : [];
 
-    const subAreasInArea = effectiveAreaId ? subAreas.filter((subArea) => String(subArea.area_id) === String(effectiveAreaId)) : [];
+    const availableSubAreas = [...subAreas, ...createdSubAreas.filter((item) => !subAreas.some((option) => option.id === item.id))];
+    const subAreasInArea = effectiveAreaId ? availableSubAreas.filter((subArea) => String(subArea.area_id) === String(effectiveAreaId)) : [];
 
     const displayName = [data.name.trim(), data.name_suffix.trim()].filter(Boolean).join(' ');
     const subArea = subAreasInArea.find((option) => String(option.id) === String(data.sub_area_id));
@@ -131,7 +134,7 @@ export default function MeterBoxForm({ data, setData, errors, branches, canChoos
                             label="الفرع"
                             required
                             value={data.branch_id}
-                            onChange={(value) => setData('branch_id', value)}
+                            onChange={(value) => setData((current) => ({ ...current, branch_id: value, sub_area_id: '' }))}
                             options={namedOptions(branchesInArea)}
                             placeholder="— اختر فرعًا —"
                             blockedMessage={areaId ? null : 'اختر منطقة أولاً'}
@@ -143,16 +146,19 @@ export default function MeterBoxForm({ data, setData, errors, branches, canChoos
                     <p className="text-sm text-gray-500 sm:col-span-2">سينتمي هذا الطبلون إلى فرعك.</p>
                 )}
 
-                <FormSelect
+                <MeterBoxSubAreaSelect
+                    key={`${data.branch_id}-${effectiveAreaId}`}
                     id="sub_area_id"
-                    label="منطقة 2"
-                    searchable
                     value={data.sub_area_id}
                     onChange={(value) => setData('sub_area_id', value)}
-                    options={namedOptions(subAreasInArea)}
-                    placeholder="— بلا منطقة 2 —"
-                    blockedMessage={effectiveAreaId ? null : canChooseBranch ? 'اختر منطقة أولاً' : 'فرعك غير مرتبط بمنطقة بعد'}
-                    emptyMessage="لا توجد منطقة 2 في هذه المنطقة بعد"
+                    onCreated={(subArea) => {
+                        setCreatedSubAreas((items) => [...items, { ...subArea, isNew: true }]);
+                        setData('sub_area_id', String(subArea.id));
+                    }}
+                    subAreas={subAreasInArea}
+                    areaId={effectiveAreaId}
+                    canCreate={canCreateSubArea}
+                    blockedMessage={effectiveAreaId ? null : canChooseBranch && !selectedBranch ? 'اختر الفرع أولاً' : 'الفرع غير مرتبط بمنطقة بعد'}
                     error={errors.sub_area_id}
                 />
             </FormSection>

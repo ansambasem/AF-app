@@ -19,6 +19,7 @@ before(async () => {
         plugins: [{
             name: 'render-permission-components',
             resolveId(id) {
+                if (id === 'exceljs') return { id: import.meta.resolve(id), external: true };
                 if (/^react(?:-dom)?(?:\/|$)/.test(id) || id === '@inertiajs/react') {
                     return { id: import.meta.resolve(id), external: true };
                 }

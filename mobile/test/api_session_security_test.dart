@@ -115,6 +115,17 @@ void main() {
     expect(api.token, 'renewed');
   });
 
+  test('every request sends the build number from pubspec.yaml', () async {
+    final pubspecBuild = RegExp(r'^version: [^+\s]+\+(\d+)$', multiLine: true)
+        .firstMatch(File('pubspec.yaml').readAsStringSync())!
+        .group(1);
+    expect('$appBuildNumber', pubspecBuild);
+
+    final request = SessionRequest(SessionResponse(200, '{"user":{}}'));
+    await ApiClient(httpClient: SessionHttpClient(request)).me();
+    expect(request.headers.values['X-App-Build'], '$appBuildNumber');
+  });
+
   test('API redirects are rejected without replacing the current token',
       () async {
     final request =

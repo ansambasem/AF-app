@@ -1,6 +1,6 @@
 import Icon from '@/Components/Icon';
 import { formatMoney } from '@/lib/format';
-import { BankMark } from '@/Pages/Subscriptions/PaymentModal';
+import { BankMark } from '@/Components/Banks';
 
 /** What a box's summary groups its entries by, for each type of box. */
 const groupings = {
