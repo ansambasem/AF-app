@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useHttp } from '@inertiajs/react';
+import { router, useHttp } from '@inertiajs/react';
 import FormSelect from '@/Components/Form/FormSelect';
 import InputError from '@/Components/InputError';
 import Icon from '@/Components/Icon';
@@ -39,6 +39,7 @@ export default function MeterBoxSubAreaSelect({ id, value, onChange, onCreated, 
                 onCreated(subArea);
                 setAdding(false);
                 http.reset();
+                router.reload({ only: ['subAreas', 'filterOptions'] });
             }
         } catch (error) {
             if (current.current && error.response?.status !== 422) {

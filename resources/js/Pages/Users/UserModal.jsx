@@ -2,7 +2,7 @@ import FormModal from '@/Components/FormModal';
 import { useResourceForm } from '@/hooks/useResourceForm';
 import UserForm, { userFormData } from './UserForm';
 
-export default function UserModal({ show, onClose, user, branches, canChooseBranch, userTypeOptions, visitOptions }) {
+export default function UserModal({ show, onClose, user, branches, canChooseBranch, canCreateUserType, userTypeOptions, visitOptions }) {
     const form = useResourceForm('/users', user, userFormData(user));
 
     return (
@@ -14,6 +14,7 @@ export default function UserModal({ show, onClose, user, branches, canChooseBran
                 isEdit={form.isEdit}
                 canUpdatePassword={user?.canUpdatePassword}
                 userTypeOptions={userTypeOptions}
+                canCreateUserType={canCreateUserType}
                 branches={branches}
                 canChooseBranch={canChooseBranch}
             />

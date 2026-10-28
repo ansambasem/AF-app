@@ -7,7 +7,6 @@ import Icon from '@/Components/Icon';
 import KpiTile from '@/Components/KpiTile';
 import PageHeader from '@/Components/PageHeader';
 import SearchableSelect from '@/Components/SearchableSelect';
-import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import SegmentedTabs from '@/Components/SegmentedTabs';
 import { useStatementWindow } from '@/hooks/useStatementWindow';
 import { formatMoney, formatNumber, percentOf } from '@/lib/format';
@@ -229,11 +228,6 @@ export default function Dashboard({
                     meta={[scopeLine, formatWeekDay(scope.today)].filter(Boolean).join(' · ')}
                     actions={
                         <>
-                            {can?.viewUserTypes && (
-                                <Link href="/users?tab=types" className={secondaryButtonClass}>
-                                    أنواع المستخدمين
-                                </Link>
-                            )}
                             {canCreateBranch ? (
                                 <AddButton onClick={() => openCreateForm('branch')}>فرع جديد</AddButton>
                             ) : canCreateUser ? (
@@ -517,6 +511,7 @@ export default function Dashboard({
                         branches={userForm.branches}
                         canChooseBranch={userForm.canChooseBranch}
                         userTypeOptions={userForm.userTypeOptions}
+                        canCreateUserType={userForm.canCreateUserType}
                         visitOptions={returnHere}
                     />
                 )}

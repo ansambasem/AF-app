@@ -80,7 +80,8 @@ export function printScopeUrl(allRows) {
  * shows together in one cell. Spread on the <table>:
  * `<table {...printFieldsProps(FIELDS)}>` with `[{ key, label }]`, and on
  * each row `<tr {...printRowProps({ key: value })}>`. They start hidden in
- * the designer, ready to be added, sorted or grouped by.
+ * the designer, ready to be added, sorted or grouped by. Set `default: true`
+ * to show one initially, and `after` to place it after a table column key.
  */
 export function printFieldsProps(fields) {
     return { 'data-print-fields': JSON.stringify(fields) };
@@ -108,6 +109,10 @@ function columnTitle(th) {
  * value typed in any field in it (e.g. a reading being entered).
  */
 function cellText(cell) {
+    if (cell.hasAttribute('data-print-value')) {
+        return cell.dataset.printValue;
+    }
+
     const fieldValues = [...cell.querySelectorAll('input:not([type=checkbox]):not([type=radio]), select, textarea')]
         .map((field) => field.value)
         .filter((value) => value !== '');
@@ -158,7 +163,7 @@ export function extractTable(root, table = printedTable(root)) {
 
     const fields = parseJson(table.dataset.printFields, [])
         .filter((field) => field && field.key && field.label)
-        .map((field) => ({ key: `field:${field.key}`, label: field.label, field: field.key, extra: true }));
+        .map((field) => ({ key: `field:${field.key}`, label: field.label, field: field.key, extra: field.default !== true, after: field.after }));
 
     const rows = [...table.querySelectorAll('tbody tr')]
         .map((row) => {
@@ -183,7 +188,13 @@ export function extractTable(root, table = printedTable(root)) {
         })
         .filter(Boolean);
 
-    return { columns: [...columns.map(({ key, label }) => ({ key, label })), ...fields.map(({ key, label }) => ({ key, label, extra: true }))], rows };
+    const outputColumns = columns.map(({ key, label }) => ({ key, label }));
+    for (const { key, label, extra, after } of fields) {
+        const position = after ? outputColumns.findIndex((column) => column.key === after) : -1;
+        outputColumns.splice(position === -1 ? outputColumns.length : position + 1, 0, { key, label, extra });
+    }
+
+    return { columns: outputColumns, rows };
 }
 
 /** The page's summary under its table (e.g. the financial log's totals), if it has one. */

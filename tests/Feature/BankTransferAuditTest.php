@@ -254,7 +254,10 @@ class BankTransferAuditTest extends TestCase
         }
         $this->get(route('reports.index'))->assertOk();
         $this->get(route('payments.index'))->assertForbidden();
-        $this->get(route('payments.cash-boxes.entries'))->assertForbidden();
+        $this->get(route('payments.cash-boxes.entries', ['branch_id' => $box->branch_id]))->assertForbidden();
+        $this->get(route('payments.cash-boxes.entries'))->assertInertia(fn ($page) => $page
+            ->where('branch', null)->where('branchScope.branches', 1)
+            ->where('branchScope.name', $auditor->branch->name)->where('entries.total', 0));
         $this->post(route('payments.cash-boxes.actions', ['action' => 'receive', 'record' => $box->id]), ['branch_id' => $box->branch_id])->assertNotFound();
     }
 

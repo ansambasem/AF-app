@@ -8,9 +8,8 @@ export function shouldPrefetchPage(href) {
 /**
  * Every page in the top bar and the Ctrl+K search. `can` names the flag in
  * the shared `can` props (HandleInertiaRequests) that must be true to open
- * the page; links without it are open to all. The top bar shows every page
- * to everyone, those not open to the user locked; the search lists only the
- * pages they may open.
+ * the page; links without it are open to all. Main sections stay visible;
+ * their child menus and the search show only permitted pages.
  */
 export const MAIN_LINKS = [
     { href: '/dashboard', label: 'لوحة التحكم', description: 'نظرة اليوم: التحصيل والمهام', icon: 'grid' },
@@ -71,8 +70,8 @@ export const NAVIGATION_GROUPS = [
 
 /**
  * The top bar's task groups, the same for every user: all of each group's
- * pages, those the user may not open marked `locked` (they open the
- * no-access page), so the bar keeps its shape whatever the permissions.
+ * pages, with unavailable ones marked `locked`. This keeps the main
+ * sections stable while their child navigation shows permitted pages.
  */
 export function navigationGroups(can) {
     return NAVIGATION_GROUPS.map(({ hrefs, ...group }) => {
@@ -86,8 +85,13 @@ export function navigationGroups(can) {
 /** Task groups containing only the pages the current user may open, for the search. */
 export function allowedNavigationGroups(can) {
     return navigationGroups(can)
-        .map((group) => ({ ...group, links: group.links.filter((link) => !link.locked) }))
+        .map((group) => ({ ...group, links: sectionLinks(group) }))
         .filter((group) => group.links.length > 0);
+}
+
+/** The permitted pages within a section, including a section with just one page. */
+export function sectionLinks(group) {
+    return (group?.links ?? []).filter((link) => !link.locked);
 }
 
 /** Branch staff open the movements tab; collectors and auditors keep their box lists. */

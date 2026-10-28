@@ -37,7 +37,7 @@ export default function MeterBoxForm({ data, setData, errors, branches, canChoos
 
     const branchesInArea = areaId ? branches.filter((branch) => String(branch.area_id) === String(areaId)) : [];
 
-    const availableSubAreas = [...subAreas, ...createdSubAreas.filter((item) => !subAreas.some((option) => option.id === item.id))];
+    const availableSubAreas = [...new Map([...subAreas, ...createdSubAreas].map((item) => [String(item.id), item])).values()];
     const subAreasInArea = effectiveAreaId ? availableSubAreas.filter((subArea) => String(subArea.area_id) === String(effectiveAreaId)) : [];
 
     const displayName = [data.name.trim(), data.name_suffix.trim()].filter(Boolean).join(' ');

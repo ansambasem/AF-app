@@ -2,7 +2,7 @@ import FormPage from '@/Components/FormPage';
 import { useResourceForm } from '@/hooks/useResourceForm';
 import UserForm, { userFormData } from './UserForm';
 
-export default function Create({ branches, canChooseBranch, userTypeOptions }) {
+export default function Create({ branches, canChooseBranch, canCreateUserType, userTypeOptions }) {
     const form = useResourceForm('/users', null, userFormData(null));
 
     return (
@@ -13,6 +13,7 @@ export default function Create({ branches, canChooseBranch, userTypeOptions }) {
                 errors={form.errors}
                 isEdit={form.isEdit}
                 userTypeOptions={userTypeOptions}
+                canCreateUserType={canCreateUserType}
                 branches={branches}
                 canChooseBranch={canChooseBranch}
             />

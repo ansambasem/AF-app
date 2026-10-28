@@ -15,6 +15,10 @@ export function useDataTable(url, filters, extraParams = {}, visitOptions = {}) 
     const isFirstRun = useRef(true);
 
     useEffect(() => {
+        setFilterValues(filters.filter ?? {});
+    }, [filters.filter]);
+
+    useEffect(() => {
         if (isFirstRun.current) {
             isFirstRun.current = false;
             return;

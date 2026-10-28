@@ -33,6 +33,8 @@ const assert = require('node:assert/strict');
         }
         await page.getByRole('link', { name: 'عرض القراءات', exact: true }).first().click();
         await page.locator('table.re-table').waitFor();
+        await page.locator('[data-excel-button]').first().waitFor();
+        assert.equal(await page.locator('[data-excel-button]').count(), 1);
         assert.deepEqual(errors, []);
         console.log('PASS: all branch defaults, explicit branch choices, clearing the choice, and branch-specific reading weeks.');
     } catch (error) {

@@ -564,6 +564,7 @@ class SubscriptionTransaction extends Model
                     'late_reason' => $this->late_reason,
                 ] : []),
             ]);
+            app(BranchClosingWorkflow::class)->syncCorrectedSplitPayment($this, $replacement);
 
             return $replacement;
         });

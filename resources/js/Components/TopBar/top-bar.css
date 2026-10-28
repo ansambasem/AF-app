@@ -716,11 +716,16 @@ html.tn-locked {
     position: relative;
     display: grid;
     grid-template-columns: 42px minmax(0, 1fr) auto;
-    align-items: center;
+    height: 100%;
+    align-items: start;
     gap: 12px;
     padding: 9px 10px;
     border-radius: 15px;
     transition: background 0.18s;
+}
+
+.tn-mega-link > :is(.tn-go, .tn-lock, .tn-badge) {
+    align-self: center;
 }
 
 .tn-mega-link .tn-tile {

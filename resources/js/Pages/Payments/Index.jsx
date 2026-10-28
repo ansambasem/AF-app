@@ -6,7 +6,6 @@ import RowActionsMenu from '@/Components/DataTable/RowActionsMenu';
 import DataTableFilterMenu from '@/Components/DataTable/DataTableFilterMenu';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
 import AreaChip from '@/Components/DataTable/AreaChip';
-import FarBehindMark from '@/Components/DataTable/FarBehindMark';
 import MeterBoxCell from '@/Components/DataTable/MeterBoxCell';
 import Pagination from '@/Components/DataTable/Pagination';
 import RowIdentity from '@/Components/DataTable/RowIdentity';
@@ -200,7 +199,6 @@ export default function Index({
                                             <span className={`inline-block whitespace-nowrap rounded-[10px] px-2.5 py-0.5 font-display text-[14.5px] font-bold ${BALANCE_CHIPS[described.tone]}`}>
                                                 {balanceText(described)}
                                             </span>
-                                            {isFarBehind(subscription.balance, subscription.weeklyMinimumPayment) && <FarBehindMark />}
                                         </td>
                                         <td>
                                             <StatusPill tone={STATUS_TONES[subscription.status]} label={subscription.statusLabel} />

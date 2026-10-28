@@ -281,7 +281,7 @@ export default function Index({ entries, period, dateBasis = 'recorded', side, s
                     title="السجل المالي"
                     actions={
                         <>
-                            <ExcelButton title="السجل المالي" />
+                            {can?.printAuditReports !== false && <ExcelButton title="السجل المالي" />}
                             {can?.printAuditReports !== false && <a className={`${tableExportButtonClass} tone-print`} href={printUrl('السجل المالي')} target="_blank" rel="noopener noreferrer"><Icon name="printer" className="h-4 w-4" />طباعة</a>}
                         </>
                     }

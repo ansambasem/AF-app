@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\PermissionKey;
 use App\Models\Area;
 use App\Models\Branch;
 use App\Models\Governorate;
@@ -31,3 +32,18 @@ foreach (['ألف', 'باء'] as $index => $name) {
 for ($number = 1; $number <= 16; $number++) {
     UserType::factory()->create(['name' => sprintf('نوع %02d', $number)]);
 }
+
+User::factory()->collector()->withPermissions([PermissionKey::ViewSubscriptions])->create([
+    'branch_id' => Branch::query()->where('name', 'فرع ألف')->sole()->id,
+    'username' => 'limited_reader', 'password' => 'Strong-Pass-2026',
+]);
+
+User::factory()->financialAuditor()->create([
+    'branch_id' => Branch::query()->where('name', 'فرع ألف')->sole()->id,
+    'username' => 'limited_auditor', 'password' => 'Strong-Pass-2026',
+    'audit_settings' => [
+        'scope' => 'selected',
+        'branch_ids' => [Branch::query()->where('name', 'فرع ألف')->sole()->id],
+        'actions' => ['view_ledger'],
+    ],
+]);

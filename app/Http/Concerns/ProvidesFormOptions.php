@@ -6,6 +6,7 @@ use App\Models\Area;
 use App\Models\Branch;
 use App\Models\Governorate;
 use App\Models\UserType;
+use App\Support\BranchDomainContext;
 use Illuminate\Support\Collection;
 
 /**
@@ -33,7 +34,7 @@ trait ProvidesFormOptions
      * The branch options for the user forms, and whether the actor may
      * choose the branch themselves.
      *
-     * @return array{branches: Collection, canChooseBranch: bool, userTypeOptions: Collection}
+     * @return array{branches: Collection, canChooseBranch: bool, canCreateUserType: bool, userTypeOptions: Collection}
      */
     protected function userBranchOptions(): array
     {
@@ -42,6 +43,7 @@ trait ProvidesFormOptions
         return [
             'branches' => $canChooseBranch ? Branch::orderBy('name')->get() : collect(),
             'canChooseBranch' => $canChooseBranch,
+            'canCreateUserType' => BranchDomainContext::id() === null && auth()->user()->can('create', UserType::class),
             'userTypeOptions' => UserType::orderBy('name')->get(['id', 'name'])
                 ->map(fn (UserType $type): array => ['value' => $type->id, 'label' => $type->name]),
         ];

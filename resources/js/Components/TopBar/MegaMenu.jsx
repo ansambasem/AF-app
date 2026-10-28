@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
-import { shouldPrefetchPage, isActiveLink, lockedLinkProps } from '@/lib/navigation';
+import { shouldPrefetchPage, isActiveLink, lockedLinkProps, sectionLinks } from '@/lib/navigation';
 
 /** The small lock on a page the user may not open; its link opens nothing. */
 export function LockMark() {
@@ -14,9 +14,10 @@ export function LockMark() {
 
 /** A wide panel for a section with more than four plain pages, two columns of them. */
 export function megaWidth(group) {
-    const featured = (group.featured ?? []).filter((href) => group.links.some((link) => link.href === href));
+    const links = sectionLinks(group);
+    const featured = (group.featured ?? []).filter((href) => links.some((link) => link.href === href));
 
-    return group.links.length - featured.length > 4 ? 580 : 420;
+    return links.length - featured.length > 4 ? 580 : 420;
 }
 
 /**
@@ -25,8 +26,9 @@ export function megaWidth(group) {
  * footer with the keys and a way to every page.
  */
 export default function MegaMenu({ group, url, badges, width, shift, leaving, onSearch, contentRef }) {
-    const featured = group.links.filter((link) => group.featured?.includes(link.href));
-    const rest = group.links.filter((link) => !featured.includes(link));
+    const links = sectionLinks(group);
+    const featured = links.filter((link) => group.featured?.includes(link.href));
+    const rest = links.filter((link) => !featured.includes(link));
     const twoColumns = rest.length > 4;
 
     return (
@@ -62,7 +64,8 @@ export default function MegaMenu({ group, url, badges, width, shift, leaving, on
                         </div>
                     )}
 
-                    <ul className={`grid gap-0.5 ${twoColumns ? 'grid-cols-2' : ''}`}>
+                    {links.length === 0 && <p className="px-3 py-4 text-sm text-gray-500">لا توجد صفحات متاحة ضمن صلاحياتك.</p>}
+                    <ul className={`grid auto-rows-fr gap-0.5 ${twoColumns ? 'grid-cols-2' : ''}`}>
                         {rest.map((link) => (
                             <li key={link.href}>
                                 <Link href={link.href} prefetch={!link.locked && shouldPrefetchPage(link.href)} className="tn-mega-link" aria-current={isActiveLink(link, url) ? 'page' : undefined} tabIndex={leaving ? -1 : undefined} {...lockedLinkProps(link)}>

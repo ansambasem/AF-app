@@ -25,7 +25,7 @@ export default function TableExcelActions() {
                     changed = true;
                 }
             }
-            document.querySelectorAll('main table, [role="dialog"] table').forEach((table) => {
+            document.querySelectorAll('main table, [role="dialog"] table').forEach((table, index) => {
                 if (hosts.current.has(table) || !table.getClientRects().length || !table.querySelector('thead th')) return;
                 if (table.closest('.sr-only, [aria-hidden="true"], .pd-root, .pd-source, [data-excel-source="custom"]')) return;
                 const container = table.closest('.data-table-container') ?? (table.parentElement.matches('section, article') ? table : table.parentElement);
@@ -38,7 +38,8 @@ export default function TableExcelActions() {
                 const host = document.createElement('div');
                 host.className = 'mb-2 flex justify-end gap-2';
                 container.parentElement.insertBefore(host, container);
-                hosts.current.set(table, { table, host, title, key: `${window.location.pathname}:${serial.current++}:${title}` });
+                const storageKey = `table:${window.location.pathname}:${table.id || table.getAttribute('aria-label') || title}:${index}`;
+                hosts.current.set(table, { table, host, title, storageKey, key: `${window.location.pathname}:${serial.current++}:${title}` });
                 changed = true;
             });
             if (changed) setTables([...hosts.current.values()]);
@@ -55,5 +56,5 @@ export default function TableExcelActions() {
         };
     }, [canExport]);
 
-    return tables.map(({ table, host, title, key }) => createPortal(<ExcelButton title={title} storageKey={`table:${key}`} loadParts={async () => [tableExcelPart(extractTable(null, table), { name: title })]} />, host, key));
+    return tables.map(({ table, host, title, storageKey, key }) => createPortal(<ExcelButton title={title} storageKey={storageKey} loadParts={async () => [tableExcelPart(extractTable(null, table), { name: title })]} />, host, key));
 }

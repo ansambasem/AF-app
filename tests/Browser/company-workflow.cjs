@@ -172,7 +172,7 @@ step('the branch and its three tablons', async () => {
     for (const [name, suffix, number, block] of [['المدارس', '1', 'T-101', 'البلوك أ'], ['المدارس', '2', 'T-102', 'البلوك ب'], ['السوق', '', 'T-103', 'البلوك أ']]) {
         await addThroughWindow(page, '/meter-boxes', 'طبلون جديد', {
             'اسم الطبلون': name, 'لاحقة (اختياري)': suffix, 'رقم الطبلون': number,
-            'المحافظة': { select: 'المحافظة الوسطى' }, 'المنطقة': { select: 'مخيم النصيرات' }, 'الفرع': { select: 'فرع النصيرات' }, 'منطقة 2': { select: block, search: block },
+            'المحافظة': { select: 'المحافظة الوسطى' }, 'المنطقة': { select: 'مخيم النصيرات' }, 'الفرع': { select: 'فرع النصيرات' }, 'منطقة الطبلون (منطقة 2)': { select: block, search: block },
         });
     }
     for (const number of ['T-101', 'T-102', 'T-103']) {
