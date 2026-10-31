@@ -72,6 +72,34 @@ class CompanyFormsTest extends TestCase
         $this->assertSame('طلب معدل', $template->fresh()->name);
     }
 
+    public function test_a_formal_letterhead_keeps_its_logo_texts_and_coloured_lines_and_rejects_unsafe_values(): void
+    {
+        $manager = User::factory()->superAdmin()->create();
+        $layout = CompanyForms::defaultLayout();
+        $layout['header'] = [...$layout['header'],
+            'style' => 'letterhead', 'logoPosition' => 'center', 'logoWidth' => 32, 'logoHeight' => 24,
+            'english' => "Fares Abu Zayed Sons\nGeneral Trading", 'arabicAlign' => 'right', 'englishAlign' => 'left',
+            'companyFont' => 'messiri', 'companySize' => 20, 'subtitleSize' => 13, 'englishFont' => 'times', 'englishSize' => 15, 'textColor' => '#111827',
+            'ruleStyle' => 'double', 'ruleWidth' => 2.5, 'ruleColor' => '#111827', 'ruleColor2' => '#a51d26', 'ruleGap' => 1.5,
+        ];
+
+        $this->actingAs($manager)->post(route('company-forms.store'), ['name' => 'طلب اشتراك جديد', 'category' => 'الاشتراكات', 'layout' => $layout])->assertSessionHasNoErrors();
+        $this->assertSame($layout['header'], CompanyFormTemplate::sole()->layout['header']);
+
+        foreach ([
+            'layout.header.logoPosition' => ['logoPosition' => 'top'],
+            'layout.header.ruleColor2' => ['ruleColor2' => 'red;background:url(x)'],
+            'layout.header.ruleWidth' => ['ruleWidth' => 9],
+            'layout.header.companyFont' => ['companyFont' => 'Comic Sans'],
+            'layout.header.style' => ['style' => 'fancy'],
+        ] as $field => $bad) {
+            $broken = $layout;
+            $broken['header'] = [...$layout['header'], ...$bad];
+            $this->post(route('company-forms.store'), ['name' => 'نموذج خاطئ', 'category' => 'عام', 'layout' => $broken])->assertSessionHasErrors($field);
+        }
+        $this->assertDatabaseCount('company_form_templates', 1);
+    }
+
     public function test_invalid_layout_keys_fields_and_geometry_are_rejected(): void
     {
         $manager = User::factory()->superAdmin()->create();

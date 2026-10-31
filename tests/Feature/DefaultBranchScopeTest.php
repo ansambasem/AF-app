@@ -29,7 +29,8 @@ class DefaultBranchScopeTest extends TestCase
             ->where('collections.total', '200.00')->has('branchSummary', 2));
         $this->get(route('reports.index', ['branch' => (string) $second->id]))->assertInertia(fn ($page) => $page
             ->where('filters.branch', $second->id)->where('collections.total', '100.00'));
-        $this->get(route('reports.index'))->assertInertia(fn ($page) => $page->where('filters.branch', 'all'));
+        $this->get(route('reports.index'))->assertInertia(fn ($page) => $page->where('filters.branch', $second->id));
+        $this->get(route('reports.index', ['branch' => 'all']))->assertInertia(fn ($page) => $page->where('filters.branch', 'all'));
     }
 
     public function test_cash_boxes_start_with_every_branch_and_can_return_to_all_after_choosing_one(): void

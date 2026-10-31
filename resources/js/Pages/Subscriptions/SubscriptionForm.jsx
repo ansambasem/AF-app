@@ -437,7 +437,7 @@ export default function SubscriptionForm({
                         )}
                     </div>
                     <div className="mt-1">
-                        <Affix unit="شيكل">
+                        <Affix unit="₪">
                             <TextInput
                                 id="tariff_rate"
                                 type={kilowattPriceLocked ? 'text' : 'number'}
@@ -504,7 +504,7 @@ export default function SubscriptionForm({
                         )}
                     </div>
                     <div className="mt-1">
-                        <Affix unit="شيكل">
+                        <Affix unit="₪">
                             <TextInput
                                 id="minimum_charge"
                                 type="number"
@@ -626,7 +626,7 @@ export default function SubscriptionForm({
                 </FormField>
 
                 <FormField id="subscription_fee" label="رسوم الاشتراك" required={data.charge_subscription_fee} error={errors.subscription_fee}>
-                    <Affix unit="شيكل">
+                    <Affix unit="₪">
                         <TextInput
                             type="number"
                             step="0.01"

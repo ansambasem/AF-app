@@ -16,8 +16,8 @@ export default function AuditApprovalDialog({ title, scope, summary, url, payloa
         <section aria-label="الأثر المالي" className="space-y-3">
             <h3 className="text-lg font-bold text-gray-900">الأثر على حسابات المشتركين</h3>
             <dl className="divide-y divide-gray-200 rounded-control bg-gray-50 px-5">
-                <div className="flex flex-wrap items-center justify-between gap-2 py-4"><dt className="text-base text-gray-700">تحميل على المشتركين</dt><dd className="font-display text-2xl font-bold text-red-700 dark:text-red-300"><bdi dir="ltr">{formatMoney(summary.debit)}</bdi> <span className="text-base font-normal">شيكل</span></dd></div>
-                <div className="flex flex-wrap items-center justify-between gap-2 py-4"><dt className="text-base text-gray-700">إضافة لصالح المشتركين</dt><dd className="font-display text-2xl font-bold text-emerald-700 dark:text-emerald-300"><bdi dir="ltr">{formatMoney(summary.credit)}</bdi> <span className="text-base font-normal">شيكل</span></dd></div>
+                <div className="flex flex-wrap items-center justify-between gap-2 py-4"><dt className="text-base text-gray-700">تحميل على المشتركين</dt><dd className="font-display text-2xl font-bold text-red-700 dark:text-red-300"><bdi dir="ltr">{formatMoney(summary.debit)}</bdi> <span className="text-base font-normal">₪</span></dd></div>
+                <div className="flex flex-wrap items-center justify-between gap-2 py-4"><dt className="text-base text-gray-700">إضافة لصالح المشتركين</dt><dd className="font-display text-2xl font-bold text-emerald-700 dark:text-emerald-300"><bdi dir="ltr">{formatMoney(summary.credit)}</bdi> <span className="text-base font-normal">₪</span></dd></div>
             </dl>
         </section>
         <p className="rounded-control bg-amber-500/10 px-4 py-3 font-semibold text-amber-900 dark:text-amber-300">الاعتماد نهائي، ويقفل قرارات التدقيق.</p>

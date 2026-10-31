@@ -35,7 +35,8 @@ class ListPageBranchBannerTest extends TestCase
             ->where('branchScope.name', $south->name)
             ->where('branchScope.subscribers', 2));
         $this->get(route('subscriptions.index', ['filter' => ['branch_id' => 'not-a-branch']]))->assertInertia(fn ($page) => $page
-            ->where('branchScope.level', 'all'));
+            ->where('branchScope.level', 'branch')
+            ->where('branchScope.name', $south->name));
     }
 
     public function test_an_auditor_of_several_branches_keeps_the_pages_as_they_were(): void
@@ -68,7 +69,7 @@ class ListPageBranchBannerTest extends TestCase
 
         $this->actingAs($superAdmin);
         foreach (['receivables.index', 'meter-boxes.index', 'disconnection-lists.index'] as $route) {
-            $this->get(route($route))->assertInertia(fn ($page) => $page
+            $this->get(route($route, ['filter' => ['branch_id' => '']]))->assertInertia(fn ($page) => $page
                 ->where('branchScope.level', 'all'));
             $this->get(route($route, ['filter' => ['branch_id' => $branch->id]]))->assertInertia(fn ($page) => $page
                 ->where('branchScope.level', 'branch')

@@ -7,11 +7,11 @@ import MeterBar from '@/Components/Charts/MeterBar';
 import Pagination from '@/Components/DataTable/Pagination';
 import DateInput from '@/Components/DateInput';
 import Icon from '@/Components/Icon';
-import ExcelButton from '@/Components/ExcelButton';
+import InfoTip from '@/Components/InfoTip';
+import TableExportActions from '@/Components/DataTable/TableExportActions';
 import KpiTile from '@/Components/KpiTile';
 import PageHeader from '@/Components/PageHeader';
 import SearchableSelect from '@/Components/SearchableSelect';
-import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import SegmentedTabs from '@/Components/SegmentedTabs';
 import { accountsPart, branchesPart, collectorsPart, currenciesPart, daysPart, flowPart, linesPart, readingsPart, reportExcelParts } from '@/lib/reportExcelParts';
 import { loadReportLines } from '@/lib/reportLines';
@@ -19,6 +19,7 @@ import { isPrintMode, printUrl } from '@/lib/print';
 import { reportMoney, shortDate } from '@/lib/reportFormatting';
 import { weekDayName } from '@/lib/weekDays';
 import ReportPrintSheet from './ReportPrintSheet';
+import { BoxesReport, DebtReport, StatementReport } from './ReportDetails';
 
 const ExcelStudio = lazy(() => import('@/Components/ExcelStudio'));
 
@@ -35,8 +36,9 @@ function periodLabel(mode, details) {
 }
 
 const TH = 'px-3 py-2.5 text-start text-xs font-semibold text-gray-500';
+const NUM_TH = TH.replace('text-start', 'text-right');
 const TD = 'px-3 py-2.5 text-start';
-const NUM = 'px-3 py-2.5 text-end font-display tabular-nums text-gray-900';
+const NUM = 'px-3 py-2.5 text-right [direction:ltr] font-display tabular-nums text-gray-900';
 
 /**
  * The financial reports page: one branch (or every branch, for whoever
@@ -46,15 +48,15 @@ const NUM = 'px-3 py-2.5 text-end font-display tabular-nums text-gray-900';
  * branches side by side and every line. It prints as a clean sheet of the
  * period and its summaries, and exports to Excel through the editor.
  */
-export default function Index({ branches, filters, scopeLabel, branchScope, presets, today, kinds, flow, collections, readings, days, transactions, period, comparison, branchSummary, canExport }) {
+export default function Index({ branches, filters, scopeLabel, branchScope, presets, today, kinds, flow, collections, readings, days, transactions, period, comparison, branchSummary, canExport, canViewStatements, reportSection = 'overview', debts, boxData, reportStatement }) {
     const { errors, auth } = usePage().props;
     const [excelOpen, setExcelOpen] = useState(false);
-    const [section, setSection] = useState('summary');
+    const section = reportSection;
     const [printView, setPrintView] = useState('summary');
     const printing = isPrintMode();
     const oneDay = filters.from === filters.to;
     const query = new URLSearchParams(
-        Object.entries({ branch: filters.branch ?? '', from: filters.from, to: filters.to, kind: filters.kind }).filter(([, value]) => value !== ''),
+        Object.entries({ branch: filters.branch ?? '', from: filters.from, to: filters.to, kind: filters.kind, section }).filter(([, value]) => value !== ''),
     ).toString();
     const scopeName = branchScope?.name ?? scopeLabel;
     const periodText = oneDay ? `${weekDayName(filters.from)} ${shortDate(filters.from, true)}` : `${shortDate(filters.from, true)} – ${shortDate(filters.to, true)}`;
@@ -63,7 +65,8 @@ export default function Index({ branches, filters, scopeLabel, branchScope, pres
     const openDay = (day) => visit({ from: day, to: day, page: undefined });
 
     function visit(changes) {
-        router.get('/reports', { ...filters, ...changes }, { preserveScroll: true, preserveState: true });
+        const subscription = changes.branch !== undefined && String(changes.branch) !== String(filters.branch) ? undefined : reportStatement?.subscription.id;
+        router.get('/reports', { ...filters, section, subscription, ...changes }, { preserveScroll: true, preserveState: true });
     }
 
     const excelMeta = useMemo(() => ({
@@ -87,12 +90,13 @@ export default function Index({ branches, filters, scopeLabel, branchScope, pres
     }
 
     const sections = [
-        { key: 'summary', icon: 'ledger', title: 'الملخص المالي', hint: 'حركة الأرصدة والتحصيل', show: hasFigures },
-        { key: 'days', icon: 'calendar', title: 'يومًا بيوم', hint: `${days.length} يوم`, show: hasFigures && days.length > 1 },
-        { key: 'collections', icon: 'wallet', title: 'التحصيل', hint: `${collections?.count ?? 0} دفعة`, show: hasFigures },
-        { key: 'branches', icon: 'layers', title: 'مقارنة الفروع', hint: `${branchSummary?.length ?? 0} فرع`, show: branchSummary?.length > 0 },
-        { key: 'lines', icon: 'list', title: 'الحركات', hint: `${transactions.total} حركة`, show: branches.length > 0 },
-    ].filter((item) => item.show);
+        { key: 'overview', icon: 'ledger', title: 'نظرة عامة', heading: 'الوضع المالي للشركة', hint: 'التحميلات والتحصيل وحركة ذمم المشتركين' },
+        { key: 'collections', icon: 'wallet', title: 'التحصيل', heading: 'تقرير التحصيل', hint: 'حسب الحساب والعملة والمحصّل' },
+        { key: 'boxes', icon: 'layers', title: 'الصناديق والأموال', heading: 'الصناديق والأموال', hint: 'الصناديق المفتوحة خلال الفترة والدفعات المسجلة فيها حسب العملة' },
+        { key: 'debts', icon: 'calendar', title: 'الديون', heading: 'ديون المشتركين', hint: 'الأرصدة وأعمار التحميلات كما في نهاية الفترة' },
+        { key: 'statement', icon: 'users', title: 'كشوفات حسابات المشتركين', heading: 'كشوفات حسابات المشتركين', hint: 'رصيد افتتاحي وحركات ورصيد متتابع' },
+        { key: 'movements', icon: 'list', title: 'سجل الحركات', heading: 'سجل الحركات', hint: 'كل الحركات المالية للفترة المختارة' },
+    ];
     const current = sections.find((item) => item.key === section) ?? sections[0];
 
     return (
@@ -102,26 +106,6 @@ export default function Index({ branches, filters, scopeLabel, branchScope, pres
                 <PageHeader
                     title="التقارير المالية"
                     meta={`${branchScope ? '' : `${scopeLabel} · `}${periodLabel(period?.mode, period)} · ${periodText}${oneDay && filters.from === today ? ' · اليوم الجاري' : ''}`}
-                    actions={
-                        hasFigures && (
-                            <>
-                                {canExport && (
-                                    <button type="button" className={`${secondaryButtonClass} tone-excel`} onClick={() => setExcelOpen(true)}>
-                                        <Icon name="excel" className="h-4 w-4" />
-                                        تصدير Excel
-                                    </button>
-                                )}
-                                <select aria-label="محتوى الطباعة" className="text-sm" value={printView} onChange={(event) => setPrintView(event.target.value)}>
-                                    <option value="summary">الملخص المالي</option>
-                                    <option value="lines">الحركات التفصيلية</option>
-                                </select>
-                                <a className={`${secondaryButtonClass} tone-print`} href={printUrl(`${printView === 'lines' ? 'الحركات التفصيلية' : 'الملخص المالي'} — ${scopeName} — ${periodText}`, `/reports?${query}&print_view=${printView}`)} target="_blank" rel="noopener noreferrer">
-                                    <Icon name="printer" className="h-4 w-4" />
-                                    طباعة وتخصيص / PDF
-                                </a>
-                            </>
-                        )
-                    }
                 />
             }
         >
@@ -140,7 +124,7 @@ export default function Index({ branches, filters, scopeLabel, branchScope, pres
                 </Suspense>
             )}
 
-            <div className="space-y-5" dir="rtl">
+            <div className="reports-page space-y-5" dir="rtl">
                 {branchScope && (
                     <BranchBanner
                         scope={branchScope}
@@ -164,7 +148,21 @@ export default function Index({ branches, filters, scopeLabel, branchScope, pres
                     </BranchBanner>
                 )}
 
+                <nav aria-label="أقسام التقارير" className="flex flex-wrap gap-1 rounded-panel border border-gray-100 bg-surface p-2 shadow-card">
+                    {sections.map((item) => <button key={item.key} type="button" aria-current={section === item.key ? 'page' : undefined} onClick={() => { setPrintView(item.key === 'movements' ? 'lines' : 'summary'); visit({ section: item.key, page: undefined }); }} className={`inline-flex items-center gap-2 rounded-control px-4 py-2.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900 ${section === item.key ? 'bg-graphite-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}><Icon name={item.icon} className="h-4 w-4" />{item.title}</button>)}
+                </nav>
                 <PeriodCard branches={branches} branchScope={branchScope} scopeLabel={scopeLabel} filters={filters} presets={presets} today={today} period={period} periodText={periodText} visit={visit} />
+                {hasFigures && ['overview', 'collections', 'movements'].includes(section) && (
+                    <div className="data-table-toolbar flex flex-wrap items-center gap-3">
+                        <label className="flex items-center gap-2 text-sm text-gray-600">محتوى الطباعة
+                            <select aria-label="محتوى الطباعة" className="text-sm" value={printView} onChange={(event) => setPrintView(event.target.value)}>
+                                <option value="summary">الملخص المالي</option>
+                                <option value="lines">الحركات التفصيلية</option>
+                            </select>
+                        </label>
+                        <TableExportActions showExcel={canExport} onExcel={() => setExcelOpen(true)} printHref={printUrl(`${printView === 'lines' ? 'الحركات التفصيلية' : 'الملخص المالي'} — ${scopeName} — ${periodText}`, `/reports?${query}&print_view=${printView}`)} />
+                    </div>
+                )}
 
                 {errors.from && (
                     <p role="alert" className="flex items-center gap-2 rounded-card border border-red-200 bg-red-500/5 px-4 py-3 text-sm font-semibold text-red-700">
@@ -180,42 +178,26 @@ export default function Index({ branches, filters, scopeLabel, branchScope, pres
                     </div>
                 )}
 
-                {hasFigures && <Figures flow={flow} collections={collections} />}
-                {comparison && <Comparison comparison={comparison} />}
+                <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold text-gray-900">{current.heading}</h2><InfoTip label={`معلومة عن ${current.heading}`}>{current.hint}</InfoTip></div>
+                {hasFigures && section === 'overview' && <>
+                    <Figures flow={flow} collections={collections} />
+                    {comparison && <Comparison comparison={comparison} />}
+                    <div className="grid gap-5 xl:grid-cols-2"><FlowStatement flow={flow} /><div className="space-y-5"><CollectionsBreakdown collections={collections} compact />{readings && <Readings readings={readings} />}</div></div>
+                    {days.length > 1 && <DailyCollections days={days} onOpenDay={openDay} />}
+                    {branchSummary?.length > 0 && <BranchComparison rows={branchSummary} filters={filters} />}
+                </>}
+                {hasFigures && section === 'collections' && <>
+                    <CollectionsBreakdown collections={collections} />
+                    {days.length > 1 && <><DailyCollections days={days} onOpenDay={openDay} /><DaysTable days={days} onOpenDay={openDay} /></>}
+                </>}
+                {section === 'boxes' && <BoxesReport data={boxData} />}
+                {section === 'debts' && <DebtReport key={filters.branch} data={debts} visit={visit} />}
+                {section === 'statement' && <StatementReport key={filters.branch} data={reportStatement} visit={visit} />}
+                {section === 'movements' && <Transactions transactions={transactions} kinds={kinds} filters={{ ...filters, section }} showDay={!oneDay} showBranch={filters.branch === 'all'} onKind={(kind) => visit({ kind, page: undefined })} onStatement={canViewStatements ? (subscription) => visit({ section: 'statement', subscription, page: undefined }) : null} />}
 
-                {sections.length > 0 && (
-                    <div className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
-                        <SectionNav sections={sections} current={current.key} onChange={setSection} />
-                        <div className="min-w-0 space-y-5">
-                            {current.key === 'summary' && (
-                                <>
-                                    <div className="grid gap-5 xl:grid-cols-2">
-                                        <FlowStatement flow={flow} />
-                                        <div className="space-y-5">
-                                            <CollectionsBreakdown collections={collections} compact />
-                                            {readings && <Readings readings={readings} />}
-                                        </div>
-                                    </div>
-                                    {days.length > 1 && <DailyCollections days={days} onOpenDay={openDay} />}
-                                </>
-                            )}
-                            {current.key === 'days' && (
-                                <>
-                                    <DailyCollections days={days} onOpenDay={openDay} />
-                                    <DaysTable days={days} onOpenDay={openDay} />
-                                </>
-                            )}
-                            {current.key === 'collections' && <CollectionsBreakdown collections={collections} />}
-                            {current.key === 'branches' && <BranchComparison rows={branchSummary} filters={filters} />}
-                            {current.key === 'lines' && (
-                                <Transactions transactions={transactions} kinds={kinds} filters={filters} showDay={!oneDay} showBranch={filters.branch === 'all'} onKind={(kind) => visit({ kind, page: undefined })} />
-                            )}
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {hasFigures && !printing && (
+            {hasFigures && !printing && section === 'overview' && (
                 <ReportPrintSheet
                     scopeName={scopeName}
                     periodName={periodLabel(period?.mode, period)}
@@ -259,7 +241,7 @@ function Panel({ icon, title, hint = null, className = '', excelParts, children 
                 </span>
                 <h3 className="font-bold text-gray-900">{title}</h3>
                 {hint && <span className="text-xs text-gray-500">{hint}</span>}
-                {canExport && excelParts && <div className="ms-auto"><ExcelButton title={title} storageKey={`reports:${title}`} templateKind="reports" loadParts={async (options) => (await excelParts(options)).map((part) => ({ ...part, default: true }))} meta={{ lines: [scopeLabel, `${filters.from} – ${filters.to}`].filter(Boolean), criteria: [['أعدّه', auth?.user?.name ?? ''], ['من', filters.from], ['إلى', filters.to]] }} /></div>}
+                {canExport && excelParts && <TableExportActions title={title} showPrint={false} excelProps={{ storageKey: `reports:${title}`, templateKind: 'reports', loadParts: async (options) => (await excelParts(options)).map((part) => ({ ...part, default: true })), meta: { lines: [scopeLabel, `${filters.from} – ${filters.to}`].filter(Boolean), criteria: [['أعدّه', auth?.user?.name ?? ''], ['من', filters.from], ['إلى', filters.to]] } }} />}
             </div>
             {children}
         </section>
@@ -269,13 +251,16 @@ function Panel({ icon, title, hint = null, className = '', excelParts, children 
 /** The branch (for whoever doesn't see the banner), the quick periods, the dates and stepping to the period before or after. */
 function PeriodCard({ branches, branchScope, scopeLabel, filters, presets, today, period, periodText, visit }) {
     const preset = presets.find((item) => item.from === filters.from && item.to === filters.to)?.key ?? '';
-    const stepClass = 'inline-flex items-center gap-1 rounded-control px-2.5 py-1.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40';
+    const [datesOpen, setDatesOpen] = useState(false);
+    const stepClass = 'inline-flex items-center gap-1 rounded-control px-2.5 py-1.5 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-40';
 
     return (
-        <section className="rounded-panel border border-gray-100 bg-surface p-4 shadow-card sm:p-5">
-            <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+        <section aria-label="فلاتر التقرير" className="sticky top-[calc(var(--tn-bar-rest-height)+1.5rem)] z-30 rounded-panel border border-white/10 bg-graphite-gradient p-3 text-white shadow-card sm:p-4">
+            <span aria-hidden="true" className="absolute inset-x-5 top-0 h-[2px] bg-spectrum" />
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10"><Icon name="calendar" className="h-5 w-5" /></span><div className="min-w-0"><h3 className="text-sm font-bold text-white">الفترة</h3><p className="mt-1 text-xs text-white/70"><bdi dir="ltr">{periodText}</bdi></p></div></div>
                 {!branchScope && branches.length > 1 && (
-                    <label className="flex w-full flex-col gap-1.5 text-xs font-semibold text-gray-500 sm:w-60">
+                    <label className="order-3 flex w-full flex-col gap-1.5 text-xs font-semibold text-white/65 sm:order-none sm:w-60">
                         الفرع
                         <SearchableSelect
                             value={filters.branch ?? ''}
@@ -283,50 +268,49 @@ function PeriodCard({ branches, branchScope, scopeLabel, filters, presets, today
                             options={[{ value: 'all', label: 'كل الفروع' }, ...branches.map((branch) => ({ value: String(branch.value), label: branch.label }))]}
                             searchable={branches.length > 6}
                             portal
+                            onDark
                         />
                     </label>
                 )}
                 {!branchScope && branches.length === 1 && (
-                    <div className="flex flex-col gap-1.5 text-xs font-semibold text-gray-500">
+                    <div className="order-3 flex w-full flex-col gap-1.5 text-xs font-semibold text-white/65 sm:order-none sm:w-auto">
                         الفرع
-                        <span className="flex h-10 items-center gap-2 rounded-control border border-gray-100 bg-gray-50 px-3 text-sm font-bold text-gray-900">
-                            <Icon name="pin" className="h-4 w-4 text-gray-400" />
+                        <span className="flex h-10 items-center gap-2 rounded-control border border-white/15 bg-white/10 px-3 text-sm font-bold text-white">
+                            <Icon name="pin" className="h-4 w-4 text-white/60" />
                             {scopeLabel}
                         </span>
                     </div>
                 )}
-                <div className="flex max-w-full flex-col gap-1.5 overflow-x-auto text-xs font-semibold text-gray-500">
-                    الفترة
-                    <SegmentedTabs
-                        label="الفترة"
-                        value={preset}
+                <div className="order-2 w-full sm:w-52">
+                    <label htmlFor="report-period" className="sr-only">الفترة</label>
+                    <SearchableSelect
+                        id="report-period"
+                        onDark
+                        portal
+                        clearable={false}
+                        searchable={false}
+                        value={datesOpen ? 'custom' : preset || 'custom'}
                         onChange={(key) => {
+                            if (key === 'custom') { setDatesOpen(true); return; }
                             const chosen = presets.find((item) => item.key === key);
+                            setDatesOpen(false);
                             visit({ from: chosen.from, to: chosen.to, view: undefined, page: undefined });
                         }}
-                        options={presets.map((item) => ({ value: item.key, label: item.label }))}
+                        options={[...presets.map((item) => ({ value: item.key, label: item.label })), { value: 'custom', label: 'تاريخ مخصص' }]}
                     />
                 </div>
-                <div className="flex flex-wrap items-center gap-2" role="group" aria-label="من تاريخ إلى تاريخ">
-                    <DateInput aria-label="من تاريخ" className="w-52" required value={filters.from} max={filters.to} onChange={(value) => value && visit({ from: value, page: undefined })} />
-                    <span className="text-sm text-gray-500">إلى</span>
-                    <DateInput aria-label="إلى تاريخ" className="w-52" required value={filters.to} min={filters.from} max={today} onChange={(value) => value && visit({ to: value, page: undefined })} />
+                <div className="order-1 flex items-center gap-1 sm:order-3">
+                    <button type="button" aria-label="الفترة السابقة" disabled={!period?.previous} className={stepClass} onClick={() => period?.previous && visit({ ...period.previous, page: undefined })}><Icon name="chevron-right" className="h-4 w-4" /></button>
+                    <button type="button" aria-label="الفترة التالية" disabled={!period?.next} className={stepClass} onClick={() => period?.next && visit({ ...period.next, page: undefined })}><Icon name="chevron-left" className="h-4 w-4" /></button>
                 </div>
             </div>
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
-                <button type="button" className={stepClass} onClick={() => period?.previous && visit({ ...period.previous, page: undefined })}>
-                    <Icon name="chevron-right" className="h-4 w-4" />
-                    <span className="max-sm:sr-only">الفترة السابقة</span>
-                </button>
-                <p className="text-center text-sm">
-                    <b className="text-gray-900">{periodLabel(period?.mode, period)}</b>
-                    <span className="ms-2 font-display text-gray-500">{periodText}</span>
-                </p>
-                <button type="button" disabled={!period?.next} className={stepClass} onClick={() => period?.next && visit({ ...period.next, page: undefined })}>
-                    <span className="max-sm:sr-only">الفترة التالية</span>
-                    <Icon name="chevron-left" className="h-4 w-4" />
-                </button>
-            </div>
+            {datesOpen && <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-white/15 pt-3">
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row" role="group" aria-label="من تاريخ إلى تاريخ">
+                    <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs font-semibold text-white/65 sm:flex-none"><span>من تاريخ</span><DateInput onDark aria-label="من تاريخ" className="w-full sm:w-52" required value={filters.from} max={filters.to} onChange={(value) => value && visit({ from: value, page: undefined })} /></label>
+                    <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-xs font-semibold text-white/65 sm:flex-none"><span>إلى تاريخ</span><DateInput onDark aria-label="إلى تاريخ" className="w-full sm:w-52" required value={filters.to} min={filters.from} max={today} onChange={(value) => value && visit({ to: value, page: undefined })} /></label>
+                </div>
+                <button type="button" className={stepClass} onClick={() => setDatesOpen(false)}>إغلاق<Icon name="close" className="h-4 w-4" /></button>
+            </div>}
         </section>
     );
 }
@@ -338,7 +322,7 @@ function Figures({ flow, collections }) {
 
     return (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
-            <KpiTile hero label="إجمالي المحصّل" value={reportMoney(collections.total)} unit="شيكل" hint={`${collections.count} دفعة في الفترة`} className="md:col-span-2 xl:col-span-1 xl:row-span-2">
+            <KpiTile hero label="إجمالي المحصّل" value={reportMoney(collections.total)} unit="₪" hint={`${collections.count} دفعة في الفترة`} className="md:col-span-2 xl:col-span-1 xl:row-span-2">
                 <div className="mt-5 flex h-2 overflow-hidden rounded-full bg-white/10" role="img" aria-label="النقدي والتحويلات والشيكات">
                     {total > 0 && (
                         <>
@@ -352,9 +336,9 @@ function Figures({ flow, collections }) {
                     <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-brand-500" />تحويلات وشيكات <b className="font-display text-white">{reportMoney(collections.nonCash)} ₪</b></span>
                 </div>
             </KpiTile>
-            <KpiTile icon="ledger" label="الرصيد الافتتاحي" value={reportMoney(flow.opening)} unit="شيكل" hint="على المشتركين" />
-            <KpiTile icon="document-plus" label="التحميلات" value={reportMoney(flow.chargesTotal)} unit="شيكل" hint="قراءات ورسوم وغرامات" />
-            <KpiTile icon="layers" label="الرصيد الختامي" value={reportMoney(flow.closing)} unit="شيكل" className="md:col-span-2">
+            <KpiTile icon="ledger" label="الرصيد الافتتاحي" value={<bdi dir="ltr">{reportMoney(flow.opening)}</bdi>} unit="₪" hint={Number(flow.opening) < 0 ? 'لصالح المشتركين' : 'على المشتركين'} />
+            <KpiTile icon="document-plus" label="التحميلات" value={reportMoney(flow.chargesTotal)} unit="₪" hint="قراءات ورسوم وغرامات" />
+            <KpiTile icon="layers" label="الرصيد الختامي" value={<bdi dir="ltr">{reportMoney(flow.closing)}</bdi>} unit="₪" className="md:col-span-2">
                 <p className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${change > 0 ? 'bg-amber-500/10 text-amber-700' : change < 0 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                     {change > 0 ? 'زاد' : change < 0 ? 'نقص' : 'لم يتغير'}
                     {change !== 0 && <b className="font-display">{reportMoney(Math.abs(Number(flow.change)))} ₪</b>}
@@ -410,8 +394,8 @@ function FlowStatement({ flow }) {
                 <thead>
                     <tr>
                         <th className={TH}>البند</th>
-                        <th className={`${TH} text-end`}>العدد</th>
-                        <th className={`${TH} text-end`}>المبلغ ₪</th>
+                        <th className={NUM_TH}>العدد</th>
+                        <th className={NUM_TH}>المبلغ ₪</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -501,9 +485,9 @@ function CollectionsBreakdown({ collections, compact = false }) {
                         <thead>
                             <tr>
                                 <th className={TH}>العملة</th>
-                                <th className={`${TH} text-end`}>الدفعات</th>
-                                <th className={`${TH} text-end`}>المبلغ بالعملة</th>
-                                <th className={`${TH} text-end`}>بالشيكل</th>
+                                <th className={NUM_TH}>الدفعات</th>
+                                <th className={NUM_TH}>المبلغ بالعملة</th>
+                                <th className={NUM_TH}>بالشيكل</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -527,10 +511,10 @@ function CollectionsBreakdown({ collections, compact = false }) {
                             <thead>
                                 <tr>
                                     <th className={TH}>الموظف</th>
-                                    <th className={`${TH} text-end`}>الدفعات</th>
-                                    <th className={`${TH} text-end`}>نقدي</th>
-                                    <th className={`${TH} text-end`}>تحويلات وشيكات</th>
-                                    <th className={`${TH} text-end`}>المجموع</th>
+                                    <th className={NUM_TH}>الدفعات</th>
+                                    <th className={NUM_TH}>نقدي</th>
+                                    <th className={NUM_TH}>تحويلات وشيكات</th>
+                                    <th className={NUM_TH}>المجموع</th>
                                     <th className={`${TH} w-32`}><span className="sr-only">الحصة</span></th>
                                 </tr>
                             </thead>
@@ -610,11 +594,11 @@ function DaysTable({ days, onOpenDay }) {
                     <thead>
                         <tr>
                             <th className={TH}>اليوم</th>
-                            <th className={`${TH} text-end`}>التحميلات</th>
-                            <th className={`${TH} text-end`}>الدفعات</th>
-                            <th className={`${TH} text-end`}>الخصومات</th>
-                            <th className={`${TH} text-end`}>الإلغاءات</th>
-                            <th className={`${TH} text-end`}>الرصيد الختامي لليوم</th>
+                            <th className={NUM_TH}>التحميلات</th>
+                            <th className={NUM_TH}>الدفعات</th>
+                            <th className={NUM_TH}>الخصومات</th>
+                            <th className={NUM_TH}>الإلغاءات</th>
+                            <th className={NUM_TH}>الرصيد الختامي لليوم</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -659,11 +643,11 @@ function BranchComparison({ rows, filters }) {
                     <thead>
                         <tr>
                             <th className={TH}>الفرع</th>
-                            <th className={`${TH} text-end`}>إجمالي المحصّل</th>
+                            <th className={NUM_TH}>إجمالي المحصّل</th>
                             <th className={`${TH} w-32`}><span className="sr-only">الحصة</span></th>
-                            <th className={`${TH} text-end`}>نقدي</th>
-                            <th className={`${TH} text-end`}>الدفعات</th>
-                            <th className={`${TH} text-end`}>الرصيد الختامي</th>
+                            <th className={NUM_TH}>نقدي</th>
+                            <th className={NUM_TH}>الدفعات</th>
+                            <th className={NUM_TH}>الرصيد الختامي</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -697,7 +681,7 @@ function BranchComparison({ rows, filters }) {
 }
 
 /** Every line of the period, newest first, narrowed to one kind. */
-function Transactions({ transactions, kinds, filters, showDay, showBranch, onKind }) {
+function Transactions({ transactions, kinds, filters, showDay, showBranch, onKind, onStatement }) {
     return (
         <Panel icon="list" title="الحركات" hint={`${transactions.total} حركة`} excelParts={async (options) => [linesPart(await loadReportLines(new URLSearchParams(Object.entries(filters).filter(([, value]) => value != null)).toString(), options), { showBranch })]}>
             <p className="mb-3 text-xs leading-6 text-gray-500">تصفية النوع تخص الحركات التفصيلية وتصديرها فقط؛ الملخص والتحصيل يعرضان جميع أنواع الحركات للفترة والفرع المحددين.</p>
@@ -714,8 +698,8 @@ function Transactions({ transactions, kinds, filters, showDay, showBranch, onKin
                             {showBranch && <th className={TH}>الفرع</th>}
                             <th className={TH}>البيان</th>
                             <th className={TH}>الحساب</th>
-                            <th className={`${TH} text-end`}>عليه</th>
-                            <th className={`${TH} text-end`}>له</th>
+                            <th className={NUM_TH}>عليه</th>
+                            <th className={NUM_TH}>له</th>
                             <th className={TH}>سجّله</th>
                         </tr>
                     </thead>
@@ -733,7 +717,7 @@ function Transactions({ transactions, kinds, filters, showDay, showBranch, onKin
                                 </td>
                                 <td className={`${TD} font-display`}>{line.voucherNumber ?? '—'}</td>
                                 <td className={TD}>
-                                    <b className="font-semibold text-gray-900">{line.subscriptionName}</b>
+                                    <span className="font-semibold text-gray-900">{onStatement ? <button type="button" className="text-brand-600 hover:underline" onClick={() => onStatement(line.subscriptionId)}>{line.subscriptionName}</button> : line.subscriptionName}</span>
                                     <small className="block font-display text-xs text-gray-500">
                                         {line.accountNumber}
                                         {line.meterBoxNumber && ` · ${line.meterBoxNumber}`}
@@ -750,8 +734,8 @@ function Transactions({ transactions, kinds, filters, showDay, showBranch, onKin
                                         <small className="block font-display text-xs text-gray-500">{line.currencyAmount} {line.currency}</small>
                                     )}
                                 </td>
-                                <td className={NUM}>{line.isCredit ? '' : reportMoney(line.amount)}</td>
-                                <td className={`${NUM} text-emerald-700`}>{line.isCredit ? reportMoney(line.amount) : ''}</td>
+                                <td className={NUM}>{line.isCredit ? '—' : reportMoney(Math.abs(Number(line.amount)))}</td>
+                                <td className={`${NUM} text-emerald-700`}>{line.isCredit ? reportMoney(Math.abs(Number(line.amount))) : '—'}</td>
                                 <td className={`${TD} text-gray-600`}>{line.recordedBy ?? '—'}</td>
                             </tr>
                         ))}

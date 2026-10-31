@@ -5,7 +5,7 @@ import Switch from '@/Components/Switch';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import ConfirmDialog from '@/Components/ConfirmDialog';
-import { moveColumn, PAPER_SIZES, PRINT_FONTS, PRINT_PRESETS, applyPrintPreset } from '@/lib/printLayout';
+import { moveColumn, HIGHLIGHT_OPERATORS, PAPER_SIZES, PRINT_FONTS, PRINT_PRESETS, applyPrintPreset } from '@/lib/printLayout';
 
 const FOCUS_RING = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900';
 
@@ -36,6 +36,39 @@ const ALIGNMENTS = [
     { value: 'start', label: 'يمين' },
     { value: 'center', label: 'وسط' },
     { value: 'end', label: 'يسار' },
+];
+
+const GROUP_HEADINGS = [
+    { value: 'inline', label: 'سطر واحد' },
+    { value: 'stacked', label: 'سطر لكل مستوى' },
+];
+
+const GROUP_ALIGNMENTS = [
+    { value: 'start', label: 'يمين' },
+    { value: 'center', label: 'وسط' },
+];
+
+const HEADING_SIZES = [
+    { value: '', label: 'عادي' },
+    { value: '0.9', label: 'أصغر' },
+    { value: '1.15', label: 'كبير' },
+    { value: '1.35', label: 'أكبر' },
+    { value: '1.6', label: 'كبير جدًا' },
+];
+
+/** Soft tints a highlighted row or cell can print in, light enough to read through. */
+const HIGHLIGHT_COLORS = [
+    { value: '#fde2e1', label: 'أحمر فاتح' },
+    { value: '#fdf0c8', label: 'أصفر فاتح' },
+    { value: '#dcf5e3', label: 'أخضر فاتح' },
+    { value: '#dbe8fd', label: 'أزرق فاتح' },
+    { value: '#e9eaee', label: 'رمادي فاتح' },
+];
+
+const PAGE_NUMBER_POSITIONS = [
+    { value: 'right', label: 'يمين' },
+    { value: 'center', label: 'وسط' },
+    { value: 'left', label: 'يسار' },
 ];
 
 const ACCENTS = [
@@ -108,6 +141,62 @@ function HeaderTypography({ label, header, onChange, font, size, bold, align }) 
             <option value="right">يمين</option><option value="center">وسط</option><option value="left">يسار</option>
         </select>}</Field>
         <Switch label={`${label} بخط عريض`} checked={header[bold]} onChange={(value) => onChange(bold, value)} />
+    </fieldset>;
+}
+
+/** The look of each grouping level's heading: its size, background and text colour. */
+function HeadingStyles({ levels, styles, onChange }) {
+    const setLevel = (index, changes) => onChange(levels.map((_, position) => ({ ...(styles[position] ?? {}), ...(position === index ? changes : {}) })));
+
+    return <fieldset className="space-y-3 border-t border-gray-100 pt-3">
+        <legend className="px-1 text-xs font-bold text-gray-900">شكل عناوين المجموعات</legend>
+        {levels.map((label, index) => {
+            const look = styles[index] ?? {};
+
+            return <div key={index} className="space-y-2 rounded-control border border-gray-200 p-2.5">
+                <p className="text-xs font-semibold text-gray-700">عنوان «{label}»</p>
+                <Field label={`حجم خط عنوان «${label}»`}>
+                    {(id) => <select id={id} value={look.size ? String(look.size) : ''} onChange={(event) => setLevel(index, { size: event.target.value === '' ? null : Number(event.target.value) })} className="block w-full text-sm">
+                        {HEADING_SIZES.map((size) => <option key={size.value} value={size.value}>{size.label}</option>)}
+                    </select>}
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                    <Field label={`لون خلفية «${label}»`}>{(id) => <input id={id} type="color" value={look.background || '#f3f4f6'} onChange={(event) => setLevel(index, { background: event.target.value })} className="h-9 w-full" />}</Field>
+                    <Field label={`لون نص «${label}»`}>{(id) => <input id={id} type="color" value={look.color || '#111827'} onChange={(event) => setLevel(index, { color: event.target.value })} className="h-9 w-full" />}</Field>
+                </div>
+                {(look.size || look.background || look.color) && <SecondaryButton className="w-full !py-1 text-xs" onClick={() => setLevel(index, { size: null, background: null, color: null })}>إرجاع الشكل الافتراضي</SecondaryButton>}
+            </div>;
+        })}
+    </fieldset>;
+}
+
+/** Rules that colour a row, or one of its cells, by the values it holds. */
+function Highlights({ rules, columns, onChange }) {
+    const setRule = (index, changes) => onChange(rules.map((rule, position) => (position === index ? { ...rule, ...changes } : rule)));
+
+    return <fieldset className="space-y-3 border-t border-gray-100 pt-3">
+        <legend className="px-1 text-xs font-bold text-gray-900">تلوين الصفوف حسب قيمها</legend>
+        <p className="text-xs text-gray-500">مثلًا: الحالة «لم تُدخل» بالأحمر، أو المطلوب دفعه أكبر من 500. أول قاعدة تنطبق هي التي تُلوّن.</p>
+        {rules.map((rule, index) => <div key={index} className="space-y-2 rounded-control border border-gray-200 p-2.5">
+            <div className="flex items-center gap-2">
+                <select aria-label={`عمود القاعدة ${index + 1}`} value={rule.key} onChange={(event) => setRule(index, { key: event.target.value })} className="block min-w-0 flex-1 !py-1 text-sm">
+                    {columns.map((column) => <option key={column.key} value={column.key}>{column.label}</option>)}
+                </select>
+                <IconButton icon="trash" tone="danger" label={`حذف القاعدة ${index + 1}`} onClick={() => onChange(rules.filter((_, position) => position !== index))} />
+            </div>
+            <div className="flex gap-2">
+                <select aria-label={`شرط القاعدة ${index + 1}`} value={rule.operator} onChange={(event) => setRule(index, { operator: event.target.value })} className="block w-32 shrink-0 !py-1 text-sm">
+                    {Object.entries(HIGHLIGHT_OPERATORS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                {!['empty', 'notEmpty'].includes(rule.operator) && <input aria-label={`قيمة القاعدة ${index + 1}`} type="text" maxLength={100} value={rule.value ?? ''} onChange={(event) => setRule(index, { value: event.target.value })} className="block min-w-0 flex-1 !py-1 text-sm" />}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+                {HIGHLIGHT_COLORS.map((color) => <button key={color.value} type="button" aria-label={color.label} aria-pressed={rule.color === color.value} title={color.label} onClick={() => setRule(index, { color: color.value })} className={`h-7 w-7 rounded-full border-2 ${rule.color === color.value ? 'border-gray-900' : 'border-white shadow'} ${FOCUS_RING}`} style={{ backgroundColor: color.value }} />)}
+                <input aria-label={`لون آخر للقاعدة ${index + 1}`} type="color" value={rule.color} onChange={(event) => setRule(index, { color: event.target.value })} className="h-7 w-9 cursor-pointer rounded border border-gray-200 p-0.5" />
+            </div>
+            <ChoiceChips options={[{ value: 'row', label: 'الصف كاملًا' }, { value: 'cell', label: 'الخلية فقط' }]} value={rule.target ?? 'row'} onChange={(value) => setRule(index, { target: value })} label={`ما يُلوَّن في القاعدة ${index + 1}`} />
+        </div>)}
+        {rules.length < 10 && columns.length > 0 && <SecondaryButton className="w-full" onClick={() => onChange([...rules, { key: columns[0].key, operator: 'contains', value: '', color: HIGHLIGHT_COLORS[0].value, target: 'row' }])}><Icon name="plus" className="h-4 w-4" />إضافة قاعدة تلوين</SecondaryButton>}
     </fieldset>;
 }
 
@@ -291,9 +380,34 @@ function TemplatesSection({ templates, onReset, onPreset }) {
  * footer. Each change shows
  * in the preview at once.
  */
-export default function PrintSettingsPanel({ layout, onChange, scope, templates, onReset, reportFields = [], reportFieldsTitle = 'بيانات الصندوق' }) {
+export default function PrintSettingsPanel({ layout, onChange, scope, templates, onReset, readOnly = false, reportFields = [], reportFieldsTitle = 'بيانات الصندوق' }) {
     const [columnSearch, setColumnSearch] = useState('');
     const [confirming, setConfirming] = useState(null);
+    const rows = <Section icon="list" title="الصفوف" open>
+        <fieldset disabled={scope.loading}>
+        {scope.allRowsOnly ? <p className="text-sm font-semibold text-gray-700">كل الصفوف المطابقة للتصفية ({scope.total})</p> : <ChoiceChips
+            options={[
+                { value: 'all', label: `كل النتائج${!scope.selected && typeof scope.total === 'number' ? ` (${scope.total.toLocaleString('en')})` : ''}`, icon: 'list' },
+                { value: 'page', label: 'الصفحة المعروضة فقط', icon: 'table' },
+                ...(scope.hasSelection ? [{ value: 'selected', label: 'العناصر المحددة', icon: 'check' }] : []),
+            ]}
+            value={scope.selected ? 'selected' : scope.allRows ? 'all' : 'page'}
+            onChange={(value) => scope.onChange(value === 'selected' ? 'selected' : value === 'all')}
+            label="الصفوف المطبوعة"
+        />}
+        </fieldset>
+        <p className="text-xs text-gray-500">بنفس البحث والترتيب والفلاتر التي كانت على الشاشة.</p>
+    </Section>;
+
+    if (readOnly) {
+        return <div>
+            <div role="note" className="m-5 rounded-control border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                <p className="font-semibold text-gray-900">تطبع بقوالب الشركة المحفوظة.</p>
+                <p className="mt-1 text-xs leading-5 text-gray-600">اختر القالب من أعلى الصفحة. تغيير الأعمدة والترتيب والشكل يحتاج صلاحية «تخصيص الطباعة».</p>
+            </div>
+            {rows}
+        </div>;
+    }
 
     function set(key, value) {
         onChange({ ...layout, [key]: value });
@@ -339,21 +453,7 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                 templates.actions.startNew?.();
             }} />
 
-            <Section icon="list" title="الصفوف" open>
-                <fieldset disabled={scope.loading}>
-                {scope.allRowsOnly ? <p className="text-sm font-semibold text-gray-700">كل الحركات المطابقة للتصفية ({scope.total})</p> : <ChoiceChips
-                    options={[
-                        { value: 'all', label: `كل النتائج${!scope.selected && typeof scope.total === 'number' ? ` (${scope.total.toLocaleString('en')})` : ''}`, icon: 'list' },
-                        { value: 'page', label: 'الصفحة المعروضة فقط', icon: 'table' },
-                        ...(scope.hasSelection ? [{ value: 'selected', label: 'العناصر المحددة', icon: 'check' }] : []),
-                    ]}
-                    value={scope.selected ? 'selected' : scope.allRows ? 'all' : 'page'}
-                    onChange={(value) => scope.onChange(value === 'selected' ? 'selected' : value === 'all')}
-                    label="الصفوف المطبوعة"
-                />}
-                </fieldset>
-                <p className="text-xs text-gray-500">بنفس البحث والترتيب والفلاتر التي كانت على الشاشة.</p>
-            </Section>
+            {rows}
 
             {reportFields.length > 0 && <Section icon="wallet" title={reportFieldsTitle}>
                 {reportFields.map((field) => <Switch key={field.key} label={field.label} checked={!layout.header.reportFields || layout.header.reportFields.includes(field.key)} onChange={(visible) => {
@@ -442,7 +542,7 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                             rows={2}
                             value={layout.header.subtitle}
                             onChange={(e) => setIn('header', 'subtitle', e.target.value)}
-                            placeholder="مثلًا: عن شهر تشرين الأول"
+                            placeholder="مثلًا: عن شهر أكتوبر"
                             className="block w-full text-sm"
                         />
                     )}
@@ -459,6 +559,8 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                         onChange={(value) => setIn('header', 'repeatTitle', value)}
                         label="تكرار العنوان أعلى كل صفحة"
                     />
+                    <Switch checked={Boolean(layout.header.repeatCompany)} onChange={(value) => setIn('header', 'repeatCompany', value)} label="تكرار اسم الشركة أعلى كل صفحة" />
+                    <Switch checked={Boolean(layout.header.repeatDate)} onChange={(value) => setIn('header', 'repeatDate', value)} label="تكرار تاريخ الطباعة أعلى كل صفحة" />
                 </div>
                 {layout.header.layout === 'letterhead' && <>
                     <Field label="موضع الشعار">
@@ -599,7 +701,29 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                             const next = layout.columns.find((column) => column.key !== layout.group.key && !(layout.group.then ?? []).includes(column.key) && !column.key.startsWith('blank:'));
                             if (next) setIn('group', 'then', [...(layout.group.then ?? []), next.key]);
                         }}>إضافة مستوى تجميع</SecondaryButton>}
+                        <Field label="عناوين المجموعات" hint={(layout.group.then ?? []).length > 0 ? 'سطر لكل مستوى: يُكتب كل مستوى في سطر خاص عند تغيّره، مثل المنطقة ثم الطبلون تحتها.' : undefined}>
+                            {(id) => <ChoiceChips id={id} options={GROUP_HEADINGS} value={layout.group.headings ?? 'inline'} onChange={(value) => setIn('group', 'headings', value)} label="عناوين المجموعات" />}
+                        </Field>
+                        <Field label="محاذاة عناوين المجموعات">
+                            {(id) => <ChoiceChips id={id} options={GROUP_ALIGNMENTS} value={layout.group.align ?? 'start'} onChange={(value) => setIn('group', 'align', value)} label="محاذاة عناوين المجموعات" />}
+                        </Field>
+                        <Switch checked={layout.group.labels !== false} onChange={(value) => setIn('group', 'labels', value)} label="كتابة اسم الحقل قبل القيمة (مثل «الطبلون:»)" />
+                        <Switch checked={Boolean(layout.group.repeatHeader)} onChange={(value) => setIn('group', 'repeatHeader', value)} label="تكرار عناوين الأعمدة تحت عنوان كل مجموعة (مثل كل طبلون)" />
+                        <Field label="كلمة بعد عدد الصفوف في العنوان" hint="مثل «مشترك» لتظهر «(12 مشترك)». اتركها فارغة ليظهر العدد وحده.">
+                            {(id) => <input id={id} type="text" maxLength={30} value={layout.group.unit ?? ''} onChange={(e) => setIn('group', 'unit', e.target.value)} className="block w-full text-sm" />}
+                        </Field>
+                        <Switch checked={Boolean(layout.group.restartNumbers)} onChange={(value) => onChange({ ...layout, group: { ...layout.group, restartNumbers: value }, table: value ? { ...layout.table, rowNumbers: true } : layout.table })} label="بدء ترقيم الصفوف (#) من 1 في كل مجموعة" />
+                        <Switch checked={layout.group.showCount !== false} onChange={(value) => setIn('group', 'showCount', value)} label="إظهار العدد في عناوين المجموعات" />
+                        <Switch checked={Boolean(layout.group.keepTogether)} onChange={(value) => setIn('group', 'keepTogether', value)} label="إبقاء المجموعة كاملة في صفحة واحدة إن اتسعت لها" />
+                        <NumberField label="أسطر فارغة بعد كل مجموعة (للكتابة باليد)" value={layout.group.blankRows ?? 0} min={0} max={10} onChange={(value) => setIn('group', 'blankRows', value)} />
                         <Switch checked={layout.group.newPage} onChange={(value) => setIn('group', 'newPage', value)} label="كل مجموعة في صفحة جديدة" />
+                        {layout.group.newPage && (layout.group.then ?? []).length > 0 && <Group label="متى تبدأ صفحة جديدة">
+                            <ChoiceChips options={[
+                                { value: 'top', label: `عند تغيّر ${layout.columns.find((column) => column.key === layout.group.key)?.label ?? 'المستوى الأول'}` },
+                                { value: 'every', label: 'لكل مجموعة' },
+                            ]} value={layout.group.newPageAt ?? 'top'} onChange={(value) => setIn('group', 'newPageAt', value)} label="متى تبدأ صفحة جديدة" />
+                        </Group>}
+                        <HeadingStyles levels={[layout.group.key, ...(layout.group.then ?? [])].map((key) => layout.columns.find((column) => column.key === key)?.label ?? key)} styles={layout.group.styles ?? []} onChange={(styles) => setIn('group', 'styles', styles)} />
                         <Switch
                             checked={layout.group.subtotals}
                             onChange={(value) => setIn('group', 'subtotals', value)}
@@ -689,6 +813,7 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                     <Switch checked={layout.table.rowNumbers} onChange={(value) => setIn('table', 'rowNumbers', value)} label="ترقيم الصفوف (#)" />
                     <Switch checked={layout.table.wrap} onChange={(value) => setIn('table', 'wrap', value)} label="التفاف النص الطويل في الخلايا" />
                 </div>
+                <Highlights rules={layout.table.highlights ?? []} columns={layout.columns.filter((column) => !column.key.startsWith('blank:'))} onChange={(rules) => setIn('table', 'highlights', rules)} />
             </Section>
 
             <Section icon="page-footer" title="التذييل والتواقيع">
@@ -706,6 +831,9 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                 </Field>
                 <div className="grid grid-cols-1 gap-3">
                     <Switch checked={layout.footer.pageNumbers} onChange={(value) => setIn('footer', 'pageNumbers', value)} label="ترقيم الصفحات (صفحة 1 من 3)" />
+                    {layout.footer.pageNumbers && <Group label="موضع رقم الصفحة">
+                        <ChoiceChips options={PAGE_NUMBER_POSITIONS} value={layout.footer.pageNumberPosition ?? 'left'} onChange={(value) => setIn('footer', 'pageNumberPosition', value)} label="موضع رقم الصفحة" />
+                    </Group>}
                     <Switch checked={layout.footer.summary} onChange={(value) => setIn('footer', 'summary', value)} label="إظهار ملخص الصفحة (المجاميع) إن وُجد" />
                 </div>
                 <Field label="ملاحظات في نهاية الطباعة">
@@ -747,6 +875,20 @@ export default function PrintSettingsPanel({ layout, onChange, scope, templates,
                         )}
                     </div>
                 </Group>
+            </Section>
+
+            <Section icon="layers" title="العلامة المائية">
+                <p className="text-xs text-gray-500">نص أو شعار خفيف خلف الجدول يتكرر على كل صفحة، مثل «نسخة القارئ» أو «مسودة».</p>
+                <Switch checked={Boolean(layout.watermark?.enabled)} onChange={(value) => setIn('watermark', 'enabled', value)} label="إظهار العلامة المائية" />
+                {layout.watermark?.enabled && <>
+                    <Field label="نص العلامة المائية">
+                        {(id) => <input id={id} type="text" maxLength={60} value={layout.watermark.text ?? ''} onChange={(event) => setIn('watermark', 'text', event.target.value)} placeholder="مثلًا: نسخة القارئ" className="block w-full text-sm" />}
+                    </Field>
+                    <Switch checked={Boolean(layout.watermark.logo)} onChange={(value) => setIn('watermark', 'logo', value)} label="إظهار شعار الشركة في العلامة المائية" />
+                    <Field label={`وضوح العلامة المائية: ${Math.round((layout.watermark.opacity ?? 0.08) * 100)}%`}>
+                        {(id) => <input id={id} type="range" min="0.02" max="0.3" step="0.01" value={layout.watermark.opacity ?? 0.08} onChange={(event) => setIn('watermark', 'opacity', Number(event.target.value))} className="w-full accent-brand-600" />}
+                    </Field>
+                </>}
             </Section>
 
             <ConfirmDialog

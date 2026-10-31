@@ -1,6 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
-import { formDimensions, formText } from '@/lib/companyForms';
+import { formDimensions, formText, letterhead, letterheadSlots } from '@/lib/companyForms';
+import { printFont } from '@/lib/printLayout';
 import './CompanyForms.css';
+
+/**
+ * The form's letterhead: simple (the logo beside the Arabic name) or
+ * formal (the logo right, centred or left, Arabic text on the right and
+ * English on the left), over no line, one line or two, each in its colour.
+ */
+function FormLetterhead({ header: saved }) {
+    const header = letterhead(saved);
+    const parts = {
+        logo: header.logo && <img key="logo" src="/images/logo-af.webp" alt="شعار الشركة" style={{ width: `${header.logoWidth}mm`, height: `${header.logoHeight}mm` }} />,
+        arabic: <div key="arabic" dir="rtl" className="cf-letterhead-text" style={{ textAlign: header.arabicAlign, fontFamily: printFont(header.companyFont), color: header.textColor }}>
+            {header.company && <b style={{ fontSize: `${header.companySize}px` }}>{header.company}</b>}
+            {header.subtitle && <p style={{ fontSize: `${header.subtitleSize}px` }}>{header.subtitle}</p>}
+        </div>,
+        english: header.english && <div key="english" dir="ltr" className="cf-letterhead-text cf-letterhead-english" style={{ textAlign: header.englishAlign, fontFamily: printFont(header.englishFont), fontSize: `${header.englishSize}px`, color: header.textColor }}>{header.english}</div>,
+    };
+    const slots = letterheadSlots(header.logoPosition);
+
+    return <div className="cf-letterhead-block">
+        {header.style === 'letterhead'
+            ? <header className="cf-letterhead" style={{ gridTemplateColumns: slots.map((slot) => (slot === 'logo' ? 'auto' : 'minmax(0, 1fr)')).join(' ') }}>{slots.map((slot) => parts[slot] || <div key={slot} />)}</header>
+            : <header className="cf-heading">{parts.logo}{parts.arabic}{parts.english}</header>}
+        {header.ruleStyle !== 'none' && <div aria-hidden="true" className="cf-rule" style={{
+            borderTop: `${header.ruleWidth}px solid ${header.ruleColor}`,
+            ...(header.ruleStyle === 'double' ? { paddingTop: `${header.ruleGap}mm`, borderBottom: `${header.ruleWidth}px solid ${header.ruleColor2}` } : {}),
+        }} />}
+    </div>;
+}
 
 export default function CompanyFormPaper({ layout, page, pageIndex = 0, sourcePage = null, values = {}, blank = false, onPlace, selectedOverlay, onSelectOverlay, onOverflow }) {
     const wrapper = useRef(null);
@@ -36,7 +65,7 @@ export default function CompanyFormPaper({ layout, page, pageIndex = 0, sourcePa
                 {sourcePage && <img className="cf-source" src={sourcePage.image} alt="النموذج الأصلي" />}
                 {layout.watermark.enabled && <div className="cf-watermark" style={{ opacity: layout.watermark.opacity }} aria-hidden="true">{layout.watermark.logo && <img src="/images/logo-af.webp" alt="" />}<b>{layout.watermark.text}</b></div>}
                 <div className="cf-content" style={sourcePage ? { padding: `${layout.margin}mm` } : undefined}>
-                    {layout.header.enabled && <header className="cf-heading">{layout.header.logo && <img src="/images/logo-af.webp" alt="شعار الشركة" />}<div><b>{layout.header.company}</b><p>{layout.header.subtitle}</p></div></header>}
+                    {layout.header.enabled && <FormLetterhead header={layout.header} />}
                     <div ref={body} className="cf-blocks">
                         {(page?.blocks ?? []).map((block) => <div key={block.id} className={`cf-block cf-block-${block.type}`} style={{ textAlign: block.align, fontWeight: block.bold ? 700 : 400, fontSize: block.fontSize ? `${block.fontSize}px` : undefined }}>
                             {block.type === 'spacer' ? <div style={{ height: `${block.height ?? 8}mm` }} />

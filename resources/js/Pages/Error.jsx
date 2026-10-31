@@ -20,8 +20,8 @@ const BUTTON =
 /**
  * The page an error (no permission, not found, expired, server trouble)
  * shows instead of the framework's plain English one, with a way back.
- * A signed-in user opening a page they may not open (`blank`) sees it empty,
- * the top bar still there to go elsewhere, with no word of the permission.
+ * A signed-in user opening a page they may not open (`blank`) sees one quiet
+ * line saying it is not open to their account, and the way back home.
  */
 export default function Error({ status, blank = false }) {
     const { appName, auth, branchContext } = usePage().props;
@@ -31,6 +31,16 @@ export default function Error({ status, blank = false }) {
         return (
             <AuthenticatedLayout>
                 <Head title={appName} />
+                <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center" role="status">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+                        <Icon name="lock" className="h-6 w-6" />
+                    </span>
+                    <p className="text-base font-semibold text-gray-700">هذه الصفحة غير متاحة لحسابك</p>
+                    <Link href="/dashboard" className={`${BUTTON} border border-gray-200 bg-surface text-gray-900 hover:bg-gray-50`}>
+                        <Icon name="home" className="h-4 w-4" />
+                        العودة إلى لوحة التحكم
+                    </Link>
+                </div>
             </AuthenticatedLayout>
         );
     }

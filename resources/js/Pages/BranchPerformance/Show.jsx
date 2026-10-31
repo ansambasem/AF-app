@@ -17,7 +17,7 @@ const TIMELINE_DOTS = { active: 'bg-emerald-500', suspended: 'bg-amber-500', dis
 function Shekels({ amount, className = 'text-gray-900' }) {
     return (
         <span className={`whitespace-nowrap ${className}`}>
-            <b className="font-display font-bold">{formatMoney(amount)}</b> <span className="text-xs font-normal text-gray-500">شيكل</span>
+            <b className="font-display font-bold">{formatMoney(amount)}</b> <span className="text-xs font-normal text-gray-500">₪</span>
         </span>
     );
 }
@@ -286,7 +286,7 @@ export default function Show({ branch, canCompareBranches, dailyRegistrations, d
                     icon="folder"
                     label="قيود آخر 30 يوم"
                     value={formatMoney(branch.monthChargesTotal)}
-                    unit="شيكل"
+                    unit="₪"
                     hint={`الإجمالي ${formatMoney(branch.chargesTotal)} شيكل`}
                 />
                 <KpiTile

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Icon from '@/Components/Icon';
 import SearchableSelect from '@/Components/SearchableSelect';
 import { formatNumber } from '@/lib/format';
+import { useBranchView } from '@/hooks/useBranchView';
 
 /**
  * Whose figures the page shows, large at its top: one branch's name, with
@@ -15,7 +16,9 @@ import { formatNumber } from '@/lib/format';
  * the line under the name (the period, say) and `children` a row under it
  * (a chip per branch when all are shown). On paper it prints as the
  * page's heading, without the colours and the controls. `className`
- * replaces its space below, for a page that spaces its parts itself.
+ * replaces its space below, for a page that spaces its parts itself. On a
+ * phone it stays compact: the name smaller, the lead-in line left to the
+ * chip, and the pickers side by side.
  */
 /** "فرع واحد", "فرعان", "5 فروع", "12 فرعاً": a count of branches as Arabic says it. */
 function branchCount(count) {
@@ -30,7 +33,11 @@ function branchCount(count) {
     return `${formatNumber(count)} ${count % 100 >= 3 && count % 100 <= 10 ? 'فروع' : 'فرعاً'}`;
 }
 
-export default function BranchBanner({ scope, eyebrow = 'تعرض الآن البيانات المالية لـ', options = [], value = '', allValue = 'all', onChange = null, controls = null, meta = null, children = null, className = 'mb-5' }) {
+export default function BranchBanner({ scope, eyebrow = 'تعرض الآن البيانات المالية لـ', allLabel = 'تقرير مجمّع', options = [], value = '', allValue = 'all', onChange = null, controls = null, meta = null, children = null, className = 'mb-5' }) {
+    const view = useBranchView();
+    const pickerOptions = view.available ? view.options : options;
+    const pickerValue = view.available ? view.value || allValue : value;
+    const pick = view.available ? view.changeBranch : onChange;
     const facts = [
         scope.place && { icon: 'pin', text: scope.place },
         scope.all && { icon: 'building', text: branchCount(scope.branches) },
@@ -42,22 +49,22 @@ export default function BranchBanner({ scope, eyebrow = 'تعرض الآن ال�
     return (
         <section
             aria-label="الفرع المعروض"
-            className={`relative overflow-hidden rounded-card bg-graphite-gradient p-5 text-white shadow-card sm:p-6 print:mb-4 print:overflow-visible print:rounded-none print:border-b-2 print:border-[#a51d26] print:bg-none print:p-0 print:pb-3 print:text-[#111820] print:shadow-none ${className}`}
+            className={`relative overflow-hidden rounded-card bg-graphite-gradient p-4 text-white shadow-card sm:p-6 print:mb-4 print:overflow-visible print:rounded-none print:border-b-2 print:border-[#a51d26] print:bg-none print:p-0 print:pb-3 print:text-[#111820] print:shadow-none ${className}`}
         >
             <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-spectrum print:hidden" />
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-4">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 sm:gap-y-4">
                 <span aria-hidden="true" className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15 sm:flex print:hidden">
                     <Icon name={scope.level === 'governorate' ? 'map' : scope.all ? 'layers' : 'building'} className="h-7 w-7" />
                 </span>
                 <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold text-white/70 print:text-[#4c5460]">
-                        <span>{eyebrow}</span>
+                        <span className="hidden sm:inline print:inline">{eyebrow}</span>
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 text-xs text-white print:hidden">
                             <span aria-hidden="true" className={`h-2 w-2 rounded-full ${scope.level === 'governorate' ? 'bg-sky-400' : scope.all ? 'bg-amber-400' : scope.isActive ? 'bg-emerald-400' : 'bg-gray-400'}`} />
-                            {scope.level === 'governorate' ? `محافظة · ${branchCount(scope.branches)}` : scope.all ? `تقرير مجمّع · ${branchCount(scope.branches)}` : scope.isActive ? 'فرع واحد' : 'فرع واحد · متوقف'}
+                            {scope.level === 'governorate' ? `محافظة · ${branchCount(scope.branches)}` : scope.all ? `${allLabel} · ${branchCount(scope.branches)}` : scope.isActive ? 'فرع واحد' : 'فرع واحد · متوقف'}
                         </span>
                     </p>
-                    <h2 className="mt-1 text-balance font-display text-3xl font-bold leading-tight sm:text-4xl" dir="auto">
+                    <h2 className="mt-1 text-balance font-display text-2xl font-bold leading-tight sm:text-4xl" dir="auto">
                         {scope.name}
                     </h2>
                     <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/70 print:text-[#4c5460]">
@@ -69,18 +76,20 @@ export default function BranchBanner({ scope, eyebrow = 'تعرض الآن ال�
                         ))}
                     </ul>
                 </div>
-                {controls && <div className="flex w-full flex-wrap gap-3 sm:w-auto print:hidden">{controls}</div>}
-                {onChange && options.length > 1 && (
+                {controls && <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-3 print:hidden">{controls}</div>}
+                {!controls && pick && pickerOptions.length > 1 && (
                     <label className="flex w-full flex-col gap-1.5 sm:w-64 print:hidden">
                         <span className="text-xs font-semibold text-white/70">تغيير الفرع</span>
                         <span className="relative">
                             <select
-                                value={value ?? ''}
-                                onChange={(event) => onChange(event.target.value)}
+                                aria-label="تغيير الفرع"
+                                value={pickerValue ?? ''}
+                                disabled={view.switching}
+                                onChange={(event) => pick(event.target.value)}
                                 className="h-12 w-full appearance-none rounded-control border border-white/15 bg-white/10 bg-none pe-10 ps-3.5 font-bold text-white [color-scheme:dark] focus:border-white/40 focus:ring-2 focus:ring-white/30"
                             >
                                 <option value={allValue}>جميع الفروع (تقرير مجمّع)</option>
-                                {options.map((option) => (
+                                {pickerOptions.map((option) => (
                                     <option key={option.value} value={option.value}>
                                         {option.label}
                                     </option>
@@ -121,21 +130,24 @@ export function splitBranchFilter(scope, groups, values) {
  * choice of every branch, for a page that always shows one.
  */
 export function BranchFilterBanner({ scope, eyebrow, group, value, onChange, allowAll = true }) {
+    const view = useBranchView();
+    const options = view.available ? view.options : group?.options;
     return (
         <BranchBanner
             scope={scope}
             eyebrow={eyebrow}
             controls={
-                group && (
+                options && (
                     <label className="flex w-full flex-col gap-1.5 text-xs font-semibold text-white/70 sm:w-64">
                         الفرع
                         <SearchableSelect
-                            value={value ?? ''}
-                            onChange={onChange}
-                            options={group.options}
-                            placeholder={allowAll ? (scope.allName ?? 'جميع الفروع') : scope.name}
+                            value={view.available ? String(view.value) : value ?? ''}
+                            onChange={view.available ? view.changeBranch : onChange}
+                            options={options}
+                            disabled={view.switching}
+                            placeholder={allowAll ? (view.available ? 'جميع الفروع' : scope.allName ?? 'جميع الفروع') : scope.name}
                             searchPlaceholder="ابحث عن فرع..."
-                            active={allowAll && Boolean(value)}
+                            active={allowAll && Boolean(view.available ? view.value : value)}
                             clearable={allowAll}
                             portal
                             onDark

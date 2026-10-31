@@ -1,5 +1,5 @@
 import BankReceivedDate from '@/Components/BankReceivedDate';
-import ExcelButton, { tableExportButtonClass } from '@/Components/ExcelButton';
+import TableExportActions from '@/Components/DataTable/TableExportActions';
 import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -13,7 +13,6 @@ import { useRowClick } from '@/hooks/useRowClick';
 import { useStatementWindow } from '@/hooks/useStatementWindow';
 import { BALANCE_HINTS, BALANCE_WORDS, balanceTone, signedBalance } from '@/lib/balance';
 import { formatClock, formatDayLabel, formatMoney, formatNumber, formatShortDay } from '@/lib/format';
-import { printUrl } from '@/lib/print';
 import SplitPaymentBadge from '@/Pages/Payments/SplitPaymentBadge';
 import StatementModal from '@/Pages/Subscriptions/StatementModal';
 import './Ledger.css';
@@ -174,8 +173,8 @@ function SummaryCards({ totals, summary, side }) {
                 <b><Money amount={totals.charged} /></b>
                 <p>{formatNumber(totals.debitCount)} قيد تحميل · ضمن الفترة والفلاتر</p>
             </section>
-            <section className="k cr" aria-label="المحصّل">
-                <small><span className="dot bg-emerald-600 dark:bg-emerald-400" />المحصّل (له)</small>
+            <section className="k cr" aria-label="إجمالي له">
+                <small><span className="dot bg-emerald-600 dark:bg-emerald-400" />إجمالي له (تسديد وخصم ومقاصة)</small>
                 <b><Money amount={totals.credited} /></b>
                 <p>{formatNumber(totals.creditCount)} قيد · دفعات وخصم ومقاصة</p>
             </section>
@@ -279,12 +278,6 @@ export default function Index({ entries, period, dateBasis = 'recorded', side, s
                 <PageHeader
                     eyebrow={branchScope ? null : scopeLabel}
                     title="السجل المالي"
-                    actions={
-                        <>
-                            {can?.printAuditReports !== false && <ExcelButton title="السجل المالي" />}
-                            {can?.printAuditReports !== false && <a className={`${tableExportButtonClass} tone-print`} href={printUrl('السجل المالي')} target="_blank" rel="noopener noreferrer"><Icon name="printer" className="h-4 w-4" />طباعة</a>}
-                        </>
-                    }
                 />
             }
         >
@@ -306,6 +299,7 @@ export default function Index({ entries, period, dateBasis = 'recorded', side, s
                             <div className="hint" id="ledger-search-hint">البحث يشمل: <span>الاسم</span><span>الهاتف</span><span>الحساب</span><span>السند</span><span>المرجع</span></div>
                         </div>
                         <button type="button" className="btn fbtn" onClick={() => setFiltersOpen(!filtersOpen)} aria-expanded={filtersOpen} aria-controls="ledger-filters"><Icon name="filter" />الفلاتر{activeFilters > 0 && <span className="num">{activeFilters}</span>}</button>
+                        {can?.printAuditReports !== false && <TableExportActions title="السجل المالي" />}
                     </div>
                     <div className={`fb ${filtersOpen ? 'open' : ''}`} id="ledger-filters">
                         {branchFilter.groups.map((group) => (
@@ -335,7 +329,7 @@ export default function Index({ entries, period, dateBasis = 'recorded', side, s
                     </table>
                     <div className="foot data-table-totals">
                         <div>إجمالي التحميل<b><Money amount={ledgerTotals.charged} /></b></div>
-                        <div>المحصّل<b className="g"><Money amount={ledgerTotals.credited} /></b></div>
+                        <div>إجمالي له<b className="g"><Money amount={ledgerTotals.credited} /></b></div>
                         <div>الصافي<b><Money amount={ledgerTotals.net} balance /> <span>{ledgerTotals.net > 0 ? 'للشركة' : ledgerTotals.net < 0 ? 'للمشترك' : 'مسدّد'}</span></b></div>
                         <span className="r">{formatNumber(entries.total)} قيد مطابق · الملغاة خارج المجاميع</span>
                     </div>

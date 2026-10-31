@@ -65,9 +65,10 @@ class BranchDomainScope implements Scope
         }
     }
 
+    /** The selected view narrows reads; domain boundaries still apply to every request. */
     public function apply(Builder $builder, Model $model): void
     {
-        $branchId = BranchDomainContext::id();
+        $branchId = BranchDomainContext::id() ?? (request()->isMethodSafe() ? BranchViewContext::id() : null);
         if ($branchId === null) {
             return;
         }

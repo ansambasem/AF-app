@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { businessClock, isEntryOpen, nextScheduleChange, upcomingWeeks, validEntryHours, weekDates } from '../../resources/js/lib/readingSchedule.js';
+import { businessClock, entryDaysFrom, isEntryOpen, nextScheduleChange, shiftEntryDays, upcomingWeeks, validEntryHours, weekDates } from '../../resources/js/lib/readingSchedule.js';
 
 const schedule = { mode: 'automatic', open_days: [4], opens_at: '08:30', closes_at: '17:00' };
+
+test('entry days start on the reading day and stop before its next occurrence', () => {
+    assert.deepEqual(entryDaysFrom(4), [4, 5, 6, 0, 1, 2, 3]);
+    assert.deepEqual(entryDaysFrom(3), [3, 4, 5, 6, 0, 1, 2]);
+});
+
+test('changing the reading day carries the selected entry days with it', () => {
+    assert.deepEqual(shiftEntryDays([4, 5, 6], 4, 3), [3, 4, 5]);
+    assert.deepEqual(shiftEntryDays([3, 4, 5], 3, 6), [0, 1, 6]);
+    assert.deepEqual(shiftEntryDays([5, 0], 4, 3), [4, 6]);
+    assert.deepEqual(shiftEntryDays([3], 3, 4), [4]);
+});
 
 test('preview uses the business date and clock when the browser date is different', () => {
     assert.deepEqual(businessClock(new Date('2026-09-23T22:30:00Z'), 'Asia/Gaza'), {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyPrintPreset, arrangeRows, cellNumber, columnTotal, compareCells, cssString, defaultLayout, fitLayout, moveColumn, pageCss, PRINT_PRESETS, printFont } from '../../resources/js/lib/printLayout.js';
+import { applyPrintPreset, arrangeRows, cellNumber, columnTotal, compareCells, cssString, defaultLayout, fitLayout, moveColumn, pageCss, PRINT_PRESETS, printFont, rowHighlight, matchesHighlight, sectionHeadings } from '../../resources/js/lib/printLayout.js';
 
 const columns = [
     { key: 'name', label: 'الاسم' },
@@ -60,6 +60,70 @@ test('three grouping levels keep boxes inside their reader and start a new page 
     assert.equal(sections[0].groups[1].value, 'أ');
     assert.equal(sections[1].breakBefore, false);
     assert.equal(sections[2].breakBefore, true);
+});
+
+test('stacked group headings name a region once above its boxes, each line counting the rows under it', () => {
+    const row = (area, box, name) => ({ type: 'row', cells: { area, box, name } });
+    const layout = {
+        columns: [{ key: 'area', label: 'المنطقة' }, { key: 'box', label: 'الطبلون' }, { key: 'name', label: 'المشترك' }],
+        group: { key: 'area', then: ['box'], headings: 'stacked' },
+        sort: [],
+    };
+    const sections = arrangeRows([row('الحاج', '5', 'علي'), row('الأبراج', '9', 'سامي'), row('الحاج', '5', 'أحمد'), row('الحاج', '6', 'منى')], layout);
+    const headings = sectionHeadings(sections, layout);
+
+    assert.deepEqual(headings.map((lines) => lines.map((line) => [line.level, line.groups[0].value, line.count])), [
+        [[0, 'الأبراج', 1], [1, '9', 1]],
+        [[0, 'الحاج', 3], [1, '5', 2]],
+        [[1, '6', 1]],
+    ]);
+    assert.equal(headings[0][0].groups[0].label, 'المنطقة');
+
+    const inline = sectionHeadings(sections, { ...layout, group: { ...layout.group, headings: 'inline' } });
+    assert.deepEqual(inline[2].map((line) => line.groups.map((group) => group.value)), [['الحاج', '6']]);
+    assert.deepEqual(sectionHeadings(arrangeRows([row('الحاج', '5', 'علي')], { ...layout, group: { key: '' } }), layout), [[]]);
+});
+
+test('highlight rules colour the first matching row or only its cell', () => {
+    const row = { type: 'row', cells: { status: 'لم تُدخل', due: '1,250.00', notes: '' } };
+    assert.equal(matchesHighlight('لم تُدخل', { operator: 'contains', value: 'تُدخل' }), true);
+    assert.equal(matchesHighlight('معتمدة', { operator: 'equals', value: 'معتمد' }), false);
+    assert.equal(matchesHighlight('', { operator: 'empty' }), true);
+    assert.equal(matchesHighlight('1,250.00', { operator: 'gt', value: '1000' }), true);
+    assert.equal(matchesHighlight('—', { operator: 'lt', value: '5' }), false);
+    assert.equal(matchesHighlight('abc', { operator: 'contains', value: '' }), false);
+    assert.deepEqual(rowHighlight(row, [
+        { key: 'due', operator: 'lt', value: '100', color: '#dcf5e3' },
+        { key: 'due', operator: 'gt', value: '1000', color: '#fde2e1', target: 'cell' },
+        { key: 'status', operator: 'contains', value: 'تُدخل', color: '#fdf0c8' },
+    ]), { color: '#fde2e1', key: 'due' });
+    assert.deepEqual(rowHighlight(row, [{ key: 'notes', operator: 'empty', color: '#e9eaee' }]), { color: '#e9eaee', key: null });
+    assert.equal(rowHighlight(row, []), null);
+});
+
+test('page numbers move where chosen and the company and date repeat on every page when asked', () => {
+    const layout = defaultLayout({ columns });
+    assert.ok(pageCss(layout).includes('@bottom-left { content: "صفحة "'));
+    layout.footer.pageNumberPosition = 'right';
+    layout.footer.text = 'العنوان';
+    layout.header.repeatCompany = true;
+    layout.header.repeatDate = true;
+    const css = pageCss(layout, { company: 'شركة "أبو زايد"', date: 'طُبع في 29/10/2026' });
+    assert.ok(css.includes('@bottom-right { content: "صفحة "'));
+    assert.ok(css.includes('@bottom-left { content: "العنوان"'));
+    assert.ok(css.includes('@top-left { content: "شركة \\"أبو زايد\\""'));
+    assert.ok(css.includes('@top-center { content: "طُبع في 29/10/2026"'));
+    assert.equal(pageCss(defaultLayout({ columns }), { company: 'x', date: 'y' }).includes('@top-left'), false);
+});
+
+test('older saved layouts gain the new group, highlight and watermark settings switched off', () => {
+    const layout = fitLayout({ group: { key: 'name' }, table: { zebra: false } }, defaultLayout({ columns }));
+    assert.equal(layout.group.blankRows, 0);
+    assert.equal(layout.group.showCount, true);
+    assert.equal(layout.group.restartNumbers, false);
+    assert.deepEqual(layout.table.highlights, []);
+    assert.equal(layout.table.zebra, false);
+    assert.deepEqual(layout.watermark, { enabled: false, text: '', logo: false, opacity: 0.08 });
 });
 
 test('a cell number is read with thousands separators, a minus sign and Arabic digits', () => {

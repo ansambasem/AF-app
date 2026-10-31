@@ -32,6 +32,7 @@ class PrintTemplate extends Model
         '/meter-readings' => ['label' => 'القراءات الأسبوعية', 'icon' => 'chart'],
         '/subscriptions' => ['label' => 'المشتركون', 'icon' => 'users'],
         '/meter-boxes' => ['label' => 'الطبلونات', 'icon' => 'table'],
+        '/meter-boxes/subscriptions-print' => ['label' => 'الطبلونات ومشتركوها', 'icon' => 'users'],
         '/ledger' => ['label' => 'السجل المالي', 'icon' => 'ledger'],
         '/reports' => ['label' => 'التقارير المالية', 'icon' => 'trend'],
         '/receivables' => ['label' => 'أعمار الديون', 'icon' => 'wallet'],

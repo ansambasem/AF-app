@@ -232,7 +232,7 @@ class SubscriptionStandingDiscountTest extends TestCase
             ->get(route('subscriptions.statement', $this->subscription))
             ->assertInertia(fn ($page) => $page
                 ->has('entries', 2)
-                ->where('entries.0.description', 'قراءة أسبوعية من 2026-09-18 إلى 2026-09-24 · 5 كيلو')
+                ->where('entries.0.description', 'قراءة أسبوعية من 18/09/2026 إلى 24/09/2026 · 5 كيلو')
                 ->where('entries.0.amount', '150.00')
                 ->where('entries.0.details', 'عداد جديد')
                 ->where('entries.1.type', 'reading_discount')

@@ -85,6 +85,7 @@ enum UserRole: string
                 PermissionKey::ViewReadingAssignments, PermissionKey::ManageReadingAssignments,
                 PermissionKey::ApproveReadingAssignments, PermissionKey::PrintReadingSheets,
                 PermissionKey::ReviewReadingSubmissions,
+                PermissionKey::CustomizePrintouts,
             ],
             self::DataEntry => [
                 PermissionKey::ViewSubscriptions, PermissionKey::CreateSubscriptions, PermissionKey::UpdateSubscriptions,
@@ -92,6 +93,7 @@ enum UserRole: string
                 PermissionKey::CorrectMeterReadings, PermissionKey::CorrectLastMeterReadings, PermissionKey::BrowseMeterReadingWeeks,
                 PermissionKey::BulkUpdateSubscriptions,
                 PermissionKey::ViewReadingAssignments, PermissionKey::PrintReadingSheets,
+                PermissionKey::CustomizePrintouts,
             ],
             self::Accountant => [
                 PermissionKey::ViewSubscriptions,
@@ -99,6 +101,7 @@ enum UserRole: string
                 PermissionKey::AddCharges, PermissionKey::AddDiscounts, PermissionKey::AddClearings,
                 PermissionKey::ViewFinancialReports,
                 PermissionKey::ExportFinancialReports,
+                PermissionKey::CustomizePrintouts,
             ],
             // Takes payments in the field app, and nothing else: the financial log stays with the branch's staff.
             self::Collector => [PermissionKey::RecordCollections, PermissionKey::RecordCashPayments, PermissionKey::RecordTransferPayments],

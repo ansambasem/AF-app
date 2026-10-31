@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { Head, Link, useHttp } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Icon from '@/Components/Icon';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, formatDate } from '@/lib/format';
 import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import PageHeader from '@/Components/PageHeader';
 import PrintButton from '@/Components/PrintButton';
@@ -53,8 +53,8 @@ export default function PaperSheet({ sheet, cycle, boxes }) {
                         <p>رقم الكشف: <b dir="ltr">{sheet.number}</b></p>
                     </div>
                     <div className="text-end">
-                        <p>يوم القراءة: <b dir="ltr">{cycle.readingDate}</b></p>
-                        <p>أسبوع: <span dir="ltr">{cycle.weekStart} → {cycle.weekEnd}</span></p>
+                        <p>يوم القراءة: <b dir="ltr">{formatDate(cycle.readingDate)}</b></p>
+                        <p>أسبوع: <span dir="ltr">{formatDate(cycle.weekStart)} → {formatDate(cycle.weekEnd)}</span></p>
                         <p>{formatNumber(boxes.length)} طبلون · {formatNumber(total)} مشترك</p>
                     </div>
                 </header>

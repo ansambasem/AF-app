@@ -113,6 +113,33 @@ class PrintTemplateTest extends TestCase
         $this->assertModelExists($template);
     }
 
+    public function test_customising_a_printout_needs_its_permission_or_template_management(): void
+    {
+        $printsOnly = User::factory()->collector()->withPermissions([PermissionKey::ViewMeterReadings])->create();
+        $customises = User::factory()->collector()->withPermissions([PermissionKey::ViewMeterReadings, PermissionKey::CustomizePrintouts])->create();
+        $manages = User::factory()->collector()->withPermissions([PermissionKey::ViewMeterReadings, PermissionKey::ManagePrintTemplates])->create();
+
+        foreach ([[$printsOnly, false], [$customises, true], [$manages, true], [User::factory()->superAdmin()->create(), true]] as [$user, $allowed]) {
+            $this->actingAs($user)->get(route('dashboard'))->assertInertia(fn ($page) => $page->where('can.customizePrintouts', $allowed));
+        }
+    }
+
+    public function test_every_existing_account_keeps_customising_and_managers_may_hand_it_on(): void
+    {
+        $this->seed(PermissionSeeder::class);
+        $staff = User::factory()->collector()->create();
+        $manager = User::factory()->branchAdmin()->withPermissions([PermissionKey::ManagePermissions])->create();
+        $owner = User::factory()->superAdmin()->create();
+        Permission::where('key', PermissionKey::CustomizePrintouts->value)->delete();
+
+        (require database_path('migrations/2026_10_29_185132_grant_print_customization_to_existing_accounts.php'))->up();
+
+        $this->assertTrue($staff->fresh()->hasPermission(PermissionKey::CustomizePrintouts));
+        $this->assertFalse((bool) $staff->permissions()->where('key', PermissionKey::CustomizePrintouts->value)->sole()->pivot->grantable);
+        $this->assertTrue((bool) $manager->permissions()->where('key', PermissionKey::CustomizePrintouts->value)->sole()->pivot->grantable);
+        $this->assertSame(0, $owner->permissions()->count());
+    }
+
     public function test_the_page_lists_every_template_under_its_list(): void
     {
         PrintTemplate::factory()->create(['page' => '/meter-readings', 'name' => 'حسب الطبلون', 'layout' => $this->layout()]);
@@ -181,6 +208,39 @@ class PrintTemplateTest extends TestCase
         $layout['columns'][0]['width'] = 121;
         $this->post(route('print-templates.store'), ['page' => '/reading-cycles/print', 'name' => 'عرض زائد', 'layout' => $layout])->assertSessionHasErrors('layout.columns.0.width');
         $this->assertDatabaseCount('print_templates', 2);
+    }
+
+    public function test_group_layout_highlights_watermark_and_repeated_page_parts_are_kept_and_checked(): void
+    {
+        $manager = $this->manager();
+        $layout = $this->layout([
+            'group' => [
+                'key' => 'field:subAreaName', 'then' => ['field:meterBoxLabel'], 'newPage' => true, 'newPageAt' => 'every',
+                'headings' => 'stacked', 'align' => 'center', 'labels' => false, 'unit' => 'مشترك', 'repeatHeader' => true,
+                'restartNumbers' => true, 'keepTogether' => true, 'showCount' => false, 'blankRows' => 3,
+                'styles' => [['size' => 1.35, 'background' => '#fde2e1', 'color' => '#111827'], ['size' => null, 'background' => null, 'color' => null]],
+            ],
+            'table' => ['accent' => '#111827', 'highlights' => [['key' => 'الحالة', 'operator' => 'contains', 'value' => 'لم تُدخل', 'color' => '#fde2e1', 'target' => 'row']]],
+            'header' => ['repeatCompany' => true, 'repeatDate' => true],
+            'footer' => ['pageNumberPosition' => 'center'],
+            'watermark' => ['enabled' => true, 'text' => 'نسخة القارئ', 'logo' => true, 'opacity' => 0.1],
+        ]);
+
+        $this->actingAs($manager)->post(route('print-templates.store'), ['page' => '/meter-readings', 'name' => 'كشف القارئ', 'layout' => $layout])->assertSessionHasNoErrors();
+        $this->assertSame($layout, PrintTemplate::sole()->layout);
+
+        foreach ([
+            'layout.group.blankRows' => ['group' => ['blankRows' => 11]],
+            'layout.group.newPageAt' => ['group' => ['newPageAt' => 'sometimes']],
+            'layout.group.styles.0.background' => ['group' => ['styles' => [['background' => 'red;x:y']]]],
+            'layout.table.highlights.0.operator' => ['table' => ['highlights' => [['key' => 'الحالة', 'operator' => 'like', 'color' => '#fde2e1']]]],
+            'layout.table.highlights.0.color' => ['table' => ['highlights' => [['key' => 'الحالة', 'operator' => 'empty', 'color' => 'url(x)']]]],
+            'layout.footer.pageNumberPosition' => ['footer' => ['pageNumberPosition' => 'top']],
+            'layout.watermark.opacity' => ['watermark' => ['enabled' => true, 'opacity' => 0.9]],
+        ] as $field => $bad) {
+            $this->post(route('print-templates.store'), ['page' => '/meter-readings', 'name' => 'خطأ', 'layout' => $this->layout($bad)])->assertSessionHasErrors($field);
+        }
+        $this->assertDatabaseCount('print_templates', 1);
     }
 
     public function test_a_template_is_refused_for_an_unknown_list_or_an_unsafe_colour(): void

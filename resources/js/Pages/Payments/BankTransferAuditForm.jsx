@@ -86,7 +86,7 @@ export default function BankTransferAuditForm({ entry, onClose }) {
             <div role="status" aria-live="polite" className="rounded-control bg-brand-500/5 p-4">
                 <p className="text-base text-gray-600">عند اعتماد الصندوق</p>
                 <p className="mt-1 font-semibold text-gray-900">{difference > 0 ? (split ? 'إجمالي ما يُحمّل على المشتركين' : 'يُحمّل على المشترك') : difference < 0 ? (split ? 'إجمالي ما يُضاف لصالح المشتركين' : 'يُضاف لصالح المشترك') : needsReason ? 'توزيع مختلف بين الحصص · راجع أثر كل حصة' : 'مطابقة · لا يوجد فرق مالي'}</p>
-                {difference !== 0 && <p className="mt-2 font-display text-2xl font-bold text-gray-900"><bdi dir="ltr">{formatMoney(Math.abs(difference))}</bdi> <span className="text-base font-normal">شيكل</span></p>}
+                {difference !== 0 && <p className="mt-2 font-display text-2xl font-bold text-gray-900"><bdi dir="ltr">{formatMoney(Math.abs(difference))}</bdi> <span className="text-base font-normal">₪</span></p>}
             </div>
             <p className="text-base leading-8 text-gray-600">{split ? 'تُحفظ مراجعة جميع الحصص معًا كمسودة. عند اعتماد أحد صناديق الحوالة يثبت أثرها المالي لجميع المشتركين مرة واحدة.' : 'تُحفظ كمسودة. يثبت أثرها المالي عند اعتماد الصندوق.'}</p>
             <InputError message={errors.action || errors.audit || errors.revision} />

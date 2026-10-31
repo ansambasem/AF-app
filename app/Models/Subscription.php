@@ -107,6 +107,26 @@ class Subscription extends Model
         }
     }
 
+    /**
+     * Order a meter box's subscribers by the name shown for them or by
+     * account number (shorter numbers first, so 9 comes before 10).
+     */
+    #[Scope]
+    protected function orderedInMeterBox(Builder $query, string $sort, string $direction): void
+    {
+        $direction = $direction === 'desc' ? 'desc' : 'asc';
+        $query->select('subscriptions.*')
+            ->selectRaw("COALESCE(NULLIF(subscription_name, ''), full_name) AS display_name");
+
+        if ($sort === 'account_number') {
+            $query->orderByRaw('LENGTH(account_number) '.$direction)->orderBy('account_number', $direction);
+        } else {
+            $query->orderBy('display_name', $direction);
+        }
+
+        $query->orderBy('subscriptions.id');
+    }
+
     /** The subscription's contact number, falling back to the personal number. */
     public function contactPhone(): ?string
     {

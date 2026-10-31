@@ -8,6 +8,7 @@ use App\Enums\PermissionKey;
 use App\Enums\UserRole;
 use App\Models\Concerns\BelongsToBranch;
 use App\Support\BranchDomainContext;
+use App\Support\BranchViewContext;
 use App\Support\DeletionBlocker;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -158,15 +159,15 @@ class User extends Authenticatable
         return $this->role === UserRole::BranchAdmin;
     }
 
-    /** Administrative branch stays unchanged when working through another branch's domain. */
+    /** Administrative membership stays unchanged when viewing another branch. */
     public function workBranchId(): ?int
     {
-        return BranchDomainContext::id() ?? $this->branch_id;
+        return BranchDomainContext::id() ?? BranchViewContext::id() ?? $this->branch_id;
     }
 
     public function workBranch(): ?Branch
     {
-        return BranchDomainContext::branch() ?? $this->branch;
+        return BranchDomainContext::branch() ?? BranchViewContext::branch() ?? $this->branch;
     }
 
     public function canEnterBranch(Branch $branch): bool
@@ -265,7 +266,7 @@ class User extends Authenticatable
      */
     public function branchAreaId(): ?int
     {
-        return (BranchDomainContext::branch() ?? $this->branch)?->area_id;
+        return $this->workBranch()?->area_id;
     }
 
     /**

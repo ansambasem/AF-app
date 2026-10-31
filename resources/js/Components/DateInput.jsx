@@ -31,6 +31,7 @@ export default function DateInput({
     disabled = false,
     placeholder = 'اختر تاريخًا',
     className = '',
+    onDark = false,
     buttonRef: outerButtonRef = null,
     'aria-label': ariaLabel,
 }) {
@@ -156,6 +157,10 @@ export default function DateInput({
     const headerButton =
         'flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900 disabled:pointer-events-none disabled:opacity-30';
 
+    const fieldColors = onDark
+        ? `bg-white/10 text-white disabled:opacity-40 focus-visible:ring-4 focus-visible:ring-white/15 ${open ? 'border-white/50 ring-4 ring-white/15' : 'border-white/20 hover:border-white/40'}`
+        : `bg-surface focus-visible:border-brand-500 focus-visible:ring-4 focus-visible:ring-brand-500/15 disabled:border-dashed disabled:bg-gray-50 disabled:text-gray-500 ${open ? 'border-brand-500 ring-4 ring-brand-500/15' : 'border-gray-200 hover:border-brand-500/45'}`;
+
     return (
         <div className={`relative ${className}`}>
             <button
@@ -173,12 +178,10 @@ export default function DateInput({
                         openCalendar();
                     }
                 }}
-                className={`flex h-[42px] w-full items-center justify-between gap-2 rounded-control border bg-surface px-3 text-start text-base leading-6 transition focus:outline-none focus-visible:border-brand-500 focus-visible:ring-4 focus-visible:ring-brand-500/15 disabled:cursor-not-allowed disabled:border-dashed disabled:bg-gray-50 disabled:text-gray-500 ${
-                    open ? 'border-brand-500 ring-4 ring-brand-500/15' : 'border-gray-200 hover:border-brand-500/45'
-                }`}
+                className={`flex h-[42px] w-full items-center justify-between gap-2 rounded-control border px-3 text-start text-base leading-6 transition focus:outline-none disabled:cursor-not-allowed ${fieldColors}`}
             >
-                <span className={`truncate ${hasValue ? 'text-gray-900' : 'text-gray-400/60'}`}>{hasValue ? formatWeekDay(value) : placeholder}</span>
-                <Icon name="calendar" className="h-[18px] w-[18px] shrink-0 text-gray-400" />
+                <span className={`truncate ${onDark ? (hasValue ? 'text-white' : 'text-white/60') : (hasValue ? 'text-gray-900' : 'text-gray-400/60')}`}>{hasValue ? formatWeekDay(value) : placeholder}</span>
+                <Icon name="calendar" className={`h-[18px] w-[18px] shrink-0 ${onDark ? 'text-white/60' : 'text-gray-400'}`} />
             </button>
 
             {name && (

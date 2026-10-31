@@ -24,6 +24,7 @@ use App\Models\Tariff;
 use App\Models\TransactionDeletion;
 use App\Models\User;
 use App\Support\BranchBoxes;
+use App\Support\ClosingPeriods;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -81,6 +82,8 @@ class BranchOperationsSimulationTest extends TestCase
     private User $accountant;
 
     private User $auditor;
+
+    private User $reporter;
 
     /** @var list<string> */
     private array $trace = [];
@@ -145,6 +148,7 @@ class BranchOperationsSimulationTest extends TestCase
         $this->dataEntry = User::factory()->dataEntry()->for($this->branch)->create(['name' => 'مدخل القراءات']);
         $this->accountant = User::factory()->accountant()->for($this->branch)->withPermissions([PermissionKey::CloseCashBoxes])->create(['name' => 'المحاسب']);
         $this->auditor = User::factory()->financialAuditor()->create(['name' => 'المدقق']);
+        $this->reporter = User::factory()->accountant()->for($this->branch)->withPermissions([PermissionKey::ViewFinancialReports, PermissionKey::ViewDebtAging])->create(['name' => 'قارئ التقارير']);
 
         foreach (range(1, 3) as $step) {
             $this->registerSubscription(0);
@@ -738,6 +742,7 @@ class BranchOperationsSimulationTest extends TestCase
         $this->assertReadingsAgreeWithTheirBills();
         $this->assertBoxesHoldTheirPayments();
         $this->assertClosedBoxesAndAuditsNeverChange();
+        $this->assertTheReportsAgreeWithTheBooks();
     }
 
     private function assertStatementsAgreeWithTheirLines(): void
@@ -796,6 +801,57 @@ class BranchOperationsSimulationTest extends TestCase
         $this->assertSame($this->money($balances), $this->money($this->cents((string) $log['ledgerTotals']['net'])), $this->failure('the financial log\'s net differs from what the subscriptions owe'));
         $this->assertSame($lines->whereNotNull('cancelled_at')->whereNull('reverses_id')->count(), $log['ledgerTotals']['cancelledCount'], $this->failure('the financial log counts other cancelled lines'));
         $this->assertSame($this->money($collected), $this->money($this->cents((string) $log['summary']['collected'])), $this->failure('the financial log reports another amount collected'));
+    }
+
+    /**
+     * The financial reports read the same lines the statements do: the
+     * period's flow ends on what the subscriptions owe, its days add up to
+     * it, the collections split the payments it counts the same way every
+     * time, and the debts reports age exactly the balances owed.
+     */
+    private function assertTheReportsAgreeWithTheBooks(): void
+    {
+        $periods = ClosingPeriods::for($this->branch);
+        $today = $periods->today();
+        $from = $today->subDays(29);
+        [$start] = $periods->utcRange($from, $today);
+        $lines = SubscriptionTransaction::query()->where('branch_id', $this->branch->id)->get();
+        $balances = $this->subscriptions()->get()->map(fn (Subscription $subscription): int => $this->cents((string) $subscription->balance()));
+        $report = $this->actingAs($this->reporter)->get(route('reports.index', ['from' => $from->toDateString(), 'to' => $today->toDateString()]))->assertOk()->inertiaProps();
+        ['flow' => $flow, 'collections' => $collections, 'days' => $days] = $report;
+        $sum = fn (iterable $rows, string $key): int => collect($rows)->sum(fn (array $row): int => $this->cents((string) $row[$key]));
+
+        $this->assertSame($this->money($lines->filter(fn (SubscriptionTransaction $line): bool => $line->created_at->lessThan($start))->sum(fn (SubscriptionTransaction $line): int => $this->cents($line->amount))), $flow['opening'], $this->failure('the report opens on another balance than the lines before its period'));
+        $this->assertSame($this->money($balances->sum()), $flow['closing'], $this->failure('the report closes on another balance than the subscriptions owe'));
+        $this->assertSame($flow['chargesTotal'], $this->money($sum($flow['charges'], 'total')), $this->failure('the report\'s charges do not add up to their total'));
+        $this->assertSame($flow['creditsTotal'], $this->money($sum($flow['credits'], 'total')), $this->failure('the report\'s credits do not add up to their total'));
+        $this->assertSame($lines->filter(fn (SubscriptionTransaction $line): bool => $line->reverses_id !== null && $line->created_at->greaterThanOrEqualTo($start))->count(), $flow['corrections']['count'], $this->failure('the report counts other reversals than the period recorded'));
+
+        $running = $this->cents($flow['opening']);
+        foreach ($days as $day) {
+            $running += $this->cents($day['charges']) - $this->cents($day['payments']) - $this->cents($day['discounts']) + $this->cents($day['corrections']);
+            $this->assertSame($this->money($running), $day['balance'], $this->failure("the report's day {$day['day']} does not end on its own figures"));
+        }
+        $this->assertSame($flow['closing'], end($days)['balance'], $this->failure('the report\'s last day ends on another balance than its period'));
+        $this->assertSame($flow['chargesTotal'], $this->money($sum($days, 'charges')), $this->failure('the report\'s days charge another total than its period'));
+        $this->assertSame($flow['creditsTotal'], $this->money($sum($days, 'payments') + $sum($days, 'discounts')), $this->failure('the report\'s days credit another total than its period'));
+        $this->assertSame($flow['corrections']['total'], $this->money($sum($days, 'corrections')), $this->failure('the report\'s days correct another total than its period'));
+
+        $payments = collect($flow['credits'])->firstWhere('type', SubscriptionTransaction::TYPE_PAYMENT) ?? ['count' => 0, 'total' => '0.00'];
+        $this->assertSame([$payments['count'], $payments['total']], [$collections['count'], $collections['total']], $this->failure('the collections count other payments than the report\'s flow'));
+        foreach (['accounts', 'currencies', 'collectors'] as $split) {
+            $this->assertSame($collections['total'], $this->money($sum($collections[$split], 'total')), $this->failure("the collections by {$split} do not add up to their total"));
+        }
+        $this->assertSame($collections['total'], $this->money($this->cents($collections['cash']) + $this->cents($collections['nonCash'])), $this->failure('cash and transfers do not add up to the collections'));
+        $this->assertSame(MeterReading::query()->where('branch_id', $this->branch->id)->where('status', MeterReadingStatus::Pending)->count(), $report['readings']['pending'], $this->failure('the report counts other pending readings'));
+
+        $owed = $this->money($balances->filter(fn (int $balance): bool => $balance > 0)->sum());
+        $debts = $this->actingAs($this->reporter)->get(route('reports.index', ['section' => 'debts', 'from' => $today->toDateString(), 'to' => $today->toDateString()]))->assertOk()->inertiaProps('debts');
+        $this->assertSame([$owed, $this->money($balances->filter(fn (int $balance): bool => $balance < 0)->sum())], [$debts['total'], $debts['credit']], $this->failure('the debts report ages other balances than the subscriptions owe'));
+        $this->assertSame($debts['total'], $this->money($sum($debts['buckets'], 'total')), $this->failure('the debts report\'s ages do not add up to what is owed'));
+        $receivables = $this->actingAs($this->reporter)->get(route('receivables.index'))->assertOk()->inertiaProps('summary');
+        $this->assertSame($owed, $this->money($this->cents((string) $receivables['total'])), $this->failure('the receivables page shows another debt than the subscriptions owe'));
+        $this->assertSame($owed, $this->money(collect($receivables['buckets'])->sum(fn (array $bucket): int => $this->cents((string) $bucket['amount']))), $this->failure('the receivables page\'s ages do not add up to what is owed'));
     }
 
     private function assertReadingsAgreeWithTheirBills(): void

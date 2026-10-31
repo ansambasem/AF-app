@@ -1,8 +1,8 @@
 import { cloneElement } from 'react';
 
 /**
- * A field with its unit inside it, at the end: شيكل for money, ك.و.س for
- * kilowatt-hours. Wraps one input: <Affix unit="شيكل"><TextInput … /></Affix>.
+ * A field with its unit inside it, at the end: ₪ for money, ك.و.س for
+ * kilowatt-hours. Wraps one input: <Affix unit="₪"><TextInput … /></Affix>.
  * An `id` given to the Affix (as a form Field gives it) goes to the input.
  */
 export default function Affix({ unit, id, children }) {

@@ -11,6 +11,16 @@ export function roundToCents(amount) {
     return Number(`${Math.round(Number(`${amount}e2`))}e-2`);
 }
 
+/** An amount with the shekel sign, for tables and cards: 50 → '50 ₪'. In running text, formatCurrency() writes the word. */
+export function formatShekels(amount) {
+    if (amount === null || amount === undefined || amount === '') {
+        return '—';
+    }
+
+    return `${formatAmount(amount)} ₪`;
+}
+
+/** An amount with the word for the currency, for running text: 50 → '50 شيكل'. */
 export function formatCurrency(amount) {
     if (amount === null || amount === undefined || amount === '') {
         return '—';

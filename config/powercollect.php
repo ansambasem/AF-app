@@ -19,7 +19,7 @@ return [
     */
 
     'super_admin' => [
-        'name' => env('SUPER_ADMIN_NAME', 'Super Admin'),
+        'name' => env('SUPER_ADMIN_NAME', 'المدير العام'),
         'username' => env('SUPER_ADMIN_USERNAME', 'admin'),
         'password' => env('SUPER_ADMIN_PASSWORD'),
     ],

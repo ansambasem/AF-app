@@ -3,6 +3,7 @@ import Icon from '@/Components/Icon';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import { formatAmount } from '@/lib/currency';
+import { formatDate } from '@/lib/format';
 
 /**
  * The line being corrected, cancelled or erased, in that action's colour.
@@ -28,7 +29,7 @@ export function OriginalLine({ entry, tone = 'correction' }) {
                     </span>
                 </p>
                 <p className="mt-0.5 text-xs text-gray-500">
-                    <bdi dir="ltr">{entry.date}</bdi>
+                    <bdi dir="ltr">{formatDate(entry.date)}</bdi>
                     {entry.voucherNumber && ` · سند ${entry.voucherNumber}`}
                     {entry.recordedByName && ` · سجّلها ${entry.recordedByName}`}
                 </p>

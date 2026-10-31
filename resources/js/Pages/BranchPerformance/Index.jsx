@@ -63,7 +63,7 @@ function BranchCard({ branch, style }) {
                     <p className="text-xs text-gray-500">إجمالي القيود</p>
                     <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
                         <span className="font-display text-3xl font-bold text-gray-900 sm:text-4xl">{formatMoney(branch.chargesTotal)}</span>
-                        <span className="text-sm text-gray-500">شيكل</span>
+                        <span className="text-sm text-gray-500">₪</span>
                     </p>
                 </div>
                 <div className="shrink-0 text-end">
@@ -132,7 +132,7 @@ export default function Index({ sort, summary, branches }) {
             <Head title="أداء الفروع" />
 
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-                <KpiTile icon="folder" label="إجمالي القيود" value={formatMoney(summary.chargesTotal)} unit="شيكل" hint="كل الفروع · منذ البداية" />
+                <KpiTile icon="folder" label="إجمالي القيود" value={formatMoney(summary.chargesTotal)} unit="₪" hint="كل الفروع · منذ البداية" />
                 <KpiTile
                     icon="users"
                     label="المشتركون النشطون"

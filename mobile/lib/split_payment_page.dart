@@ -368,7 +368,7 @@ class _SplitPaymentPageState extends State<SplitPaymentPage> {
                           ],
                           const SizedBox(height: 16),
                           AppNotice(
-                              'الموزّع: ${(allocated / 100).toStringAsFixed(2)} شيكل · المتبقي: ${(remaining / 100).toStringAsFixed(2)} شيكل',
+                              'الموزّع: ${(allocated / 100).toStringAsFixed(2)} ₪ · المتبقي: ${(remaining / 100).toStringAsFixed(2)} ₪',
                               success: remaining == 0 && allocated > 0),
                           if (needsOverpayment)
                             CheckboxListTile(
@@ -422,7 +422,7 @@ class _SplitPaymentPageState extends State<SplitPaymentPage> {
         const SizedBox(height: 16),
         Text('المرجع: ${receipt!['reference_number']}',
             style: AppIdentity.body(16, weight: FontWeight.w700)),
-        Text('الإجمالي: ${receipt!['total_amount']} شيكل',
+        Text('الإجمالي: ${receipt!['total_amount']} ₪',
             style: AppIdentity.body(16)),
         const SizedBox(height: 8),
         Text('البنك المستلم: ${receipt!['bank_name'] ?? bank ?? '—'}',

@@ -25,7 +25,7 @@ class StoreMeterReadingRequest extends FormRequest
 
     protected function creationAbility(): string
     {
-        return 'createOnReadingDay';
+        return 'create';
     }
 
     /**

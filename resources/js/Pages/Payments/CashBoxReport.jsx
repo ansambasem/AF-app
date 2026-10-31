@@ -1,11 +1,8 @@
 import BankReceivedDate from '@/Components/BankReceivedDate';
-import ExcelButton from '@/Components/ExcelButton';
+import TableExportActions from '@/Components/DataTable/TableExportActions';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import Icon from '@/Components/Icon';
-import { printUrl } from '@/lib/print';
 import { reportColumns, reportCurrency, reportFilters, reportMoney, reportRowTotals, reportDetails, reportDateTime } from '@/lib/cashBoxReport';
-import { secondaryButtonClass } from '@/Components/SecondaryButton';
 import PageHeader from '@/Components/PageHeader';
 
 export default function CashBoxReport({ report }) {
@@ -20,8 +17,7 @@ export default function CashBoxReport({ report }) {
         <section data-excel-source="custom" className="space-y-5 rounded-panel border border-gray-100 bg-surface p-6 shadow-card">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <Link href="/payments/cash-boxes" className="text-sm font-semibold text-brand-600">العودة إلى الصناديق</Link>
-                <ExcelButton title="تقرير تفاصيل الصندوق" />
-                <a href={printUrl('تقرير تفاصيل الصندوق')} target="_blank" rel="noopener noreferrer" className={`${secondaryButtonClass} tone-print`}><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص التصميم</a>
+                <TableExportActions title="تقرير تفاصيل الصندوق" />
             </div>
             <div className="flex flex-wrap gap-2" aria-label="تصفية الحركات">
                 {Object.entries(reportFilters).map(([key, label]) => <Link key={key} href={`/payments/cash-boxes/report?box=${report.boxId ?? ''}&filter=${key}`} className={`rounded-control border px-3 py-2 text-sm ${key === report.filter ? 'bg-gray-900 text-white' : 'text-gray-600'}`}>{label} · {report.counts[key]}</Link>)}

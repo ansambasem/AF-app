@@ -3,10 +3,14 @@
 .cf-paper { box-sizing: border-box; position: absolute; top: 0; right: 0; transform-origin: top right; display: block; overflow: hidden; background: white; color: #17202a; box-shadow: 0 4px 22px #1018281a; font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif; line-height: 1.8; isolation: isolate; }
 .cf-paper * { box-sizing: border-box; }
 .cf-content { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; }
-.cf-heading { display: flex; align-items: center; gap: 6mm; padding-bottom: 5mm; margin-bottom: 5mm; border-bottom: 1px solid #d8dde4; flex-shrink: 0; }
-.cf-heading img { width: 24mm; height: 22mm; object-fit: contain; }
-.cf-heading b { font-size: 1.1em; font-weight: 700; }
-.cf-heading p { margin: 1mm 0 0; font-size: .85em; color: #5d6673; }
+.cf-letterhead-block { flex-shrink: 0; margin-bottom: 5mm; }
+.cf-heading { display: flex; align-items: center; gap: 6mm; padding-bottom: 5mm; }
+.cf-letterhead { display: grid; align-items: center; gap: 5mm; padding-bottom: 4mm; }
+.cf-letterhead-block img { object-fit: contain; max-width: 100%; justify-self: center; }
+.cf-letterhead-text { min-width: 0; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.6; }
+.cf-letterhead-text b { display: block; font-weight: 700; }
+.cf-letterhead-text p { margin: 1mm 0 0; opacity: .78; }
+.cf-heading .cf-letterhead-english { margin-inline-start: auto; }
 .cf-blocks { flex: 1; min-height: 0; }
 .cf-block { margin-bottom: 4mm; white-space: pre-wrap; overflow-wrap: anywhere; break-inside: avoid; }
 .cf-block p { margin: 0; }

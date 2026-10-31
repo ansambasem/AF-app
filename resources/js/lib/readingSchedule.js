@@ -1,6 +1,14 @@
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 
+export function entryDaysFrom(readingDay) {
+    return Array.from({ length: 7 }, (_, offset) => (readingDay + offset) % 7);
+}
+
+export function shiftEntryDays(openDays, previousReadingDay, readingDay) {
+    return openDays.map((day) => (day - previousReadingDay + readingDay + 7) % 7).sort((a, b) => a - b);
+}
+
 export function businessClock(now, timezone) {
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
         timeZone: timezone,

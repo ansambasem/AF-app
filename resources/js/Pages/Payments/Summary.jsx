@@ -30,7 +30,7 @@ function TodaysSummary({ today }) {
 
     return (
         <section aria-label="ما حصّلته اليوم" className="mb-6">
-            <KpiTile hero label="ما حصّلته اليوم" value={formatMoney(today.total)} unit="شيكل" hint={`${today.count.toLocaleString('en')} ${today.count === 1 ? 'دفعة' : 'دفعات'}`}>
+            <KpiTile hero label="ما حصّلته اليوم" value={formatMoney(today.total)} unit="₪" hint={`${today.count.toLocaleString('en')} ${today.count === 1 ? 'دفعة' : 'دفعات'}`}>
                 <dl className="mt-5 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2">
                     {parts.map((part) => (
                         <div key={part.label} className="flex items-center gap-3">
@@ -40,7 +40,7 @@ function TodaysSummary({ today }) {
                             <dt className="text-sm text-white/70">{part.label}</dt>
                             <dd className="ms-auto flex items-baseline gap-1.5 sm:ms-0">
                                 <span className="font-display text-2xl font-bold">{formatMoney(part.value)}</span>
-                                <span className="text-xs text-white/60">شيكل</span>
+                                <span className="text-xs text-white/60">₪</span>
                             </dd>
                         </div>
                     ))}

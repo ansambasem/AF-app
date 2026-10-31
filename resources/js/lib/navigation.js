@@ -69,9 +69,10 @@ export const NAVIGATION_GROUPS = [
 ];
 
 /**
- * The top bar's task groups, the same for every user: all of each group's
- * pages, with unavailable ones marked `locked`. This keeps the main
- * sections stable while their child navigation shows permitted pages.
+ * The top bar's task groups the user may open a page of: all of each such
+ * group's pages, with unavailable ones marked `locked`. A group none of
+ * whose pages the user may open is left out, so the bar shows only work
+ * the account can do.
  */
 export function navigationGroups(can) {
     return NAVIGATION_GROUPS.map(({ hrefs, ...group }) => {
@@ -79,7 +80,7 @@ export function navigationGroups(can) {
         const open = new Set(allowedLinks(links, can));
 
         return { ...group, links: links.map((link) => ({ ...navigationLink(link, can), locked: !open.has(link) })) };
-    });
+    }).filter((group) => group.links.some((link) => !link.locked));
 }
 
 /** Task groups containing only the pages the current user may open, for the search. */

@@ -1745,7 +1745,7 @@ class SubscriptionTransaction extends Model
             self::TYPE_SUBSCRIPTION_FEE => 'رسوم اشتراك جديد',
             self::TYPE_METER_READING => $this->meterReading
                 ? implode(' · ', array_filter([
-                    sprintf('قراءة أسبوعية من %s إلى %s', $this->meterReading->week_start->format('Y-m-d'), $this->meterReading->week_end->format('Y-m-d')),
+                    sprintf('قراءة أسبوعية من %s إلى %s', $this->meterReading->week_start->format('d/m/Y'), $this->meterReading->week_end->format('d/m/Y')),
                     $this->billedConsumption() === null ? null : $this->billedConsumption().' كيلو',
                 ]))
                 : 'قراءة أسبوعية',

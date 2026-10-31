@@ -84,7 +84,7 @@ class _SubscriberMessageHistoryPageState
             ?.toLocal();
     final stamp = date == null
         ? ''
-        : '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+        : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: AppRows(children: [

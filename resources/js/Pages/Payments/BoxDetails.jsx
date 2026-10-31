@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import ExcelButton from '@/Components/ExcelButton';
+import TableExportActions from '@/Components/DataTable/TableExportActions';
 import { Link } from '@inertiajs/react';
 import AuditApprovalDialog from './AuditApprovalDialog';
 import BankTransferAuditForm from './BankTransferAuditForm';
@@ -15,7 +15,6 @@ import SegmentedTabs from '@/Components/SegmentedTabs';
 import SearchableSelect from '@/Components/SearchableSelect';
 import { BankMark } from '@/Components/Banks';
 import { formatMoney } from '@/lib/format';
-import { printUrl } from '@/lib/print';
 import { boxTypes, currencies, dateTime, BoxTypeIcon } from './CollectorCashBox';
 import { ledgerColumns, ledgerOf, ledgerTableClass, BoxNumberCell, LedgerLeadCells, LedgerTrailCells } from './LedgerColumns';
 import BoxBreakdown, { breakdownEntry } from './BoxBreakdown';
@@ -126,7 +125,7 @@ export default function BoxDetails({ box, onClose, perform, initialSearch = '' }
                 </div>
             </div>
             <div className="flex items-center gap-3">
-                {box.canPrint !== false && <><ExcelButton title="تقرير تفاصيل الصندوق" base={`/payments/cash-boxes/report?box=${box.id}`} /><a href={printUrl('تقرير تفاصيل الصندوق', `/payments/cash-boxes/report?box=${box.id}`)} target="_blank" rel="noopener noreferrer" className="tone-print inline-flex items-center gap-2 rounded-control border px-3 py-2 text-sm font-semibold"><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص</a></>}
+                {box.canPrint !== false && <TableExportActions title="تقرير تفاصيل الصندوق" base={`/payments/cash-boxes/report?box=${box.id}`} />}
                 <StatusPill tone={statusTone} label={statusLabel} />
                 {!editable && <StatusPill tone={box.audit ? 'green' : 'amber'} label={box.audit ? 'اكتمل التدقيق' : 'بانتظار اكتمال التدقيق'} />}
                 <button type="button" onClick={onClose} aria-label="إغلاق النافذة" className="rounded-control p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"><Icon name="close" className="h-5 w-5" /></button>
@@ -135,7 +134,7 @@ export default function BoxDetails({ box, onClose, perform, initialSearch = '' }
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-gray-50/60 p-4 sm:p-6">
             <dl className="financial-box-detail-stats grid grid-cols-2 gap-px overflow-hidden rounded-card border border-gray-100 bg-gray-100 xl:grid-cols-4">
-                <Stat icon="wallet" label="إجمالي الحركات السارية" value={<>{formatMoney(totals.ILS)} <span className="text-sm font-normal text-gray-500">شيكل</span></>} hint={otherCurrencies(totals)} />
+                <Stat icon="wallet" label="إجمالي الحركات السارية" value={<>{formatMoney(totals.ILS)} <span className="text-sm font-normal text-gray-500">₪</span></>} hint={otherCurrencies(totals)} />
                 <Stat icon="list" label="الحركات" value={active.length.toLocaleString('en')} hint={entries.length > active.length ? `و${entries.length - active.length} ملغاة` : 'لا حركات ملغاة'} />
                 <Stat icon={editable ? 'unlock' : 'lock'} label="تصحيح الحركات" value={<span className="text-base">{editable ? 'متاح للمحصّل' : 'مقفل'}</span>} hint={editable ? 'حتى تأكيد إغلاق الصندوق' : 'أُكّد إغلاق الصندوق'} />
                 <Stat icon="calendar" label="فُتح ← أُغلق" value={<span className="text-sm">{dateTime(box.opened_at)}</span>} hint={box.closed_at ? dateTime(box.closed_at) : 'لا يزال مفتوحًا'} />

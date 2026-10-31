@@ -1,10 +1,9 @@
-// Arabic with Levantine month names (أيلول) and Western digits, as the app writes them.
-const LOCALE = 'ar-SY-u-nu-latn';
+// Arabic with the usual month names (سبتمبر, أكتوبر) and Western digits, as the app writes them.
+export const DATE_LOCALE = 'ar-EG-u-nu-latn';
 
-const DAY_FORMAT = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
-const SHORT_DAY_FORMAT = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'long', timeZone: 'UTC' });
-// The usual names of the months (يناير, أبريل…), where the dates above use the Levantine ones.
-const MONTH_NAME_FORMAT = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { month: 'long', timeZone: 'UTC' });
+const DAY_FORMAT = new Intl.DateTimeFormat(DATE_LOCALE, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const SHORT_DAY_FORMAT = new Intl.DateTimeFormat(DATE_LOCALE, { day: 'numeric', month: 'long', timeZone: 'UTC' });
+const MONTH_NAME_FORMAT = new Intl.DateTimeFormat(DATE_LOCALE, { month: 'long', timeZone: 'UTC' });
 const RELATIVE_FORMAT = new Intl.RelativeTimeFormat('ar', { numeric: 'always' });
 
 const HONORIFICS = new Set(['mr', 'mrs', 'ms', 'dr', 'prof']);
@@ -85,17 +84,28 @@ export function localDay(date = new Date()) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-/** "السبت، 26 أيلول" for a Y-m-d date. */
+/**
+ * A date the server sent as people read it, day first: '2026-10-29' →
+ * '29/10/2026', and '2026-10-29 18:58' → '29/10/2026 18:58' (whatever follows the date stays). Anything else
+ * (empty, or already written for people) comes back as it is.
+ */
+export function formatDate(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})((?: .*)?)$/.exec(String(value ?? ''));
+
+    return match ? `${match[3]}/${match[2]}/${match[1]}${match[4]}` : (value ?? '');
+}
+
 /** The usual name of a day's month, e.g. "أبريل" for '2026-04-12'. */
 export function formatMonthName(day) {
     return MONTH_NAME_FORMAT.format(new Date(`${day}T00:00:00Z`));
 }
 
+/** "السبت، 26 سبتمبر" for a Y-m-d date. */
 export function formatDayLabel(day) {
     return DAY_FORMAT.format(calendarDate(day));
 }
 
-/** "26 أيلول" for a Y-m-d date. */
+/** "26 سبتمبر" for a Y-m-d date. */
 export function formatShortDay(day) {
     return SHORT_DAY_FORMAT.format(calendarDate(day));
 }

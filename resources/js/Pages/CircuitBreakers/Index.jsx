@@ -12,7 +12,7 @@ import ActionsTh from '@/Components/DataTable/ActionsTh';
 import { useDataTable } from '@/hooks/useDataTable';
 import { useDeleteRecord } from '@/hooks/useDeleteRecord';
 import { useRowClick } from '@/hooks/useRowClick';
-import { formatCurrency } from '@/lib/currency';
+import { formatShekels } from '@/lib/currency';
 import CircuitBreakerModal from './CircuitBreakerModal';
 import PageHeader from '@/Components/PageHeader';
 
@@ -74,7 +74,7 @@ export default function Index({ circuitBreakers, canCreate, filters, filterOptio
                                         <RowIdentity icon="bolt" name={`${circuitBreaker.ampere}A`} />
                                     </td>
                                     <td className="text-end text-gray-600" dir="ltr">
-                                        {formatCurrency(circuitBreaker.minimum_payment)}
+                                        {formatShekels(circuitBreaker.minimum_payment)}
                                     </td>
                                     <td className="text-end">
                                         {(circuitBreaker.canUpdate || circuitBreaker.canDelete) && (

@@ -5,6 +5,7 @@ import InputError from '@/Components/InputError';
 import SearchableSelect from '@/Components/SearchableSelect';
 import { useResourceForm } from '@/hooks/useResourceForm';
 import { consumptionBetween } from '@/lib/readings';
+import { formatDate } from '@/lib/format';
 
 const APPROVED_READING_WARNING = 'هذه القراءة معتمدة. تعديلها يعيدها إلى قيد المراجعة ويزيل مبلغها من المعاملات المالية للمشترك حتى يُعاد اعتمادها.';
 const APPROVE_NOW_NOTE = 'هذه القراءة معتمدة. سيُلغى مبلغها السابق بقيد عكسي يبقى في الكشف، وتُعتمد القراءة المصحّحة ويُحمَّل مبلغها الجديد فورًا.';
@@ -62,7 +63,7 @@ export default function MeterReadingModal({ show, onClose, reading, subscription
                 <div className="rounded-lg border border-gray-100 px-4 py-3 text-sm">
                     <p className="font-semibold text-gray-900">{reading.subscriptionName}</p>
                     <p className="mt-1 text-gray-500">
-                        <span dir="ltr">{reading.accountNumber}</span> · الأسبوع {reading.weekStart} ← {reading.weekEnd}
+                        <span dir="ltr">{reading.accountNumber}</span> · الأسبوع {formatDate(reading.weekStart)} ← {formatDate(reading.weekEnd)}
                     </p>
                 </div>
             ) : (

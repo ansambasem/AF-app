@@ -31,7 +31,7 @@ const BUCKET_COLUMNS = { current: 'حتى 30', days_60: '31–60', days_90: '61�
 function Shekels({ amount, className = 'text-gray-900' }) {
     return (
         <span className={`whitespace-nowrap ${className}`}>
-            <b className="font-display font-bold">{formatMoney(amount)}</b> <span className="text-xs font-normal text-gray-500">شيكل</span>
+            <b className="font-display font-bold">{formatMoney(amount)}</b> <span className="text-xs font-normal text-gray-500">₪</span>
         </span>
     );
 }
@@ -128,21 +128,21 @@ export default function Index({ debtors, summary, buckets, scopeLabel, branchSco
                     className="sm:col-span-2"
                     label="إجمالي الديون المستحقة"
                     value={formatMoney(summary.total)}
-                    unit="شيكل"
+                    unit="₪"
                     hint={`${formatNumber(summary.count)} مشترك مدين`}
                 />
                 <KpiTile
                     icon="alert"
                     label="أكثر من 90 يومًا"
                     value={formatMoney(overdue.amount)}
-                    unit="شيكل"
+                    unit="₪"
                     hint={`${overdue.share}% من الإجمالي · ${formatNumber(overdue.count)} مشترك`}
                 />
                 <KpiTile
                     icon="wallet"
                     label="متوسط الدين"
                     value={formatMoney(summary.average)}
-                    unit="شيكل"
+                    unit="₪"
                     hint={`أكبر دين: ${formatMoney(summary.largest)} شيكل`}
                 />
             </div>

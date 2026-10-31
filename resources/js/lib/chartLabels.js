@@ -1,4 +1,4 @@
-/** The room one day label needs under a chart (the widest, "28 تشرين الأول" at 12px, is 71px), so labels never run into each other. */
+/** The room one day label needs under a chart (the widest, "28 ديسمبر" at 12px, fits well within it), so labels never run into each other. */
 export const LABEL_WIDTH = 88;
 
 /**

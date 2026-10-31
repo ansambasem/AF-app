@@ -1,19 +1,16 @@
 import { useState } from 'react';
-import ExcelButton from '@/Components/ExcelButton';
+import TableExportActions from '@/Components/DataTable/TableExportActions';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import KpiTile from '@/Components/KpiTile';
 import PrimaryButton from '@/Components/PrimaryButton';
 import Icon from '@/Components/Icon';
 import { formatMoney } from '@/lib/format';
-import { isPrintMode, printUrl } from '@/lib/print';
+import { isPrintMode } from '@/lib/print';
 import { boxTypes, currencies, dateTime, BoxEntriesTable, BoxStage, BoxTypeChip, BoxTypeIcon, CountSummary, CashBoxAction, boxAction, actionLabel } from './CollectorCashBox';
 import PageHeader, { BackLink } from '@/Components/PageHeader';
 
 /** A link that looks like the quiet outlined button. */
-/** The report links' shape; each takes its colour (tone-print, tone-excel). */
-const reportButton = 'inline-flex items-center justify-center gap-2 rounded-control border px-4 py-2.5 text-sm font-semibold transition';
-
 /** Where each type of box goes when it closes. */
 const destinations = { cash: 'خزنة الفرع', bank_transfer: 'حساب البنك', clearing: 'المقاصات' };
 
@@ -51,8 +48,7 @@ export default function CashBoxShow({ box, entries, collectionUrls, pendingCount
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2"><BoxTypeChip type={box.type} /><BoxStage box={box} /></div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <a href={printUrl('تقرير تفاصيل الصندوق', `/payments/cash-boxes/report?box=${box.id}`)} target="_blank" rel="noopener noreferrer" className={`${reportButton} tone-print`}><Icon name="printer" className="h-4 w-4" />طباعة وتخصيص / PDF</a>
-                        <ExcelButton title="تقرير تفاصيل الصندوق" base={`/payments/cash-boxes/report?box=${box.id}`} className={reportButton} />
+                        <TableExportActions title="تقرير تفاصيل الصندوق" base={`/payments/cash-boxes/report?box=${box.id}`} />
                         {action && <PrimaryButton onClick={() => setShowAction(true)}>{actionLabel(box)}</PrimaryButton>}
                     </div>
                 </div>
@@ -71,7 +67,7 @@ export default function CashBoxShow({ box, entries, collectionUrls, pendingCount
                 {printing && <p className="data-table-totals">{`صندوق ${box.number} · ${boxTypes[box.type]} · فُتح ${dateTime(box.openedAt)} · أُغلق ${dateTime(box.closedAt)} · ${box.paymentCount} حركات · الإجمالي ${formatMoney(box.totals?.ILS ?? 0)} شيكل · المستلم ${formatMoney(box.receivedAmounts?.ILS ?? 0)} شيكل${box.closedBy ? ` · أغلقه ${box.closedBy}` : ''}`}</p>}
             </section>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <KpiTile icon="wallet" label="إجمالي الصندوق" value={formatMoney(box.totals?.ILS ?? 0)} unit="شيكل" hint={otherCurrencies(box.totals)} />
+                <KpiTile icon="wallet" label="إجمالي الصندوق" value={formatMoney(box.totals?.ILS ?? 0)} unit="₪" hint={otherCurrencies(box.totals)} />
                 <KpiTile icon="check" label="المبلغ المستلم" value={box.receivedAt ? formatMoney(box.receivedAmounts?.ILS ?? 0) : '—'} unit={box.receivedAt ? 'شيكل' : undefined} hint={box.receivedAt ? otherCurrencies(box.receivedAmounts) : 'لم يؤكد الفرع إغلاقه بعد'} />
                 <KpiTile icon="list" label="الحركات" value={box.paymentCount.toLocaleString('en')} hint={box.rejectedCount > 0 ? `${box.rejectedCount} مرفوضة` : undefined} />
                 <KpiTile icon="lock" label="أغلقه" value={<span className="text-xl">{box.closedBy ?? 'لا يزال مفتوحًا'}</span>} hint={box.status === 'open' ? 'يؤكد الفرع إغلاقه بعد مراجعته، أو يُغلق عند القطع الأسبوعي' : `أُغلق إلى ${destinations[box.type]}`} />

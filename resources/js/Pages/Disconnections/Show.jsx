@@ -14,7 +14,7 @@ import Icon from '@/Components/Icon';
 import Balance from '@/Components/Balance';
 import { useDataTable } from '@/hooks/useDataTable';
 import { printFieldsProps, printRowProps } from '@/lib/print';
-import { formatMoney, formatNumber } from '@/lib/format';
+import { formatMoney, formatNumber, formatDate } from '@/lib/format';
 import { itemTone } from '@/lib/disconnections';
 import ActionModal from './ActionModal';
 import HistoryModal from './HistoryModal';
@@ -266,7 +266,7 @@ export default function Show({ list, items, summary, abilities, reasonOptions, c
                                         {item.note && <span className="block max-w-[16rem] truncate text-xs text-gray-500" title={item.note}>{item.note}</span>}
                                     </td>
                                     <td data-label="موعد القطع" className="whitespace-nowrap">
-                                        <span dir="ltr" className={item.isOverdue ? 'font-semibold text-red-700 dark:text-red-400' : 'text-gray-700'}>{item.scheduledFor}</span>
+                                        <span dir="ltr" className={item.isOverdue ? 'font-semibold text-red-700 dark:text-red-400' : 'text-gray-700'}>{formatDate(item.scheduledFor)}</span>
                                         {item.extensionsCount > 0 && <span className="block text-xs text-gray-500">مُدّد {formatNumber(item.extensionsCount)} مرة</span>}
                                     </td>
                                     <td data-label="الرصيد" className="whitespace-nowrap">

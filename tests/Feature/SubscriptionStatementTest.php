@@ -62,7 +62,7 @@ class SubscriptionStatementTest extends TestCase
                 ->where('subscription.fullName', 'Ahmad')
                 ->where('entries', function ($entries): bool {
                     $this->assertSame(
-                        ['رسوم اشتراك جديد', 'قراءة أسبوعية من 2026-08-21 إلى 2026-08-27 · 179 كيلو', 'دفعة نقدية'],
+                        ['رسوم اشتراك جديد', 'قراءة أسبوعية من 21/08/2026 إلى 27/08/2026 · 179 كيلو', 'دفعة نقدية'],
                         collect($entries)->pluck('description')->all(),
                     );
                     $this->assertSame(['50.00', '103.70', '29.70'], collect($entries)->pluck('balance')->all());

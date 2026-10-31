@@ -84,7 +84,7 @@ const assert = require('node:assert/strict');
         await page.goto('/users');
         const exportButton = page.locator('.data-table-toolbar [data-excel-button]');
         await exportButton.waitFor();
-        const printButton = page.getByRole('button', { name: 'طباعة الجدول (تُفتح في نافذة جديدة)' });
+        const printButton = page.locator('[data-table-exports]').getByRole('button', { name: 'طباعة', exact: true });
         const [excelBox, printBox] = await Promise.all([exportButton.boundingBox(), printButton.boundingBox()]);
         assert.equal(excelBox.height, printBox.height);
         assert.ok(Math.abs(excelBox.y - printBox.y) < 1);

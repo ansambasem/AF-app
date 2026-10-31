@@ -13,10 +13,13 @@ import InputError from '@/Components/InputError';
 import ConfirmDialog from '@/Components/ConfirmDialog';
 import CompanyFormPaper from './CompanyFormPaper';
 import useCompanySource from './useCompanySource';
-import { MAX_FORM_PAGES, moveFormItem } from '@/lib/companyForms';
+import { FORMAL_LETTERHEAD, MAX_FORM_PAGES, letterhead, moveFormItem } from '@/lib/companyForms';
+import { PRINT_FONTS } from '@/lib/printLayout';
 import PageHeader, { BackLink } from '@/Components/PageHeader';
 
 const TYPES = [{ value: 'heading', label: 'عنوان', icon: 'document' }, { value: 'paragraph', label: 'نص', icon: 'note' }, { value: 'fields', label: 'حقول بيانات', icon: 'grid' }, { value: 'signatures', label: 'توقيعات', icon: 'pencil' }, { value: 'spacer', label: 'مسافة', icon: 'expand' }];
+const FONT_OPTIONS = Object.entries(PRINT_FONTS).map(([value, font]) => ({ value, label: font.label }));
+const SIDES = [{ value: 'right', label: 'يمين' }, { value: 'center', label: 'وسط' }, { value: 'left', label: 'يسار' }];
 const newBlock = (type) => ({ id: crypto.randomUUID(), type, text: type === 'heading' ? 'عنوان جديد' : type === 'signatures' ? 'توقيع المشترك|توقيع الموظف' : '', align: type === 'heading' ? 'center' : 'right', bold: type === 'heading', fontSize: null, height: 8, fields: [] });
 
 export default function Editor({ template, defaultLayout, fields }) {
@@ -47,6 +50,10 @@ export default function Editor({ template, defaultLayout, fields }) {
 
     function setLayout(next) { setData('layout', typeof next === 'function' ? next(layout) : next); }
     function sectionValue(section, key, value) { setLayout({ ...layout, [section]: { ...layout[section], [key]: value } }); }
+    const head = letterhead(layout.header);
+    const headValue = (key) => (value) => sectionValue('header', key, value);
+    const numberInput = (id, key, min, max, step = 1) => <input id={id} type="number" min={min} max={max} step={step} value={head[key]} onChange={(event) => sectionValue('header', key, Math.min(max, Math.max(min, Number(event.target.value))))} className="w-full" />;
+    const colorInput = (id, key) => <input id={id} type="color" value={head[key]} onChange={(event) => sectionValue('header', key, event.target.value)} className="h-10 w-full" />;
     function updateBlock(patch) { setLayout({ ...layout, pages: layout.pages.map((item, index) => index === pageIndex ? { ...item, blocks: item.blocks.map((item) => item.id === blockId ? { ...item, ...patch } : item) } : item) }); }
     function updateOverlay(patch) { setLayout({ ...layout, overlays: layout.overlays.map((item) => item.id === overlayId ? { ...item, ...patch } : item) }); }
 
@@ -122,8 +129,37 @@ export default function Editor({ template, defaultLayout, fields }) {
                         <FormSection columns={1} icon="building" title="الترويسة والتذييل">
                             <Switch label="إظهار ترويسة الشركة" checked={layout.header.enabled} onChange={(value) => sectionValue('header', 'enabled', value)} />
                             <Switch label="إظهار شعار الشركة" checked={layout.header.logo} onChange={(value) => sectionValue('header', 'logo', value)} />
-                            <FormField id="company-heading" label="اسم الشركة"><input value={layout.header.company ?? ''} onChange={(event) => sectionValue('header', 'company', event.target.value)} className="w-full" maxLength={200} /></FormField>
-                            <FormField id="company-subtitle" label="بيانات التواصل أو العنوان"><textarea value={layout.header.subtitle ?? ''} onChange={(event) => sectionValue('header', 'subtitle', event.target.value)} className="w-full" maxLength={300} /></FormField>
+                            <ChoiceChips label="شكل الترويسة" options={[{ value: 'simple', label: 'بسيطة' }, { value: 'letterhead', label: 'رسمية: نص على جانبي الشعار' }]} value={head.style} onChange={headValue('style')} />
+                            <SecondaryButton onClick={() => setLayout({ ...layout, header: { ...layout.header, ...FORMAL_LETTERHEAD, enabled: true } })}><Icon name="sparkles" className="h-4 w-4" />تطبيق ترويسة رسمية جاهزة</SecondaryButton>
+                            {head.style === 'letterhead' && <ChoiceChips label="موضع الشعار" options={SIDES} value={head.logoPosition} onChange={headValue('logoPosition')} />}
+                            <div className="grid grid-cols-2 gap-3">
+                                <FormField id="company-logo-width" label="عرض الشعار (مم)">{numberInput('company-logo-width', 'logoWidth', 10, 60)}</FormField>
+                                <FormField id="company-logo-height" label="ارتفاع الشعار (مم)">{numberInput('company-logo-height', 'logoHeight', 8, 50)}</FormField>
+                            </div>
+                            <FormField id="company-heading" label="اسم الشركة بالعربية"><input value={layout.header.company ?? ''} onChange={(event) => sectionValue('header', 'company', event.target.value)} className="w-full" maxLength={200} /></FormField>
+                            <FormField id="company-subtitle" label="تفاصيل بالعربية (العنوان، التواصل…)"><textarea value={layout.header.subtitle ?? ''} onChange={(event) => sectionValue('header', 'subtitle', event.target.value)} className="w-full" maxLength={300} /></FormField>
+                            <div className="grid grid-cols-2 gap-3">
+                                <FormField id="company-arabic-font" label="خط النص العربي"><SearchableSelect options={FONT_OPTIONS} value={head.companyFont} onChange={headValue('companyFont')} clearable={false} searchable={false} /></FormField>
+                                <FormField id="company-arabic-size" label="حجم اسم الشركة">{numberInput('company-arabic-size', 'companySize', 10, 36)}</FormField>
+                                <FormField id="company-subtitle-size" label="حجم التفاصيل">{numberInput('company-subtitle-size', 'subtitleSize', 9, 28)}</FormField>
+                                <FormField id="company-arabic-align" label="محاذاة العربي"><SearchableSelect options={SIDES} value={head.arabicAlign} onChange={headValue('arabicAlign')} clearable={false} searchable={false} /></FormField>
+                            </div>
+                            <FormField id="company-english" label="النص الإنجليزي (الاسم والتفاصيل)"><textarea dir="ltr" rows={3} value={layout.header.english ?? ''} onChange={(event) => sectionValue('header', 'english', event.target.value)} className="w-full" maxLength={300} placeholder={'Fares Abu Zayed Sons\nGeneral Trading & Import'} /></FormField>
+                            {head.english && <div className="grid grid-cols-2 gap-3">
+                                <FormField id="company-english-font" label="خط النص الإنجليزي"><SearchableSelect options={FONT_OPTIONS} value={head.englishFont} onChange={headValue('englishFont')} clearable={false} searchable={false} /></FormField>
+                                <FormField id="company-english-size" label="حجم النص الإنجليزي">{numberInput('company-english-size', 'englishSize', 9, 32)}</FormField>
+                                <FormField id="company-english-align" label="محاذاة الإنجليزي"><SearchableSelect options={SIDES} value={head.englishAlign} onChange={headValue('englishAlign')} clearable={false} searchable={false} /></FormField>
+                            </div>}
+                            <FormField id="company-text-color" label="لون نص الترويسة">{colorInput('company-text-color', 'textColor')}</FormField>
+                            <ChoiceChips label="الخط أسفل الترويسة" options={[{ value: 'none', label: 'بدون' }, { value: 'single', label: 'خط واحد' }, { value: 'double', label: 'خطان' }]} value={head.ruleStyle} onChange={headValue('ruleStyle')} />
+                            {head.ruleStyle !== 'none' && <div className="grid grid-cols-2 gap-3">
+                                <FormField id="company-rule-width" label="سماكة الخط (بكسل)">{numberInput('company-rule-width', 'ruleWidth', 0.5, 6, 0.5)}</FormField>
+                                <FormField id="company-rule-color" label={head.ruleStyle === 'double' ? 'لون الخط الأول' : 'لون الخط'}>{colorInput('company-rule-color', 'ruleColor')}</FormField>
+                                {head.ruleStyle === 'double' && <>
+                                    <FormField id="company-rule-color-2" label="لون الخط الثاني">{colorInput('company-rule-color-2', 'ruleColor2')}</FormField>
+                                    <FormField id="company-rule-gap" label="المسافة بين الخطين (مم)">{numberInput('company-rule-gap', 'ruleGap', 0.5, 5, 0.5)}</FormField>
+                                </>}
+                            </div>}
                             <FormField id="company-footer" label="تذييل الورقة"><textarea value={layout.footer ?? ''} onChange={(event) => setLayout({ ...layout, footer: event.target.value })} className="w-full" maxLength={500} /></FormField>
                         </FormSection>
                         <FormSection columns={1} icon="layers" title="العلامة المائية">

@@ -115,6 +115,7 @@ enum PermissionKey: string
     case ViewMessages = 'messages.view';
     case SendMessages = 'messages.send';
 
+    case CustomizePrintouts = 'print_templates.customize';
     case ManagePrintTemplates = 'print_templates.manage';
     case PrintCompanyForms = 'company_forms.print';
 
@@ -216,6 +217,7 @@ enum PermissionKey: string
             self::ChangeDisconnectionFee => 'Change Disconnection Fees',
             self::ViewMessages => 'View Messages',
             self::SendMessages => 'Send Messages',
+            self::CustomizePrintouts => 'تخصيص الطباعة',
             self::ManagePrintTemplates => 'Manage Print Templates',
             self::PrintCompanyForms => 'طباعة وأرشفة نماذج الشركة',
         };
@@ -375,7 +377,7 @@ enum PermissionKey: string
             ],
             'print_templates' => [
                 'label' => 'Print Templates',
-                'actions' => ['manage' => self::ManagePrintTemplates, 'print_company_forms' => self::PrintCompanyForms],
+                'actions' => ['customize' => self::CustomizePrintouts, 'manage' => self::ManagePrintTemplates, 'print_company_forms' => self::PrintCompanyForms],
             ],
             'users' => [
                 'label' => 'Users',

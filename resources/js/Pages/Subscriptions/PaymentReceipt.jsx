@@ -4,11 +4,11 @@ import Icon from '@/Components/Icon';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import { COMPANY_NAME } from '@/Layouts/GuestLayout';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatDate } from '@/lib/format';
 import { balanceOnPaper } from '@/lib/balance';
 
 // The time printed at the foot of the receipt, in the app's Arabic with Western digits.
-const PRINTED_AT_FORMAT = new Intl.DateTimeFormat('ar-SY-u-nu-latn', { dateStyle: 'long', timeStyle: 'short' });
+const PRINTED_AT_FORMAT = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { dateStyle: 'long', timeStyle: 'short' });
 
 /** One labelled line of the receipt, left out when it has nothing to say. */
 function ReceiptLine({ label, children, ltr = false }) {
@@ -114,7 +114,7 @@ export default function PaymentReceipt({ subscription, receipt, printedBy }) {
                             رقم <bdi dir="ltr">{receipt.voucherNumber ?? '—'}</bdi>
                         </div>
                         <div className="text-gray-600">
-                            <bdi dir="ltr">{receipt.date}</bdi> · <bdi dir="ltr">{receipt.time}</bdi>
+                            <bdi dir="ltr">{formatDate(receipt.date)}</bdi> · <bdi dir="ltr">{receipt.time}</bdi>
                         </div>
                     </div>
                 </header>
@@ -127,7 +127,7 @@ export default function PaymentReceipt({ subscription, receipt, printedBy }) {
                         {receipt.cancellation.date && (
                             <>
                                 {' '}
-                                · <bdi dir="ltr">{receipt.cancellation.date}</bdi>
+                                · <bdi dir="ltr">{formatDate(receipt.cancellation.date)}</bdi>
                             </>
                         )}
                     </p>
@@ -184,8 +184,8 @@ export default function PaymentReceipt({ subscription, receipt, printedBy }) {
                         </ReceiptLine>
                     )}
                     <ReceiptLine label={receipt.isClearing ? 'مقابل خدمة' : 'ملاحظات'}>{receipt.notes}</ReceiptLine>
-                    <ReceiptLine label="تاريخ وصول الحوالة إلى البنك" ltr>{receipt.bankReceivedOn}</ReceiptLine>
-                    <ReceiptLine label="تاريخ الدفع الفعلي — تسجيل متأخر" ltr>{receipt.paidOn}</ReceiptLine>
+                    <ReceiptLine label="تاريخ وصول الحوالة إلى البنك" ltr>{formatDate(receipt.bankReceivedOn)}</ReceiptLine>
+                    <ReceiptLine label="تاريخ الدفع الفعلي — تسجيل متأخر" ltr>{formatDate(receipt.paidOn)}</ReceiptLine>
                     <ReceiptLine label="سبب تأخر التسجيل">{receipt.lateReason}</ReceiptLine>
                     {receipt.balanceAfter != null && <ReceiptLine label={receipt.isClearing ? 'الرصيد بعد المقاصة' : 'الرصيد بعد الدفعة'}>{balanceOnPaper(receipt.balanceAfter)}</ReceiptLine>}
                 </dl>

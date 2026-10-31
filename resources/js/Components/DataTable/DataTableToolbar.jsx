@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { usePage } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
-import { printUrl } from '@/lib/print';
 import DensityToggle from './DensityToggle';
-import ExcelButton from '@/Components/ExcelButton';
+import TableExportActions from './TableExportActions';
 
 const PAGE_SIZES = [15, 25, 50, 100];
 
@@ -24,13 +23,10 @@ export default function DataTableToolbar({
     showSearch = true,
     filterMenu,
     printable = true,
+    actions,
 }) {
     const searchRef = useRef(null);
     const canPrint = usePage().props.can?.printAuditReports !== false;
-
-    function openPrintDesigner() {
-        window.open(printUrl(document.title), '_blank');
-    }
 
     useEffect(() => {
         if (!showSearch) {
@@ -82,19 +78,6 @@ export default function DataTableToolbar({
                         نتيجة
                     </span>
                 )}
-                {printable && canPrint && <ExcelButton />}
-                {printable && canPrint && (
-                    <button
-                        type="button"
-                        onClick={openPrintDesigner}
-                        aria-label="طباعة الجدول (تُفتح في نافذة جديدة)"
-                        title="طباعة الجدول: صمّم الطباعة كما تريد في نافذة جديدة"
-                        className="tone-print inline-flex h-[34px] items-center gap-1.5 rounded-control border px-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-900"
-                    >
-                        <Icon name="printer" className="h-4 w-4" />
-                        طباعة
-                    </button>
-                )}
                 <DensityToggle />
                 <div
                     role="group"
@@ -114,6 +97,9 @@ export default function DataTableToolbar({
                             {size}
                         </button>
                     ))}
+                </div>
+                <div data-table-export-slot className="ms-auto flex items-center empty:hidden">
+                    {actions !== undefined ? actions : printable && canPrint && <TableExportActions />}
                 </div>
             </div>
 

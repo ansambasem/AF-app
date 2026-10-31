@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\AuditAction;
+use App\Enums\PermissionKey;
 use App\Models\Bank;
 use App\Models\Branch;
 use App\Models\CircuitBreaker;
@@ -27,9 +28,12 @@ use App\Models\User;
 use App\Models\UserType;
 use App\Support\BranchClosingAccess;
 use App\Support\BranchDomainContext;
+use App\Support\BranchDomainScope;
+use App\Support\BranchViewContext;
 use App\Support\FinancialReportAccess;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -67,6 +71,10 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'appName' => config('app.name'),
+            'branchView' => Inertia::always(fn (): ?array => BranchViewContext::available($request) ? [
+                'current' => BranchViewContext::branch()?->only(['id', 'name']),
+                'options' => Branch::withoutGlobalScope(BranchDomainScope::class)->orderBy('name')->get(['id', 'name'])->toArray(),
+            ] : null),
             'branchContext' => [
                 'current' => BranchDomainContext::branch()?->only(['id', 'name', 'domain']),
                 'recoveryUrl' => $request->attributes->get('unavailable_branch_domain') ? BranchDomainContext::centralUrl($user ? '/dashboard' : '/login') : null,
@@ -114,6 +122,8 @@ class HandleInertiaRequests extends Middleware
                 'manageSettings' => $user->can('manage', Permission::class),
                 'manageReadingSchedule' => $user->can('manageAny', ReadingEntrySetting::class),
                 'managePrintTemplates' => $user->can('viewAny', PrintTemplate::class),
+                // Without it a printout uses the company's saved templates as they are.
+                'customizePrintouts' => $user->hasAnyPermission(PermissionKey::CustomizePrintouts, PermissionKey::ManagePrintTemplates),
                 'viewCompanyForms' => $user->can('viewAny', CompanyFormTemplate::class),
                 'manageSmsSettings' => $user->can('manage', SmsSetting::class),
                 'managePaymentSettings' => $user->can('manage', CurrencyRate::class) || $user->can('manageAny', ClosingSetting::class),

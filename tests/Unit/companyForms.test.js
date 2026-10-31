@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { rolldown } from 'rolldown';
-import { formDimensions, formFields, formText, moveFormItem, printPageRules } from '../../resources/js/lib/companyForms.js';
+import { FORMAL_LETTERHEAD, formDimensions, formFields, formText, letterhead, letterheadSlots, moveFormItem, printPageRules } from '../../resources/js/lib/companyForms.js';
 import { companyFormOfflineHtml } from '../../resources/js/lib/companyFormOffline.js';
 import { sectionModel, sectionExtras, withSectionLevel } from '../../resources/js/lib/permissions.js';
 
@@ -73,11 +73,38 @@ test('offline copies escape titles and include printable pages without external 
 
 test('issuing company forms is an independent permission shown alongside template management', () => {
     const section = sectionModel({ key: 'print_templates', label: 'قوالب الطباعة', actions: [
+        { action: 'customize', permission: { id: 3, label: 'تخصيص الطباعة' } },
         { action: 'manage', permission: { id: 1, label: 'إدارة القوالب' } },
         { action: 'print_company_forms', permission: { id: 2, label: 'طباعة وأرشفة نماذج الشركة' } },
     ] });
-    assert.deepEqual(withSectionLevel(section, [], 1), [1]);
+    assert.deepEqual(section.ladder.actions, ['customize', 'manage']);
+    assert.deepEqual(withSectionLevel(section, [], 1), [3]);
+    assert.deepEqual(withSectionLevel(section, [], 2), [3, 1]);
     const print = sectionExtras(section).flatMap(group => group.items).find(item => item.id === 2);
     assert.equal(print.label, 'طباعة وأرشفة نماذج الشركة');
     assert.equal(print.needs, 0);
+});
+
+test('a form saved before letterheads keeps its simple heading over one thin grey line', () => {
+    assert.equal(letterhead({ company: 'الشركة', subtitle: null }).style, 'simple');
+    assert.equal(letterhead({}).ruleColor, '#d8dde4');
+    const html = renderToStaticMarkup(createElement(CompanyFormPaper, { layout, page: layout.pages[0], blank: true }));
+    assert.match(html, /class="cf-heading"/);
+    assert.match(html, /border-top:1px solid #d8dde4/);
+    assert.doesNotMatch(html, /cf-letterhead"/);
+});
+
+test('a formal letterhead centres the logo between the Arabic and English text over two coloured lines', () => {
+    assert.deepEqual(letterheadSlots('center'), ['arabic', 'logo', 'english']);
+    assert.deepEqual(letterheadSlots('right'), ['logo', 'arabic', 'english']);
+    assert.deepEqual(letterheadSlots('left'), ['arabic', 'english', 'logo']);
+    const formal = { ...layout, header: { enabled: true, logo: true, company: 'أبناء فارس أبو زايد', subtitle: 'غزة', english: 'Fares Abu Zayed Sons', ...FORMAL_LETTERHEAD, ruleWidth: 3, ruleColor2: '#123456' } };
+    const html = renderToStaticMarkup(createElement(CompanyFormPaper, { layout: formal, page: formal.pages[0], blank: true }));
+    assert.match(html, /class="cf-letterhead" style="grid-template-columns:minmax\(0, 1fr\) auto minmax\(0, 1fr\)"/);
+    const head = html.slice(html.indexOf('<header class="cf-letterhead"'), html.indexOf('</header>'));
+    assert.ok(head.indexOf('أبناء فارس أبو زايد') < head.indexOf('logo-af.webp') && head.indexOf('logo-af.webp') < head.indexOf('Fares Abu Zayed Sons'));
+    assert.match(html, /border-top:3px solid #111827/);
+    assert.match(html, /border-bottom:3px solid #123456/);
+    const plain = renderToStaticMarkup(createElement(CompanyFormPaper, { layout: { ...formal, header: { ...formal.header, ruleStyle: 'none' } }, page: formal.pages[0], blank: true }));
+    assert.doesNotMatch(plain, /cf-rule/);
 });

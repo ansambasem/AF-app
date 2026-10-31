@@ -15,7 +15,7 @@ import PageHeader, { BackLink } from '@/Components/PageHeader';
 
 const FIELD_ICONS = { minimum_charge: 'wallet', status: 'flag', meter_box_id: 'grid' };
 
-const DATE_TIME_FORMAT = new Intl.DateTimeFormat('ar-SY-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' });
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' });
 
 const FOCUS_RING = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900';
 

@@ -81,7 +81,18 @@ function isPhone() {
  * is no room below, with its left edge on the button's (the row's end in
  * right-to-left), kept on screen.
  */
-function placeBeside(anchor, menuElement, width) {
+function placeBeside(anchor, menuElement, width, point) {
+    if (point) {
+        const maxHeight = window.innerHeight - GAP * 2;
+        const height = Math.min(menuElement.offsetHeight, maxHeight);
+
+        return {
+            top: Math.max(GAP, Math.min(point.y, window.innerHeight - height - GAP)),
+            left: Math.max(GAP, Math.min(point.x, window.innerWidth - width - GAP)),
+            maxHeight,
+        };
+    }
+
     const rect = anchor.getBoundingClientRect();
     const height = menuElement.offsetHeight;
     const below = window.innerHeight - rect.bottom - GAP;
@@ -94,7 +105,7 @@ function placeBeside(anchor, menuElement, width) {
 /**
  * A row's "more" menu: a header naming the record, then its actions in
  * titled groups, each with its own icon. `menu` is
- * { title, subtitle, width?, groups: [{ label, items: [{ label, description?, icon, onSelect, tone?, shortcut?, hint?, disabled?, lockedReason? }] }] }.
+ * { title, description?, subtitle, width?, groups: [{ label, items: [{ label, description?, icon, onSelect, tone?, shortcut?, hint?, disabled?, lockedReason? }] }] }.
  * `tone` (see TONES) tints the icon tile at rest, filling it solid on hover/focus; graphite by default.
  * `colorful` tints each whole row in its tone instead (see COLORFUL), for menus whose actions differ a lot.
  * An item with `lockedReason` is shown faded with a lock ("بدون صلاحية")
@@ -102,7 +113,7 @@ function placeBeside(anchor, menuElement, width) {
  * can't be used now. Arrow keys move, Enter runs, a shortcut letter runs
  * its item, Esc or a click outside closes and returns focus to `anchor`.
  */
-export default function RowMenu({ anchor, menu, onClose }) {
+export default function RowMenu({ anchor, point = null, contextual = false, menu, onClose }) {
     const menuRef = useRef(null);
     const [phone] = useState(isPhone);
     const [position, setPosition] = useState(null);
@@ -114,26 +125,34 @@ export default function RowMenu({ anchor, menu, onClose }) {
 
     useLayoutEffect(() => {
         if (!phone) {
-            setPosition(placeBeside(anchor, menuRef.current, width));
+            setPosition(placeBeside(anchor, menuRef.current, width, point));
         }
-    }, [anchor, phone, width]);
+    }, [anchor, phone, width, point]);
 
     useEffect(() => {
         if (placed) {
-            menuRef.current?.querySelector('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
+            const firstItem = menuRef.current?.querySelector('[role="menuitem"]:not([aria-disabled="true"])');
+            (firstItem ?? menuRef.current)?.focus({ preventScroll: true });
         }
     }, [placed]);
 
     useEffect(() => {
+        const anchorPosition = anchor.getBoundingClientRect();
+
         function onPointerDown(event) {
-            if (!menuRef.current?.contains(event.target) && !anchor.contains(event.target)) {
+            if (!menuRef.current?.contains(event.target) && (contextual || !anchor.contains(event.target))) {
                 onClose(false);
             }
         }
 
         // The menu is placed once; it closes instead of drifting away when the page moves.
         function onMove(event) {
-            if (!menuRef.current?.contains(event.target)) {
+            if (event.target instanceof Node && menuRef.current?.contains(event.target)) {
+                return;
+            }
+
+            const current = anchor.getBoundingClientRect();
+            if (event.type === 'resize' || current.top !== anchorPosition.top || current.left !== anchorPosition.left) {
                 onClose(false);
             }
         }
@@ -149,7 +168,7 @@ export default function RowMenu({ anchor, menu, onClose }) {
             window.removeEventListener('resize', onMove);
             window.removeEventListener('scroll', onMove, true);
         };
-    }, [anchor, onClose, phone]);
+    }, [anchor, onClose, phone, contextual]);
 
     function run(item) {
         if (item.disabled || item.lockedReason) {
@@ -191,6 +210,7 @@ export default function RowMenu({ anchor, menu, onClose }) {
         <div
             ref={menuRef}
             role="menu"
+            tabIndex={-1}
             aria-label={`إجراءات ${menu.title}`}
             onKeyDown={onKeyDown}
             style={
@@ -217,7 +237,8 @@ export default function RowMenu({ anchor, menu, onClose }) {
                     {initials(menu.title)}
                 </span>
                 <span className="min-w-0">
-                    <b className="block truncate text-sm text-gray-900">{menu.title}</b>
+                    <b className={`block text-sm text-gray-900 ${menu.description ? 'whitespace-normal break-words' : 'truncate'}`}>{menu.title}</b>
+                    {menu.description && <span className="mt-1 block whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700">{menu.description}</span>}
                     {menu.subtitle && (
                         <span className="block truncate text-xs text-gray-500" dir="ltr" style={{ textAlign: 'right' }}>
                             {menu.subtitle}

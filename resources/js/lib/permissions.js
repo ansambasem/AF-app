@@ -16,7 +16,7 @@ const LADDERS = {
     disconnections: { actions: ['view', 'manage'], levels: ['بدون', 'عرض', 'إدارة'], long: ['لا يرى قوائم القطع', 'يرى قوائم القطع', 'يرى القوائم ويضيف ويزيل ويمدد المواعيد'] },
     reading_assignments: { actions: ['view', 'manage'], levels: ['بدون', 'عرض', 'توزيع'], long: ['لا يرى توزيع القراءات', 'يرى توزيع القراءات', 'يرى ويوزّع الطبلونات على القرّاء والورق'] },
     messages: { actions: ['view', 'send'], levels: ['بدون', 'عرض', 'إرسال'], long: ['لا يرى الرسائل', 'يرى الرسائل', 'يرى ويرسل الرسائل'] },
-    print_templates: { actions: ['manage'], levels: ['بدون', 'إدارة'], long: ['لا يدير القوالب', 'يدير قوالب الطباعة'] },
+    print_templates: { actions: ['customize', 'manage'], levels: ['بدون', 'تخصيص', 'إدارة'], long: ['يطبع بالقوالب المحفوظة كما هي', 'يغيّر الأعمدة والترتيب والشكل قبل أن يطبع', 'يخصص ويحفظ ويدير قوالب الطباعة المشتركة'] },
 };
 
 /** Sections whose everyday actions aren't a ladder (each is its own switch). */

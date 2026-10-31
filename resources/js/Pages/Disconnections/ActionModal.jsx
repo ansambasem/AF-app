@@ -9,7 +9,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
 import InputError from '@/Components/InputError';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatDate } from '@/lib/format';
 import { feeError, fillPlaceholders, itemTone, operationId, smsParts, totalFees } from '@/lib/disconnections';
 import HoldToConfirm from './HoldToConfirm';
 import DateInput from '@/Components/DateInput';
@@ -46,7 +46,7 @@ function placeholderValues(item, list) {
         الطبلون: item.meterBoxName ?? '',
         الفرع: list.branchName,
         الرصيد: formatMoney(item.balance),
-        موعد_القطع: item.scheduledFor.split('-').reverse().map(Number).join('/'),
+        موعد_القطع: formatDate(item.scheduledFor),
     };
 }
 
@@ -220,7 +220,7 @@ export default function ActionModal({ action, list, selection, count, reasonOpti
                                                             )}
                                                         </td>
                                                     )}
-                                                    {action !== 'confirm' && <td className="whitespace-nowrap px-3 py-2 text-xs" dir="ltr">{item.scheduledFor}</td>}
+                                                    {action !== 'confirm' && <td className="whitespace-nowrap px-3 py-2 text-xs" dir="ltr">{formatDate(item.scheduledFor)}</td>}
                                                 </tr>
                                             );
                                         })}

@@ -102,5 +102,5 @@ test('the Excel summary carries the same comparison figures and period as the sc
 
     const [summary] = reportExcelParts({ flow, collections, comparison });
 
-    assert.deepEqual(summary.rows.slice(-2).map((row) => [row.value, row.note]), [['200.00', '2026-09-01 – 2026-09-02'], ['50.00', '25%']]);
+    assert.deepEqual(summary.rows.slice(-2).map((row) => [row.value, row.note]), [['200.00', '01/09/2026 – 02/09/2026'], ['50.00', '25%']]);
 });

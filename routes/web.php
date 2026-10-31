@@ -8,6 +8,7 @@ use App\Http\Controllers\BranchClosingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchDomainController;
 use App\Http\Controllers\BranchPerformanceController;
+use App\Http\Controllers\BranchViewController;
 use App\Http\Controllers\CashBoxAuditController;
 use App\Http\Controllers\CashBoxController;
 use App\Http\Controllers\CashBoxReportController;
@@ -81,6 +82,7 @@ Route::get('/', function (Request $request): RedirectResponse {
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::put('/branch-view', BranchViewController::class)->name('branch-view.update');
     Route::get('/auth/session', SessionStatusController::class)->name('auth.session');
     Route::post('/print-selections', [PrintSelectionController::class, 'store'])->middleware('throttle:30,1')->name('print-selections.store');
     Route::get('/reading-cycles/print', [ReadingPrintController::class, 'index'])->name('reading-cycles.print');
@@ -167,6 +169,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('circuit-breakers', CircuitBreakerController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
     Route::resource('meter-boxes', MeterBoxController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
     Route::get('/meter-boxes/options', [MeterBoxOptionController::class, 'index'])->name('meter-boxes.options');
+    Route::get('/meter-boxes/subscriptions-print', [MeterBoxController::class, 'printSubscriptions'])->name('meter-boxes.subscriptions.print');
     Route::get('/meter-boxes/{meter_box}/subscriptions', [MeterBoxSubscriptionController::class, 'index'])->name('meter-boxes.subscriptions.index');
     Route::resource('meter-readings', MeterReadingController::class)->only(['index', 'store', 'update']);
     Route::post('/meter-readings/approve', [MeterReadingController::class, 'approve'])->name('meter-readings.approve');

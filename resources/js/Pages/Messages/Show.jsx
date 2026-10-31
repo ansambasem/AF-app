@@ -10,7 +10,7 @@ import { useDataTable } from '@/hooks/useDataTable';
 import { ChannelLabel, DeliveryCounts, KIND_ICONS, MessageStatusPill, MessageText } from './MessageParts';
 import PageHeader, { BackLink } from '@/Components/PageHeader';
 
-const DATE_TIME_FORMAT = new Intl.DateTimeFormat('ar-SY-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' });
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' });
 
 /**
  * One send: its wording, how many went out, and every subscription's own

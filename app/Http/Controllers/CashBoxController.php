@@ -19,6 +19,7 @@ use App\Support\BranchBoxes;
 use App\Support\BranchClosingAccess;
 use App\Support\BranchClosingWorkflow;
 use App\Support\BranchScope;
+use App\Support\BranchViewContext;
 use App\Support\ClosingPeriods;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -162,7 +163,7 @@ class CashBoxController extends Controller
             'started' => $started,
             'branch' => $branch, 'branches' => $branches, 'people' => $people,
             // The general management reads, large above the boxes, which branch they are.
-            'branchScope' => $branches->count() > 1 ? BranchScope::describe($visible) : null,
+            'branchScope' => $branches->count() > 1 || BranchViewContext::id() !== null ? BranchScope::describe($visible) : null,
             'tabs' => $this->boxTabs($branches, $branch, $actor),
             ...$list,
             'closableBoxes' => $branch && $started && BranchClosingAccess::receive($actor, $branch->id) ? $this->closableBoxes($branch->id, $actor, $person?->id) : null,
@@ -290,7 +291,7 @@ class CashBoxController extends Controller
 
         return Inertia::render('Payments/BranchCashBoxes', [
             // The general management reads, large above the boxes, which branch they are.
-            'branchScope' => $branches->count() > 1 && BranchScope::shownTo($actor) ? BranchScope::describe(collect([$branch])) : null,
+            'branchScope' => ($branches->count() > 1 || BranchViewContext::id() !== null) && BranchScope::shownTo($actor) ? BranchScope::describe(collect([$branch])) : null,
             'branch' => $branch, 'branches' => $branches, 'started' => $started || $periods->contains(fn (array $period): bool => $period['count'] > 0),
             'place' => $place,
             'tabs' => $this->boxTabs($branches, $branch, $actor),

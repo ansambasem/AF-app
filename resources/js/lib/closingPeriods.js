@@ -4,9 +4,9 @@
  */
 const TIME_ZONE = 'Asia/Gaza';
 
-export const dateTime = (value) => (value ? new Intl.DateTimeFormat('ar-SY-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short', timeZone: TIME_ZONE }).format(new Date(value)) : '—');
+export const dateTime = (value) => (value ? new Intl.DateTimeFormat('ar-EG-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short', timeZone: TIME_ZONE }).format(new Date(value)) : '—');
 export const branchClock = (value) => new Intl.DateTimeFormat('en-GB', { timeStyle: 'short', timeZone: TIME_ZONE }).format(new Date(value));
-export const branchDate = (value) => new Intl.DateTimeFormat('ar-SY-u-nu-latn', { day: 'numeric', month: 'long', timeZone: TIME_ZONE }).format(new Date(value));
+export const branchDate = (value) => new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day: 'numeric', month: 'long', timeZone: TIME_ZONE }).format(new Date(value));
 export const periodRange = (period) => `${branchDate(period.coverage_from)} — ${branchDate(period.coverage_until)}`;
 
 /** The branch's wall-clock reading of a moment, held in a UTC date so its fields can be read and moved without the browser's zone. */

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     formatClock,
+    formatDate,
     formatDayLabel,
     formatMoney,
     formatNumber,
@@ -59,8 +60,17 @@ test('typed amounts keep plain digits and one decimal point', () => {
 });
 
 test('calendar days read in Arabic without shifting across time zones', () => {
-    assert.equal(formatDayLabel('2026-09-26'), 'السبت، 26 أيلول');
-    assert.equal(formatShortDay('2026-09-01'), '1 أيلول');
+    assert.equal(formatDayLabel('2026-09-26'), 'السبت، 26 سبتمبر');
+    assert.equal(formatShortDay('2026-09-01'), '1 سبتمبر');
+    assert.equal(formatShortDay('2026-10-29'), '29 أكتوبر');
+});
+
+test('a date the server sent reads day first, with whatever follows it kept', () => {
+    assert.equal(formatDate('2026-10-29'), '29/10/2026');
+    assert.equal(formatDate('2026-01-05 18:58'), '05/01/2026 18:58');
+    assert.equal(formatDate('2026-10-29 6:58 م'), '29/10/2026 6:58 م');
+    assert.equal(formatDate('29/10/2026'), '29/10/2026');
+    assert.equal(formatDate(null), '');
 });
 
 test('time ago picks minutes, hours or days and never says "in the future"', () => {
