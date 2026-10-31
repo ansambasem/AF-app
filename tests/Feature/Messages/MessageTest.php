@@ -86,7 +86,7 @@ class MessageTest extends TestCase
                 ->where('recipients.0.variables.الاستهلاك', '50.5')
                 ->where('recipients.0.variables.قيمة_القراءة', '75')
                 ->where('recipients.0.variables.سعر_الكيلو', '1.75')
-                ->where('recipients.0.variables.تاريخ_القراءة', '24/9/2026')
+                ->where('recipients.0.variables.تاريخ_القراءة', '24/09/2026')
                 ->where('recipients.0.variables.يوم_القراءة', 'الخميس')));
     }
 
@@ -116,7 +116,7 @@ class MessageTest extends TestCase
         $this->assertDatabaseCount('subscription_messages', 3000);
         $this->assertDatabaseHas('subscription_messages', [
             'subscription_id' => $subscriptions->last()->id,
-            'body' => $subscriptions->last()->displayName().': 100 → 125، الفرق 25، سعر الكيلو 1.75، الخميس 24/9/2026',
+            'body' => $subscriptions->last()->displayName().': 100 → 125، الفرق 25، سعر الكيلو 1.75، الخميس 24/09/2026',
         ]);
         Queue::assertPushed(SendSubscriptionMessage::class, 3000);
     }

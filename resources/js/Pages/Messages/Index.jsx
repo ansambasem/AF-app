@@ -97,7 +97,7 @@ export default function Index({ batches, canSend, filters, filterOptions }) {
                         ) : (
                             batches.data.map((batch) => (
                                 <tr key={batch.id} {...rowClick(() => openBatch(batch))}>
-                                    <td className="text-gray-600" title={new Date(batch.createdAt).toLocaleString('ar-SY-u-nu-latn')}>
+                                    <td className="text-gray-600" title={new Date(batch.createdAt).toLocaleString('ar-EG-u-nu-latn')}>
                                         {timeAgo(batch.createdAt)}
                                     </td>
                                     <td>

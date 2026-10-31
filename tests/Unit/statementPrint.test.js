@@ -143,8 +143,8 @@ test('print keeps the complete description, long reference and both late-payment
     assert.ok(html.includes(reference));
     assert.match(html, /من: بنك فلسطين/);
     assert.match(html, /إلى: محفظة بال باي/);
-    assert.match(html, /2026-10-10/);
-    assert.match(html, /2026-10-19 10:00/);
+    assert.match(html, /10\/10\/2026/);
+    assert.match(html, /19\/10\/2026 10:00/);
     assert.match(html, /نسي المحصّل تسجيلها/);
     assert.doesNotMatch(html, /عرض البيان كاملًا|role="dialog"/);
 });

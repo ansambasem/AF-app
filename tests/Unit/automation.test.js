@@ -43,6 +43,13 @@ test('deleting source still triggers regressions without linting a nonexistent f
     assert.ok(steps.some((step) => step.command === 'npm'));
 });
 
+test('report backend edits automatically run financial reporting regressions', () => {
+    for (const file of ['app/Http/Controllers/ReportController.php', 'app/Support/ReportDetails.php']) {
+        const checks = planChecks({ files: [file] });
+        assert.ok(checks.some((step) => step.testing && step.args.includes('tests/Feature/BranchReportTest.php')), file);
+    }
+});
+
 test('full checks include both applications but APK building is explicit', () => {
     const steps = planChecks({ full: true });
     assert.deepEqual(steps.map((step) => step.name), ['Composer configuration', 'Website PHP tests', 'Website JavaScript and loading regressions', 'Website production build', 'Mobile static analysis', 'Mobile workflow and widget tests']);

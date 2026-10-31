@@ -108,15 +108,17 @@ test('auditors keep the closed boxes destination even with branch box access', (
     assert.equal(groupLandingLink(finance).href, '/payments/cash-boxes');
 });
 
-test('the top bar keeps every section and page for every user, locking those they may not open', () => {
+test('the top bar shows only the sections the user may open a page of, locking the rest of their pages', () => {
     const everything = Object.fromEntries([...MAIN_LINKS, ...SETTINGS_LINKS].filter((link) => link.can).map((link) => [link.can, true]));
     const collector = navigationGroups({ recordPayments: true, viewOwnCashBoxes: true, viewCashBoxes: true });
     const admin = navigationGroups(everything);
     const shape = (groups) => groups.map((group) => [group.id, group.links.map((link) => link.href)]);
 
-    assert.deepEqual(shape(collector), shape(admin));
-    assert.deepEqual(shape(navigationGroups()), shape(admin));
+    assert.deepEqual(admin.map((group) => group.id), ['daily', 'finance', 'reports', 'infrastructure', 'administration']);
     assert.equal(admin.every((group) => group.links.every((link) => !link.locked)), true);
+    assert.deepEqual(collector.map((group) => group.id), ['finance', 'administration']);
+    assert.deepEqual(shape(collector), shape(admin).filter(([id]) => ['finance', 'administration'].includes(id)));
+    assert.deepEqual(navigationGroups().map((group) => group.id), ['administration']);
     assert.deepEqual(
         collector.flatMap((group) => group.links).filter((link) => !link.locked).map((link) => link.label),
         ['تسجيل الدفعات', 'ملخص التحصيل', 'صناديقي', 'تحميل تطبيق الهاتف'],
@@ -142,7 +144,7 @@ test('the top bar shows home and one button per section, or a single section\'s 
     assert.equal(several[0].link.href, '/dashboard');
 });
 
-test('clicking a section opens its first page the user may open, or nothing when all are locked', () => {
+test('clicking a section opens its first page the user may open', () => {
     const everything = Object.fromEntries([...MAIN_LINKS, ...SETTINGS_LINKS].filter((link) => link.can).map((link) => [link.can, true]));
     const landing = (groups) => Object.fromEntries(groups.map((group) => [group.id, groupLandingLink(group)?.href ?? null]));
 
@@ -156,8 +158,6 @@ test('clicking a section opens its first page the user may open, or nothing when
     assert.deepEqual(landing(navigationGroups({ viewOwnCashBoxes: true, viewMeterReadings: true })), {
         daily: '/meter-readings',
         finance: '/payments/summary',
-        reports: null,
-        infrastructure: null,
         administration: '/settings/mobile-app',
     });
 });

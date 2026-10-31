@@ -211,7 +211,7 @@ export default function Index({ events, period, counts, today, scopeLabel, filte
                                                             <span key={lineIndex} className="whitespace-nowrap">
                                                                 <span className="font-medium text-gray-900">{line.label}</span>{' '}
                                                                 <b className="font-display font-bold text-gray-900">{line.amount}</b>{' '}
-                                                                <span className="text-xs text-gray-500">شيكل</span>
+                                                                <span className="text-xs text-gray-500">₪</span>
                                                                 {line.voucherNumber && (
                                                                     <span className="text-xs text-gray-500">
                                                                         {' '}

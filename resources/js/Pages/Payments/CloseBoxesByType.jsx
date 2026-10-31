@@ -116,7 +116,7 @@ export default function CloseBoxesByType({ boxes, branchId, userId, initialType,
                                 <span className="block truncate font-semibold text-gray-900">{box.person ?? '—'}</span>
                                 <span className="block text-xs text-gray-500">صندوق <bdi dir="ltr" className="font-display">{box.number}</bdi> · <b className="font-display text-gray-700">{box.count}</b> حركة</span>
                             </span>
-                            <span className="shrink-0 text-end"><b dir="ltr" className="block font-display text-gray-900">{formatMoney(financialBoxesTotals([box]).ILS)}</b><span className="text-xs text-gray-500">شيكل</span></span>
+                            <span className="shrink-0 text-end"><b dir="ltr" className="block font-display text-gray-900">{formatMoney(financialBoxesTotals([box]).ILS)}</b><span className="text-xs text-gray-500">₪</span></span>
                         </label></li>;
                     })}
                 </ul>}

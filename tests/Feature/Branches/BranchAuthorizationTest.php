@@ -149,9 +149,9 @@ class BranchAuthorizationTest extends TestCase
 
         $response = $this->actingAs($superAdmin)->get(route('branches.index', ['filter' => ['area_id' => $ownArea->id]]));
 
-        $response->assertOk();
-        $response->assertSee('In Own Area');
-        $response->assertDontSee('In Other Area');
+        $response->assertInertia(fn ($page) => $page
+            ->has('branches.data', 1)
+            ->where('branches.data.0.name', 'In Own Area'));
     }
 
     public function test_a_view_only_user_is_not_offered_add_or_edit_on_the_branches_page(): void

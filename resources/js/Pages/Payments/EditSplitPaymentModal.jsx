@@ -42,7 +42,7 @@ export function SplitPaymentEditor({ split, onClose, transferBanks = [], senderB
                         <Icon name="lock" className="h-4 w-4" />مبلغ الحوالة ثابت
                     </p>
                     <p className="mt-1 text-2xl font-bold text-gray-900">
-                        <bdi>{formatMoney(split.total_amount)}</bdi> <span className="text-sm font-normal">شيكل</span>
+                        <bdi>{formatMoney(split.total_amount)}</bdi> <span className="text-sm font-normal">₪</span>
                     </p>
                 </div>
                 <p className="text-sm text-gray-600">حوالة واحدة موزّعة على <b className="text-gray-900">{split.parts.length}</b> مشتركين</p>

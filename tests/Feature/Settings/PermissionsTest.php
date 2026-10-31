@@ -238,8 +238,10 @@ class PermissionsTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->where('permissionGroups', fn ($groups): bool => collect($groups)->pluck('key')->all() === [
-                'subscriptions', 'meter_boxes', 'circuit_breakers', 'tariffs', 'meter_readings', 'reading_assignments', 'collections', 'reports', 'disconnections', 'messages', 'users', 'sub_areas',
+                'subscriptions', 'meter_boxes', 'circuit_breakers', 'tariffs', 'meter_readings', 'reading_assignments', 'collections', 'reports', 'disconnections', 'messages', 'print_templates', 'users', 'sub_areas',
             ])
+            // A branch manager may let staff customise printouts, but managing the shared templates stays company-wide.
+            ->where('permissionGroups', fn ($groups): bool => collect(collect($groups)->firstWhere('key', 'print_templates')['actions'])->pluck('action')->all() === ['customize'])
             ->where('selectedUser.permissionIds', [$viewSubscriptions->id]));
     }
 

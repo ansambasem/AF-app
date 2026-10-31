@@ -1,3 +1,5 @@
+import { formatDate } from './format.js';
+
 // Carbon day-of-week numbers (0 = Sunday … 6 = Saturday), listed in the
 // local week order, Saturday first.
 export const WEEK_DAYS = [
@@ -17,7 +19,7 @@ export function weekDayName(isoDate) {
     return WEEK_DAYS.find((weekDay) => weekDay.value === day).label;
 }
 
-/** Y-m-d → 'الخميس 24-09-2026', the format used across the app's Arabic screens. */
+/** Y-m-d → 'الخميس 24/09/2026', the format used across the app's Arabic screens. */
 export function formatWeekDay(isoDate) {
-    return `${weekDayName(isoDate)} ${isoDate.split('-').reverse().join('-')}`;
+    return `${weekDayName(isoDate)} ${formatDate(isoDate)}`;
 }

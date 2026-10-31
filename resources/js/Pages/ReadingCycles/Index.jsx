@@ -7,10 +7,9 @@ import InputError from '@/Components/InputError';
 import PageHeader from '@/Components/PageHeader';
 import SegmentedTabs from '@/Components/SegmentedTabs';
 import TextInput from '@/Components/TextInput';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, formatDate } from '@/lib/format';
 import { readingSearchMatches } from '@/lib/readingBoard';
 
-const fullDate = (date) => date.split('-').reverse().join('/');
 
 function BranchOverview({ branches, canCreate }) {
     const [search, setSearch] = useState('');
@@ -89,7 +88,7 @@ function BranchOverview({ branches, canCreate }) {
                                     <p className="text-xs text-gray-500">القراءة القادمة</p>
                                     <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                                         <span className="font-bold text-gray-800">{item.readingDayName}</span>
-                                        <time dateTime={item.readingDate} dir="ltr" className="font-display text-xl font-bold tabular-nums text-gray-900">{fullDate(item.readingDate)}</time>
+                                        <time dateTime={item.readingDate} dir="ltr" className="font-display text-xl font-bold tabular-nums text-gray-900">{formatDate(item.readingDate)}</time>
                                     </p>
                                 </div>
                             </div>
@@ -130,7 +129,7 @@ export default function Index({ distributionBranches = [], canCreate, branch }) 
             <Head title="توزيع القراءة القادمة" />
             {branch ? (
                 <div className="space-y-3 text-gray-700">
-                    <h2 className="text-lg font-bold text-gray-900">القراءة القادمة {branch.readingDate}</h2>
+                    <h2 className="text-lg font-bold text-gray-900">القراءة القادمة {formatDate(branch.readingDate)}</h2>
                     <p>لم يُجهّز توزيع هذه القراءة بعد. سيظهر هنا بعد تجهيز مسؤول التوزيع له.</p>
                 </div>
             ) : (

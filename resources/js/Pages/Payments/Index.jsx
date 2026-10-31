@@ -129,7 +129,6 @@ export default function Index({
                 perPage={filters.per_page}
                 onPerPageChange={setPerPage}
                 total={subscriptions.total}
-                printable={false}
                 filterMenu={
                     <DataTableFilterMenu
                         tableKey="payments"
@@ -187,6 +186,8 @@ export default function Index({
                                                 subtitle={subscription.phone}
                                                 subtitleDir="ltr"
                                                 status={STATUS_TONES[subscription.status]}
+                                                onNameClick={can?.viewSubscriptions ? () => openStatement(subscription) : undefined}
+                                                nameTitle="كشف الحساب"
                                             />
                                         </td>
                                         <td>

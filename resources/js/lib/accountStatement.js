@@ -1,6 +1,7 @@
 import { csvText } from './csv.js';
 import { formatAmount, roundToCents } from './currency.js';
 import { signedBalance } from './balance.js';
+import { formatDate } from './format.js';
 
 export const STATEMENT_SORT_OPTIONS = [
     { value: '', label: 'تسلسل كشف الحساب' },
@@ -344,10 +345,10 @@ export function statementCsv(entries) {
             const balance = describeBalance(entry.balance);
 
             return [
-                entry.lineNumber, entry.date, entry.voucherNumber ?? '', entry.description, entry.details ?? '', entry.typeLabel,
+                entry.lineNumber, formatDate(entry.date), entry.voucherNumber ?? '', entry.description, entry.details ?? '', entry.typeLabel,
                 entry.isCredit ? 'له' : 'عليه', Number(entry.amount), entry.currencyLabel, entry.exchangeRate ?? '',
                 entry.paymentMethodLabel ?? '', entry.senderBankName ?? '', entry.bankName ?? '', entry.referenceNumber ?? '', entry.cashBox ?? '',
-                Number(entry.balance), balance.label, entryState(entry), entry.recordedByName ?? '', entry.paidOn ?? '', entry.lateReason ?? '', entry.bankReceivedOn ?? '',
+                Number(entry.balance), balance.label, entryState(entry), entry.recordedByName ?? '', formatDate(entry.paidOn), entry.lateReason ?? '', formatDate(entry.bankReceivedOn),
             ];
         }),
     ];

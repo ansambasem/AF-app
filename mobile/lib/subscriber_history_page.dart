@@ -184,7 +184,7 @@ class SubscriberTransactionRow extends StatelessWidget {
         subtitle:
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const SizedBox(height: 5),
-          Text('${line['recorded_at'] ?? line['date'] ?? '—'}',
+          Text(AppIdentity.dayFirst(line['recorded_at'] ?? line['date'] ?? '—'),
               textDirection: TextDirection.ltr,
               style: AppIdentity.number(12.5,
                   weight: FontWeight.w500, color: AppIdentity.faint)),

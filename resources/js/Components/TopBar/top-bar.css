@@ -1253,6 +1253,19 @@ html.tn-locked {
 }
 
 /* ═════ The page: where you are, and the section's other pages ═════ */
+/* The end of the strip that hides more pages fades (right to left: the start is on the right). */
+.tn-subnav[data-fade='end'] {
+    mask-image: linear-gradient(to right, transparent 0, #000 2.5rem);
+}
+
+.tn-subnav[data-fade='start'] {
+    mask-image: linear-gradient(to left, transparent 0, #000 2.5rem);
+}
+
+.tn-subnav[data-fade='both'] {
+    mask-image: linear-gradient(to right, transparent 0, #000 2.5rem, #000 calc(100% - 2.5rem), transparent 100%);
+}
+
 .tn-subnav a {
     display: inline-flex;
     align-items: center;

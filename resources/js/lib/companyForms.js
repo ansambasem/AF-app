@@ -35,3 +35,30 @@ export function moveFormItem(items, index, offset) {
 export function printPageRules(pages) {
     return pages.map((page, index) => `@page cf_page_${index} { size: ${Number(page.width)}mm ${Number(page.height)}mm; margin: 0; }`).join('\n');
 }
+
+/**
+ * A form's letterhead settings with the defaults for any it lacks, so a
+ * form saved before they existed keeps its simple heading: the logo beside
+ * the Arabic name and details, over one thin grey line.
+ */
+export const LETTERHEAD_DEFAULTS = {
+    style: 'simple', logoPosition: 'center', logoWidth: 24, logoHeight: 22,
+    english: '', arabicAlign: 'right', englishAlign: 'left',
+    companyFont: 'plex', companySize: 17, subtitleSize: 13, englishFont: 'arial', englishSize: 14, textColor: '#17202a',
+    ruleStyle: 'single', ruleWidth: 1, ruleColor: '#d8dde4', ruleColor2: '#a51d26', ruleGap: 1,
+};
+
+/** A ready formal letterhead: the logo centred, Arabic on the right, English on the left, over two coloured lines. */
+export const FORMAL_LETTERHEAD = {
+    style: 'letterhead', logoPosition: 'center', logoWidth: 32, logoHeight: 24, arabicAlign: 'right', englishAlign: 'left',
+    ruleStyle: 'double', ruleWidth: 2, ruleColor: '#111827', ruleColor2: '#a51d26', ruleGap: 1,
+};
+
+export function letterhead(header = {}) {
+    return { ...LETTERHEAD_DEFAULTS, ...Object.fromEntries(Object.entries(header ?? {}).filter(([, value]) => value !== null && value !== undefined)) };
+}
+
+/** The letterhead's three parts from right to left, the logo where it's placed. */
+export function letterheadSlots(position) {
+    return position === 'right' ? ['logo', 'arabic', 'english'] : position === 'left' ? ['arabic', 'english', 'logo'] : ['arabic', 'logo', 'english'];
+}

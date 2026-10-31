@@ -7,7 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import Pagination from '@/Components/DataTable/Pagination';
 import { ChannelLabel, KindPill, MessageStatusPill } from './MessageParts';
 
-const DATE_TIME = new Intl.DateTimeFormat('ar-SY-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' });
+const DATE_TIME = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' });
 const dateTime = (value) => value ? DATE_TIME.format(new Date(value)) : '—';
 
 export default function SubscriptionMessageHistoryModal({ subscription, onClose }) {

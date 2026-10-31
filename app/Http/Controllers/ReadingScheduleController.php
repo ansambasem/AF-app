@@ -8,16 +8,21 @@ use App\Models\Branch;
 use App\Models\ReadingEntrySetting;
 use App\Notifications\ActionCompleted;
 use App\Support\BranchDomainContext;
+use App\Support\BranchDomainScope;
+use App\Support\BranchScope;
+use App\Support\BranchViewContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
 /**
  * The weekly reading day and entry schedule. Each branch's admin sets their own
- * branch's; the Super Admin sets any branch's and the company's default, which
- * the branches without a schedule of their own follow.
+ * branch's; the Super Admin sets any branch's or applies the company's schedule
+ * to every branch, including those with their own settings.
  */
 class ReadingScheduleController extends Controller
 {
@@ -35,6 +40,9 @@ class ReadingScheduleController extends Controller
         $this->authorize('manage', [ReadingEntrySetting::class, $branch]);
 
         $setting = ReadingEntrySetting::forBranch($branch)->load('updatedBy');
+        $branches = $actor->isSuperAdmin() ? Branch::query()
+            ->when(BranchViewContext::id() !== null, fn (Builder $query): Builder => $query->withoutGlobalScope(BranchDomainScope::class))
+            ->orderBy('name')->get() : collect();
         $businessNow = now()->timezone(config('app.business_timezone'));
         $businessDate = Carbon::parse($businessNow->toDateString());
         $currentWeeks = [];
@@ -63,13 +71,14 @@ class ReadingScheduleController extends Controller
                 'updatedAt' => $setting->updated_at?->timezone(config('app.business_timezone'))->format('Y-m-d H:i'),
             ],
             'branch' => $branch ? ['id' => $branch->id, 'name' => $branch->name] : null,
-            'branches' => $actor->isSuperAdmin()
-                ? Branch::query()->orderBy('name')->get()->map(fn (Branch $item): array => [
-                    'value' => $item->id,
-                    'label' => $item->name,
-                    'hasOwn' => ReadingEntrySetting::ownFor($item) !== null,
-                ])->all()
-                : [],
+            'branchScope' => $branch !== null ? BranchScope::describe(collect([$branch])) : [
+                ...BranchScope::describe($branches), 'level' => 'all', 'all' => true, 'name' => 'جميع الفروع',
+            ],
+            'branches' => $branches->map(fn (Branch $item): array => [
+                'value' => $item->id,
+                'label' => $item->name,
+                'hasOwn' => ReadingEntrySetting::ownFor($item) !== null,
+            ])->all(),
             'followsCompany' => $branch !== null && ReadingEntrySetting::ownFor($branch) === null,
             'branchesWithOwn' => ReadingEntrySetting::ownCount(),
             'modes' => ReadingEntryMode::options(),
@@ -82,26 +91,32 @@ class ReadingScheduleController extends Controller
     }
 
     /**
-     * Update the schedule of the branch, or the company's default when no
-     * branch is given. A new reading day shapes the weeks after the latest
-     * one that has ended; weeks already ended keep their dates. A branch that
-     * still followed the company's gets a schedule of its own, starting from
-     * a copy of the company's, the first time its admin saves one.
+     * Update one branch, or apply the company's schedule to every branch.
+     * Each schedule keeps its own history so ended reading weeks retain
+     * their dates, even when the branches previously read on different days.
      */
     public function update(UpdateReadingScheduleRequest $request): RedirectResponse
     {
         $branch = $request->branch();
-        $setting = $branch === null
-            ? ReadingEntrySetting::company()
-            : (ReadingEntrySetting::ownFor($branch) ?? ReadingEntrySetting::startFor($branch));
+        DB::transaction(function () use ($request, $branch): void {
+            $setting = $branch === null
+                ? ReadingEntrySetting::company()
+                : (ReadingEntrySetting::ownFor($branch) ?? ReadingEntrySetting::startFor($branch));
+            $attributes = [
+                'open_days' => array_map('intval', $request->validated('open_days')),
+                'mode' => $request->validated('mode'),
+                'updated_by' => $request->user()->id,
+            ] + $request->safe()->only(['opens_at', 'closes_at', 'assignment_lead_days'])
+                + $setting->only(['opens_at', 'closes_at', 'assignment_lead_days']);
+            $settings = $branch === null
+                ? ReadingEntrySetting::query()->whereNotNull('branch_id')->orderBy('id')->lockForUpdate()->get()->prepend($setting)
+                : collect([$setting]);
 
-        $setting->changeReadingDay($request->integer('reading_day'));
-
-        $setting->fill([
-            'open_days' => array_map('intval', $request->validated('open_days')),
-            'mode' => $request->validated('mode'),
-            'updated_by' => $request->user()->id,
-        ] + $request->safe()->only(['opens_at', 'closes_at', 'assignment_lead_days']))->save();
+            foreach ($settings as $schedule) {
+                $schedule->changeReadingDay($request->integer('reading_day'));
+                $schedule->fill($attributes)->save();
+            }
+        });
 
         $request->user()->notify(new ActionCompleted('reading-schedule-updated'));
 

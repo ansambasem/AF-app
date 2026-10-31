@@ -73,6 +73,9 @@ class ReadingPrintCustomizationTest extends TestCase
         $this->assertArrayHasKey('field:tariffName', $data['rows'][0]['cells']);
         $this->assertArrayNotHasKey('field:recordedBy', $data['rows'][0]['cells']);
         $this->assertNotContains('field:recordedBy', array_column($data['columns'], 'key'));
+        $this->assertSame(['key' => 'field:subAreaName', 'then' => ['field:meterBoxLabel'], 'unit' => 'مشترك', 'headings' => 'stacked', 'align' => 'center', 'labels' => false, 'repeatHeader' => true], $data['defaults']['group']);
+        $this->assertSame([['key' => 'المشترك', 'direction' => 'asc']], $data['defaults']['sort']);
+        $this->assertStringContainsString(' — ', $data['rows'][0]['cells']['field:meterBoxLabel']);
         $this->get(route('meter-readings.index'), $this->inertiaHeaders())->assertOk()->assertJsonMissingPath('props.printData')->assertJsonMissingPath('props.rows.data.0.printDetails');
     }
 

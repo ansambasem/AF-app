@@ -102,7 +102,7 @@ class MeterReading extends Model
             $weekEnd = self::weekEndFor($weekStart, $branch);
             $options[] = [
                 'value' => $weekStart->toDateString(),
-                'label' => 'الأسبوع المنتهي في '.$weekEnd->locale('ar')->dayName.' '.$weekEnd->format('d-m-Y'),
+                'label' => 'الأسبوع المنتهي في '.$weekEnd->locale('ar')->dayName.' '.$weekEnd->format('d/m/Y'),
                 'end' => $weekEnd->toDateString(),
             ];
             $weekStart = self::weekStartFor($weekStart->copy()->subDay(), $branch);

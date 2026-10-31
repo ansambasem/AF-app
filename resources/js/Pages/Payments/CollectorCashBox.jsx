@@ -201,7 +201,7 @@ export function BoxCard({ box, type, selected = false, onSelect }) {
             <div>
                 <p className="flex items-baseline gap-1.5">
                     <span dir="ltr" className="font-display text-3xl font-bold text-gray-900">{formatMoney(box?.totals?.ILS ?? 0)}</span>
-                    <span className="text-sm text-gray-500">شيكل</span>
+                    <span className="text-sm text-gray-500">₪</span>
                 </p>
                 {others.map((currency) => <p key={currency} className="mt-1 text-sm text-gray-600"><b dir="ltr" className="font-display">{formatMoney(box.totals[currency])}</b> {currencies[currency]}</p>)}
             </div>

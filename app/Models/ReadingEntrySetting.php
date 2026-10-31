@@ -100,33 +100,26 @@ class ReadingEntrySetting extends Model
         };
     }
 
-    /**
-     * The website opens new weekly readings on the branch's reading day.
-     * A manual opening still allows the existing administrative exception.
-     */
-    public function isOpenOnReadingDay(?CarbonInterface $at = null): bool
-    {
-        return $this->isOpen($at)
-            && ($this->mode === ReadingEntryMode::Open || $this->businessToday($at)->dayOfWeek === $this->reading_day);
-    }
-
     /** The next automatic website opening, in the business's local timezone. */
-    public function nextOpeningOnReadingDay(?CarbonInterface $at = null): ?Carbon
+    public function nextOpening(?CarbonInterface $at = null): ?Carbon
     {
-        if ($this->mode !== ReadingEntryMode::Automatic || ! in_array($this->reading_day, array_map('intval', $this->open_days ?? []), true)) {
+        if ($this->mode !== ReadingEntryMode::Automatic) {
             return null;
         }
 
         $localNow = Carbon::instance($at ?? now())->setTimezone(config('app.business_timezone'));
-        $daysUntilReading = ($this->reading_day - $localNow->dayOfWeek + 7) % 7;
-        $opening = $localNow->copy()->startOfDay()->addDays($daysUntilReading)
-            ->setTimeFromTimeString($this->opens_at ?? self::DEFAULT_OPENS_AT);
+        $openDays = array_map('intval', $this->open_days ?? []);
 
-        if ($opening->lte($localNow)) {
-            $opening->addWeek();
+        for ($offset = 0; $offset <= 7; $offset++) {
+            $opening = $localNow->copy()->startOfDay()->addDays($offset)
+                ->setTimeFromTimeString($this->opens_at ?? self::DEFAULT_OPENS_AT);
+
+            if (in_array($opening->dayOfWeek, $openDays, true) && $opening->gt($localNow)) {
+                return $opening;
+            }
         }
 
-        return $opening;
+        return null;
     }
 
     /**

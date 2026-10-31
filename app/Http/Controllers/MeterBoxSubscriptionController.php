@@ -30,10 +30,8 @@ class MeterBoxSubscriptionController extends Controller
         $direction = $validated['direction'] ?? 'asc';
 
         $subscriptions = $meterBox->subscriptions()->visibleTo($actor)
-            ->select('subscriptions.*')
-            ->selectRaw("COALESCE(NULLIF(subscription_name, ''), full_name) AS display_name")
+            ->orderedInMeterBox($sort, $direction)
             ->with('circuitBreaker:id,ampere', 'latestMeterReading')
-            ->orderBy($sort === 'name' ? 'display_name' : 'account_number', $direction)->orderBy('subscriptions.id')
             ->paginate(15)->withQueryString()
             ->through(fn (Subscription $subscription): array => [
                 'id' => $subscription->id,

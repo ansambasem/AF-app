@@ -1,5 +1,6 @@
-import { Children, cloneElement, isValidElement, useCallback, useRef, useState } from 'react';
+import { Children, cloneElement, isValidElement } from 'react';
 import Icon from '@/Components/Icon';
+import { useRowActionsMenu } from '@/hooks/useRowActionsMenu';
 import RowMenu from './RowMenu';
 
 /** Each action word gets its icon automatically. */
@@ -37,34 +38,22 @@ const TONES = {
  * - `menu`: more actions in groups (see RowMenu); opened from "عرض"'s
  *   arrow, or from a ⋯ button when there is no "عرض". `coloredMenu` makes
  *   that ⋯ burgundy, for a row whose actions are its main business (a
- *   statement's lines).
+ *   financial ledger).
+ * - `menuController`: shares a useRowActionsMenu controller with the row's
+ *   context-click and keyboard handlers, so every trigger opens one menu.
  * - children, e.g. <RowActionsMenu><button onClick={…}>تعديل</button></RowActionsMenu>:
  *   each becomes a same-size icon button with its word as the tooltip
  *   (and its color, for تعديل, حذف, طباعة and Excel).
  */
-export default function RowActionsMenu({ onView, viewLabel = 'عرض', viewIcon = 'eye', onEdit, onDelete, menu, coloredMenu = false, children }) {
-    const [menuAnchor, setMenuAnchor] = useState(null);
-
-    const toggleMenu = useCallback((event) => {
-        const trigger = event.currentTarget;
-        setMenuAnchor((current) => (current ? null : trigger));
-    }, []);
-
-    const closeMenu = useCallback(
-        (restoreFocus) => {
-            if (restoreFocus) {
-                menuAnchor?.focus();
-            }
-            setMenuAnchor(null);
-        },
-        [menuAnchor],
-    );
+export default function RowActionsMenu({ onView, viewLabel = 'عرض', viewIcon = 'eye', onEdit, onDelete, menu, coloredMenu = false, menuController = null, children }) {
+    const ownMenu = useRowActionsMenu();
+    const { opener, toggleMenu, closeMenu } = menuController ?? ownMenu;
 
     const menuProps = (label) => ({
         'aria-label': label,
         title: label,
         'aria-haspopup': 'menu',
-        'aria-expanded': Boolean(menuAnchor),
+        'aria-expanded': Boolean(opener),
         onClick: toggleMenu,
     });
 
@@ -122,7 +111,7 @@ export default function RowActionsMenu({ onView, viewLabel = 'عرض', viewIcon 
                 )}
             </div>
 
-            {menuAnchor && menu && <RowMenu anchor={menuAnchor} menu={menu} onClose={closeMenu} />}
+            {opener && menu && <RowMenu anchor={opener.anchor} point={opener.point} contextual={opener.contextual} menu={menu} onClose={closeMenu} />}
         </div>
     );
 }

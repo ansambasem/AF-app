@@ -29,7 +29,7 @@ class ErrorPagesTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page->component('Error')->where('status', 404));
     }
 
-    public function test_opening_a_page_without_permission_shows_it_blank_rather_than_the_default_english_403(): void
+    public function test_opening_a_page_without_permission_shows_a_quiet_note_rather_than_the_default_english_403(): void
     {
         $collector = User::factory()->collector()->create();
 
@@ -48,11 +48,11 @@ class ErrorPagesTest extends TestCase
     }
 
     /**
-     * The top bar shows every page to everyone (lib/navigation.js), so each
-     * one opens blank, in the app's layout, for those who may not open it,
-     * rather than a broken screen.
+     * A page opened by its link by someone who may not open it shows, in the
+     * app's layout, only that it is not open to their account, rather than a
+     * broken screen.
      */
-    public function test_every_page_in_the_top_bar_opens_blank_for_a_user_without_its_permission(): void
+    public function test_every_page_in_the_top_bar_shows_the_quiet_note_to_a_user_without_its_permission(): void
     {
         $user = User::factory()->collector()->create();
         $user->permissions()->sync([]);

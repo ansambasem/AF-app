@@ -75,7 +75,7 @@ class BranchReport
         )
             ->when($kind === 'payments', fn (Builder $query) => $query->where('type', SubscriptionTransaction::TYPE_PAYMENT))
             ->when($kind === 'charges', fn (Builder $query) => $query
-                ->whereNotIn('type', [...SubscriptionTransaction::CREDIT_TYPES, SubscriptionTransaction::TYPE_REVERSAL])
+                ->whereNotIn('type', [...SubscriptionTransaction::CREDIT_TYPES, ...SubscriptionTransaction::REVERSAL_TYPES])
                 ->where(fn (Builder $side): Builder => $side->where('type', '!=', SubscriptionTransaction::TYPE_BANK_AUDIT_ADJUSTMENT)->orWhere('amount', '>=', 0)))
             ->when($kind === 'discounts', fn (Builder $query) => $query->whereIn('type', self::DISCOUNT_TYPES))
             ->when($kind === 'corrections', fn (Builder $query) => $query->where(fn (Builder $inner) => $inner->whereNotNull('cancelled_at')->orWhereNotNull('reverses_id')));
@@ -116,7 +116,8 @@ class BranchReport
             $cents = Closing::cents($row->amount);
 
             if ($this->isCorrection($row)) {
-                $corrections['count'] += $row->type === SubscriptionTransaction::TYPE_REVERSAL ? 1 : 0;
+                // Counted once, by the line that takes another back: a cancellation, refund or reversal.
+                $corrections['count'] += $row->reverses_id !== null ? 1 : 0;
                 $corrections['total'] += $cents;
 
                 continue;
@@ -243,7 +244,8 @@ class BranchReport
                     $this->isCorrection($row) => 'corrections',
                     $row->type === SubscriptionTransaction::TYPE_PAYMENT
                         || ($row->type === SubscriptionTransaction::TYPE_BANK_AUDIT_ADJUSTMENT && SubscriptionTransaction::isCreditLine($row->type, $row->amount)) => 'payments',
-                    in_array($row->type, self::DISCOUNT_TYPES, true) => 'discounts',
+                    // Any other credit, such as an opening balance in the subscription's favour, is given off what they owe as a discount is.
+                    in_array($row->type, self::DISCOUNT_TYPES, true) || SubscriptionTransaction::isCreditLine($row->type, $row->amount) => 'discounts',
                     default => 'charges',
                 };
                 $totals[$key] += $key === 'payments' || $key === 'discounts' ? -$cents : $cents;

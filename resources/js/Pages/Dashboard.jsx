@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import AddButton from '@/Components/AddButton';
 import BranchBanner from '@/Components/BranchBanner';
+import { useBranchView } from '@/hooks/useBranchView';
 import Icon from '@/Components/Icon';
 import KpiTile from '@/Components/KpiTile';
 import PageHeader from '@/Components/PageHeader';
@@ -82,6 +83,7 @@ export default function Dashboard({
     const { collections, subscriptions, meterBoxes, readings, disconnections, boxes } = sections;
     const hasAnyData = Object.keys(sections).length > 0 || Boolean(latestPayments);
     const period = periodLabel(filters.days);
+    const branchView = useBranchView();
     const canOpenReceipts = can?.viewSubscriptions || can?.recordPayments;
 
     /** Reloads the dashboard with changed filters (only some props when given), back on the first page of payments. */
@@ -293,9 +295,10 @@ export default function Dashboard({
                                     <label className="flex w-full flex-col gap-1.5 text-xs font-semibold text-white/70 sm:w-56">
                                         الفرع
                                         <SearchableSelect
-                                            value={filters.branch ?? ''}
-                                            onChange={(value) => visit({ branch: value || null })}
-                                            options={branchOptions.filter((branch) => !filters.governorate || String(branch.governorate) === String(filters.governorate))}
+                                            value={branchView.available ? String(branchView.value) : filters.branch ?? ''}
+                                            onChange={branchView.available ? branchView.changeBranch : (value) => visit({ branch: value || null })}
+                                            options={branchView.available ? branchView.options : branchOptions.filter((branch) => !filters.governorate || String(branch.governorate) === String(filters.governorate))}
+                                            disabled={branchView.switching}
                                             placeholder="كل الفروع"
                                             searchPlaceholder="ابحث عن فرع..."
                                             active={Boolean(filters.branch)}
@@ -390,8 +393,8 @@ export default function Dashboard({
                                                     icon="clock"
                                                     label="الديون المستحقة"
                                                     value={formatMoney(debts.total)}
-                                                    unit="شيكل"
-                                                    hint={`${formatNumber(debts.count)} مدين · أكثر من 90 يومًا ${debts.olderShare}%`}
+                                                    unit="₪"
+                                                    hint={`${formatNumber(debts.count)} مدين · أكثر من 90 يومًا ${debts.olderShare}% · لا يُطرح منها رصيد من له رصيد دائن`}
                                                 >
                                                     <SplitBar
                                                         label="أعمار الديون"

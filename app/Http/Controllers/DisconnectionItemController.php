@@ -205,7 +205,7 @@ class DisconnectionItemController extends Controller
                         'phone' => $subscription->contactPhone(),
                         'body' => $this->composer->render($body, [
                             ...$this->composer->variables($subscription, MessageKind::DisconnectionWarning),
-                            'موعد_القطع' => $item->scheduled_for->format('j/n/Y'),
+                            'موعد_القطع' => $item->scheduled_for->format('d/m/Y'),
                         ]),
                         'status' => MessageStatus::Pending,
                     ]);

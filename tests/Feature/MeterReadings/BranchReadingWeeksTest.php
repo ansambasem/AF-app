@@ -65,7 +65,7 @@ class BranchReadingWeeksTest extends TestCase
             ->where('weekEnd', '2026-09-19')
             ->where('rows.data.0.previousReading', 100)
             ->where('rows.data.0.reading.currentReading', 130)
-            ->where('canRecord', false));
+            ->where('canRecord', true));
 
         $this->travelTo('2026-09-26 10:00:00');
         $this->get(route('meter-readings.index'))->assertInertia(fn ($page) => $page

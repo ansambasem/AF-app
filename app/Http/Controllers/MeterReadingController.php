@@ -155,7 +155,7 @@ class MeterReadingController extends Controller
                     ->whereDate('week_start', $week)
                     ->sum('amount_due'), 2, '.', ''),
             ],
-            'canRecord' => $actor->can('createOnReadingDay', MeterReading::class),
+            'canRecord' => $actor->can('create', MeterReading::class),
             'canApprove' => $canApprove,
             'canSendReadingMessages' => $canApprove && $actor->can('create', MessageBatch::class),
             'messageBranchId' => $weekBranchId,
@@ -163,7 +163,7 @@ class MeterReadingController extends Controller
             'statusSummary' => fn () => $this->statusSummary($summaryQuery, $week),
             'pendingApproval' => fn () => $canApprove ? $this->pendingApprovalSummary($request, $actor, $week) : null,
             // The actor could record now, just not in this earlier week.
-            'weekIsViewOnly' => $actor->can('createOnReadingDay', MeterReading::class) && ! $actor->can('createOnReadingDay', [MeterReading::class, $weekStart, $weekBranchId]),
+            'weekIsViewOnly' => $actor->can('create', MeterReading::class) && ! $actor->can('create', [MeterReading::class, $weekStart, $weekBranchId]),
             'entryWindow' => $this->entryWindow($actor),
             'filters' => $this->dataTableState($request, 'full_name', 'asc', 25),
             'filterOptions' => fn () => $this->filterOptions($actor, $request),
@@ -348,14 +348,14 @@ class MeterReadingController extends Controller
         $setting = ReadingEntrySetting::forBranch($actor->workBranchId());
 
         return [
-            'isOpen' => $setting->isOpenOnReadingDay(),
+            'isOpen' => $setting->isOpen(),
             'appliesToActor' => ! $actor->isSuperAdmin() && $actor->hasPermission(PermissionKey::RecordMeterReadings),
             'openDays' => $setting->mode === ReadingEntryMode::Automatic
-                ? array_values(array_intersect(array_map('intval', $setting->open_days), [$setting->reading_day]))
+                ? array_map('intval', $setting->open_days)
                 : [],
             'opensAt' => substr($setting->opens_at, 0, 5),
             'closesAt' => substr($setting->closes_at, 0, 5),
-            'nextOpensOn' => $setting->nextOpeningOnReadingDay()?->toDateString(),
+            'nextOpensOn' => $setting->nextOpening()?->toDateString(),
         ];
     }
 
@@ -466,7 +466,7 @@ class MeterReadingController extends Controller
             'canApprove' => $reading !== null && $actor->can('approve', $reading),
             'canEdit' => $reading
                 ? ! $subscription->has_later_week && $actor->can('update', $reading)
-                : $subscription->status === SubscriptionStatus::Active && ! $subscription->has_later_week && $actor->can('createOnReadingDay', [MeterReading::class, $weekStart, $subscription->branch_id]),
+                : $subscription->status === SubscriptionStatus::Active && ! $subscription->has_later_week && $actor->can('create', [MeterReading::class, $weekStart, $subscription->branch_id]),
         ];
     }
 

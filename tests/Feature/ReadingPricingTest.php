@@ -73,7 +73,7 @@ class ReadingPricingTest extends TestCase
         [$actor, $subscription, $reading] = $this->context(PermissionKey::UpdateSubscriptionMinimumCharge);
         $this->travelTo('2026-09-25 10:00:00');
 
-        $this->assertFalse($actor->can('createOnReadingDay', MeterReading::class));
+        $this->assertFalse($actor->can('create', MeterReading::class));
         $this->actingAs($actor)->put(route('meter-readings.pricing', $reading), ['minimum_payment' => 12])->assertSessionHasNoErrors();
         $this->put(route('meter-readings.pricing', $reading), ['unit_price' => 3])->assertForbidden();
 

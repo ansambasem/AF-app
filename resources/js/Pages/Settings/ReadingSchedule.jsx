@@ -7,7 +7,7 @@ import InfoTip from '@/Components/InfoTip';
 import ConfirmDialog from '@/Components/ConfirmDialog';
 import BranchScopeBar from './BranchScopeBar';
 import { WEEK_DAYS, formatWeekDay, weekDayName } from '@/lib/weekDays';
-import { businessClock, isEntryOpen, nextScheduleChange, upcomingWeeks, validEntryHours, weekDates } from '@/lib/readingSchedule';
+import { businessClock, entryDaysFrom, isEntryOpen, nextScheduleChange, shiftEntryDays, upcomingWeeks, validEntryHours, weekDates } from '@/lib/readingSchedule';
 import './ReadingSchedule.css';
 import PageHeader from '@/Components/PageHeader';
 
@@ -36,7 +36,7 @@ function DayChip({ day, selected, type, name, disabled = false, subtitle, onChan
     );
 }
 
-export default function ReadingSchedule({ setting, branch, branches, followsCompany, branchesWithOwn, firstWeeks, currentWeeks, businessNow, businessTimezone }) {
+export default function ReadingSchedule({ setting, branch, branchScope, branches, followsCompany, branchesWithOwn, firstWeeks, currentWeeks, businessNow, businessTimezone }) {
     const { data, setData, put, processing, errors, isDirty, resetAndClearErrors, setDefaults } = useForm({
         branch_id: branch?.id ?? null,
         reading_day: setting.reading_day,
@@ -60,6 +60,7 @@ export default function ReadingSchedule({ setting, branch, branches, followsComp
     const openNow = isEntryOpen(data, clock);
     const nextChange = nextScheduleChange(data, clock);
     const automatic = data.mode === 'automatic';
+    const entryDays = entryDaysFrom(data.reading_day).map((value) => WEEK_DAYS.find((day) => day.value === value));
     const readingDayChanged = data.reading_day !== setting.reading_day;
     const firstWeek = firstWeeks[data.reading_day];
     const currentWeek = currentWeeks[data.reading_day];
@@ -67,6 +68,7 @@ export default function ReadingSchedule({ setting, branch, branches, followsComp
     const weeks = upcomingWeeks(firstWeek);
     const hoursError = !validEntryHours(data);
     const canSave = !processing && data.open_days.length > 0 && !hoursError;
+    const canApplyCompany = !branch && branchesWithOwn > 0;
     const history = setting.reading_day_history.map((change, index, all) => ({
         ...change, to: all[index + 1]?.reading_day ?? setting.reading_day,
     })).reverse();
@@ -92,13 +94,13 @@ export default function ReadingSchedule({ setting, branch, branches, followsComp
         setData((current) => ({
             ...current,
             reading_day: day,
-            open_days: current.open_days.length === 1 && current.open_days[0] === current.reading_day ? [day] : current.open_days,
+            open_days: shiftEntryDays(current.open_days, current.reading_day, day),
         }));
     }
 
     function submit(event) {
         event.preventDefault();
-        if (canSave && isDirty) {
+        if (canSave && (isDirty || canApplyCompany)) {
             setConfirmingSave(true);
         }
     }
@@ -111,18 +113,19 @@ export default function ReadingSchedule({ setting, branch, branches, followsComp
     const confirmation = [
         readingDayChanged ? `يصبح يوم القراءة ${dayLabel(data.reading_day)}، وأول أسبوع عليه من ${formatWeekDay(firstWeek.start)} إلى ${formatWeekDay(firstWeek.end)}.` : null,
         `طريقة الفتح: ${MODES[data.mode].label}.`,
-        `أيام الإدخال التلقائي: ${WEEK_DAYS.filter((day) => data.open_days.includes(day.value)).map((day) => day.label).join('، ')}، من ${data.opens_at} إلى ${data.closes_at} بتوقيت الشركة.`,
+        `أيام الإدخال التلقائي: ${entryDays.filter((day) => data.open_days.includes(day.value)).map((day) => day.label).join('، ')}، من ${data.opens_at} إلى ${data.closes_at} بتوقيت الشركة.`,
         branch
             ? `يتغير الموعد في الموقع والتطبيق الميداني لقرّاء الفرع «${branch.name}» ومدخلي بياناته، دون غيره من الفروع.`
-            : 'يتغير الموعد في الموقع والتطبيق الميداني لقرّاء الفروع التي تتبع الشركة ومدخلي بياناتها.',
+            : 'ستُطبّق هذه المواعيد على جميع الفروع، وتستبدل أي مواعيد مخصصة لها، مع الحفاظ على تواريخ القراءات والأسابيع السابقة.',
     ].filter(Boolean).join(' ');
 
     return (
-        <SettingsLayout header={<PageHeader title="مواعيد القراءات" info="متى ينتهي أسبوع القراءة، ومتى يُسمح للقرّاء ومدخلي البيانات بإدخال القراءات. لكل فرع مواعيده." />}>
+        <SettingsLayout header={<PageHeader title="مواعيد القراءات" info="حدد يوم القراءة وأيام وساعات الإدخال لكل الفروع، أو خصصها لفرع. تعميم إعدادات الشركة يتجاوز المواعيد المخصصة للفروع." />}>
             <Head title="مواعيد القراءات" />
             <form onSubmit={submit} className="reading-schedule" dir="rtl">
                 <BranchScopeBar
                     path="/settings/reading-schedule"
+                    scope={branchScope}
                     branch={branch}
                     branches={branches}
                     followsCompany={followsCompany}
@@ -167,9 +170,10 @@ export default function ReadingSchedule({ setting, branch, branches, followsComp
 
                         <section className="rs-panel">
                             <PanelTitle icon="door">أيام فتح الإدخال</PanelTitle>
-                            <p>{automatic ? 'يُفتح الإدخال في الأيام المحددة خلال ساعات الفتح بتوقيت الشركة.' : 'تُستخدم في الوضع التلقائي فقط. الوضع اليدوي يتجاوز الأيام والساعات.'}</p>
+                            <p>{automatic ? 'اختر أيام إدخال قراءة الأسبوع، بدءًا من يوم القراءة وحتى اليوم السابق للقراءة التالية، خلال ساعات الفتح بتوقيت الشركة.' : 'تُستخدم في الوضع التلقائي فقط. الوضع اليدوي يتجاوز الأيام والساعات.'}</p>
+                            <p>تبقى القراءة الناقصة لنفس الأسبوع حتى بداية يوم القراءة التالي؛ أيام الفتح بعد يوم القراءة مخصصة لاستكمالها، ولا تفتح قراءة الأسبوع القادم مسبقًا.</p>
                             <div className={`rs-days rs-open-days ${automatic ? '' : 'is-disabled'}`} role="group" aria-label="أيام فتح الإدخال">
-                                {WEEK_DAYS.map((day) => (
+                                {entryDays.map((day) => (
                                     <DayChip key={day.value} day={day} type="checkbox" selected={data.open_days.includes(day.value)}
                                         subtitle={day.value === data.reading_day ? 'يوم القراءة' : ''} disabled={!automatic || processing}
                                         onChange={() => selectOpenDays(data.open_days.includes(day.value) ? data.open_days.filter((value) => value !== day.value) : [...data.open_days, day.value])} />
@@ -276,7 +280,7 @@ export default function ReadingSchedule({ setting, branch, branches, followsComp
                     </div>
                 </div>
 
-                {isDirty && <div className="rs-savebar"><span role="status">لديك تغييرات غير محفوظة</span><button type="button" className="rs-revert" disabled={processing} onClick={() => resetAndClearErrors()}>تراجع</button><button type="submit" className="rs-save" disabled={!canSave}>{processing ? 'جارٍ الحفظ...' : 'حفظ'}</button></div>}
+                {(isDirty || canApplyCompany) && <div className="rs-savebar"><span role="status">{isDirty ? 'لديك تغييرات غير محفوظة' : 'يمكنك إعادة تعميم إعدادات الشركة على جميع الفروع'}</span>{isDirty && <button type="button" className="rs-revert" disabled={processing} onClick={() => resetAndClearErrors()}>تراجع</button>}<button type="submit" className="rs-save" disabled={!canSave}>{processing ? 'جارٍ الحفظ...' : 'حفظ'}</button></div>}
             </form>
             <ConfirmDialog show={confirmingSave} onConfirm={save} onCancel={() => setConfirmingSave(false)} title="حفظ مواعيد القراءات؟"
                 message={confirmation} confirmLabel="نعم، احفظ" cancelLabel="مراجعة الإعدادات" icon="calendar" />

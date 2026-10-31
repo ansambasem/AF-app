@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { boardCounters, branchDistributionSummary } from '@/lib/readingBoard';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, formatDate } from '@/lib/format';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import InputError from '@/Components/InputError';
@@ -15,7 +15,7 @@ export default function DistributionSummaryModal({ cycle, boards, readers, paper
     const readerColumns = columns.filter((column) => column.key.startsWith('reader:'));
     const printed = paperSheets.filter((sheet) => sheet.printCount > 0).length;
 
-    return <DistributionDialog title="ملخّص توزيع الفرع" subtitle={`${cycle.branchName} · قراءة ${cycle.readingDate} · يشمل جميع طبلونات الفرع دون تأثير البحث والتصفية`} busy={busy} onClose={onClose}
+    return <DistributionDialog title="ملخّص توزيع الفرع" subtitle={`${cycle.branchName} · قراءة ${formatDate(cycle.readingDate)} · يشمل جميع طبلونات الفرع دون تأثير البحث والتصفية`} busy={busy} onClose={onClose}
         footer={<><SecondaryButton disabled={busy} onClick={onClose}>العودة للتوزيع</SecondaryButton>{abilities.approve && counters.draft > 0 && <PrimaryButton disabled={busy} onClick={onApprove}>اعتماد كل الجاهز ({formatNumber(counters.draft)})</PrimaryButton>}</>}>
         {result && <p role="status" className={`rounded-control p-3 text-sm ${result.conflicts.length ? 'bg-amber-500/10 text-amber-700' : 'bg-emerald-500/10 text-emerald-700'}`}>
             {result.action === 'approve' ? 'اعتُمد' : 'حُدّث توزيع'} {formatNumber(result.moved)} طبلون.

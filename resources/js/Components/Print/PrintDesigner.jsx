@@ -12,6 +12,7 @@ import PrintSettingsPanel from './PrintSettingsPanel';
 import { reportDetails, reportFilters } from '@/lib/cashBoxReport';
 import { statementPrintDetails } from '@/lib/statementPrint';
 import { STATEMENT_VIEWS } from '@/lib/accountStatement';
+import { formatDate } from '@/lib/format';
 
 /** Pixels in a millimetre on screen (96 dpi). */
 const PX_PER_MM = 96 / 25.4;
@@ -70,6 +71,8 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
     const templates = props.printTemplates ?? [];
     const supportsTemplates = Array.isArray(props.printTemplates);
     const canManageTemplates = Boolean(props.can?.managePrintTemplates) && supportsTemplates;
+    // Without the permission to customise, the printout keeps the company's template as it is.
+    const canCustomize = props.can?.customizePrintouts !== false;
     const [start] = useState(() => {
         const requested = templates.find((template) => String(template.id) === settings.template);
         const chosen = requested ?? (settings.template === 'new' ? null : templates.find((template) => template.isDefault));
@@ -78,7 +81,7 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
             return { layout: chosen.layout, templateId: chosen.id };
         }
 
-        return { layout: settings.template === 'new' ? null : rememberedLayout(pageKey), templateId: null };
+        return { layout: settings.template === 'new' || !canCustomize ? null : rememberedLayout(pageKey), templateId: null };
     });
     const [activeTemplateId, setActiveTemplateId] = useState(start.templateId);
     const pendingTemplateName = useRef(null);
@@ -90,8 +93,8 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
     const statementPrint = Boolean(props.printOptions);
     const readingContext = provided?.context;
     const readingDetails = readingContext ? [
-        { key: 'readingDate', label: 'موعد القراءة', value: [readingContext.readingDayName, readingContext.readingDate].filter(Boolean).join(' ') },
-        { key: 'week', label: 'أسبوع القراءة', value: [readingContext.weekStart, readingContext.weekEnd].filter(Boolean).join(' — ') },
+        { key: 'readingDate', label: 'موعد القراءة', value: [readingContext.readingDayName, readingContext.readingDate && formatDate(readingContext.readingDate)].filter(Boolean).join(' ') },
+        { key: 'week', label: 'أسبوع القراءة', value: [readingContext.weekStart, readingContext.weekEnd].filter(Boolean).map(formatDate).join(' — ') },
         { key: 'sheet', label: 'رقم الكشف', value: readingContext.sheetNumber },
     ].filter((field) => field.value) : [];
     const details = readingContext ? readingDetails : statementPrint ? statementPrintDetails(props) : report?.counts ? reportDetails(report) : [];
@@ -170,10 +173,10 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
     }, [provided]);
 
     useEffect(() => {
-        if (layout) {
+        if (layout && canCustomize) {
             rememberLayout(pageKey, layout);
         }
-    }, [layout, pageKey]);
+    }, [layout, pageKey, canCustomize]);
 
     // "Fit" scales the sheet to the width beside the settings.
     useLayoutEffect(() => {
@@ -233,7 +236,7 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
 
     return (
         <div className="pd-root min-h-screen bg-gray-100 text-gray-900" style={{ '--pd-toolbar-height': `${toolbarHeight}px` }}>
-            {layout && <style>{pageCss(layout)}</style>}
+            {layout && <style>{pageCss(layout, { company: layout.header.company || props.appName, date: `طُبع في ${new Date().toLocaleDateString('en-GB')}` })}</style>}
 
             <header
                 ref={toolbarRef}
@@ -244,7 +247,7 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
                     <Icon name="printer" className="h-5 w-5 text-print-600" />
                     تصميم الطباعة
                 </span>
-                {readingContext && <span className="text-xs text-gray-600">{readingContext.title} · {readingContext.branchName} · {[readingContext.readingDayName, readingContext.readingDate].filter(Boolean).join(' ')} · {provided.rows.length.toLocaleString('en')} سجل</span>}
+                {readingContext && <span className="text-xs text-gray-600">{[readingContext.title, readingContext.branchName, [readingContext.readingDayName, readingContext.readingDate && formatDate(readingContext.readingDate)].filter(Boolean).join(' '), `${provided.rows.length.toLocaleString('en')} سجل`].filter(Boolean).join(' · ')}</span>}
                 {isCut && (
                     <span role="status" className="inline-flex items-center gap-1 text-sm font-semibold text-amber-700">
                         <Icon name="warning" className="h-4 w-4 shrink-0" />
@@ -318,6 +321,7 @@ export default function PrintDesigner({ settings, children, beforePrint }) {
                 >
                     {layout ? (
                         <PrintSettingsPanel
+                            readOnly={!canCustomize}
                             reportFields={details}
                             reportFieldsTitle={readingContext || statementPrint ? 'بيانات الكشف' : 'بيانات الصندوق'}
                             layout={layout}

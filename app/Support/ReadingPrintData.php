@@ -6,13 +6,24 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ReadingPrintData
 {
+    /**
+     * Group headings on a centred line of their own, written once where they
+     * change: the region, then each box under it (see resources/js/lib/printLayout.js).
+     */
+    private const CENTRED_HEADINGS = ['headings' => 'stacked', 'align' => 'center', 'labels' => false, 'repeatHeader' => true];
+
+    /**
+     * Subscribers from أ to ي inside each box.
+     */
+    private const BY_NAME = [['key' => 'المشترك', 'direction' => 'asc']];
+
     /** @param array<string, mixed> $context
      * @return array<string, mixed>
      */
     public static function sheet(LengthAwarePaginator $rows, array $context, bool $audit): array
     {
         $labels = ['المشترك', 'القراءة السابقة', 'القراءة الحالية', 'الفرق (كيلو)', 'سعر الكيلو', 'قيمة القراءة', 'الحد الأدنى', 'المطلوب دفعه', 'الحالة'];
-        $fields = ['fullName' => 'اسم المشترك', 'phone' => 'رقم الجوال', 'accountNumber' => 'رقم الاشتراك', 'meterBoxName' => 'اسم الطبلون', 'meterBoxNumber' => 'رقم الطبلون', 'subAreaName' => 'منطقة 2', 'branchName' => 'الفرع', 'tariffName' => 'نوع الاشتراك', 'breakerAmpere' => 'القاطع', 'weekStart' => 'بداية أسبوع القراءة', 'weekEnd' => 'نهاية أسبوع القراءة', 'notes' => 'ملاحظات القراءة', 'discountAmount' => 'خصم القراءة', 'originalAmountDue' => 'المستحق قبل إلغاء الفاتورة'];
+        $fields = ['fullName' => 'اسم المشترك', 'phone' => 'رقم الجوال', 'accountNumber' => 'رقم الاشتراك', 'meterBoxName' => 'اسم الطبلون', 'meterBoxNumber' => 'رقم الطبلون', 'meterBoxLabel' => 'الطبلون', 'subAreaName' => 'منطقة 2', 'branchName' => 'الفرع', 'tariffName' => 'نوع الاشتراك', 'breakerAmpere' => 'القاطع', 'weekStart' => 'بداية أسبوع القراءة', 'weekEnd' => 'نهاية أسبوع القراءة', 'notes' => 'ملاحظات القراءة', 'discountAmount' => 'خصم القراءة', 'originalAmountDue' => 'المستحق قبل إلغاء الفاتورة'];
         if ($audit) {
             $labels[] = 'سجّلها';
             $fields += ['recordedBy' => 'مدخل القراءة', 'recordedAt' => 'وقت إدخال القراءة', 'recordedSource' => 'مصدر القراءة'];
@@ -31,6 +42,7 @@ class ReadingPrintData
                 'الحالة' => $status.($billCancelled ? ' — فاتورة ملغاة، لم تُحمَّل على المشترك' : ''),
             ];
             $values = [...$row, 'weekStart' => $context['weekStart'], 'weekEnd' => $context['weekEnd'],
+                'meterBoxLabel' => implode(' — ', array_filter([$row['meterBoxName'] ?? null, $row['meterBoxNumber'] ?? null], 'filled')),
                 'discountAmount' => $entered ? $reading['discountAmount'] : '', 'originalAmountDue' => $billCancelled ? $reading['amountDue'] : '',
                 ...($row['printDetails'] ?? [])];
             if ($audit) {
@@ -41,7 +53,8 @@ class ReadingPrintData
         }
 
         return [
-            ...self::report($labels, $fields, $data, $context, $rows->total()),
+            // Subscribers under their region, then their box, ready to print as read in the field.
+            ...self::report($labels, $fields, $data, $context, $rows->total(), ['group' => ['key' => 'field:subAreaName', 'then' => ['field:meterBoxLabel'], 'unit' => 'مشترك', ...self::CENTRED_HEADINGS], 'sort' => self::BY_NAME]),
             'pagination' => [
                 'current_page' => $rows->currentPage(),
                 'total' => $rows->total(),
@@ -63,7 +76,7 @@ class ReadingPrintData
             'المشتركون' => $box['subscribers'], 'طريقة القراءة' => $box['channel'], 'حالة التوزيع' => $box['status'],
         ], $fields, [...$box, 'branchName' => $context['branchName'], 'readingDate' => $context['readingDate']]), $boxes);
 
-        return self::report($labels, $fields, $data, $context, $total, ['group' => ['key' => 'field:subAreaName']]);
+        return self::report($labels, $fields, $data, $context, $total, ['group' => ['key' => 'field:subAreaName', 'unit' => 'طبلون', ...self::CENTRED_HEADINGS]]);
     }
 
     /** @param list<array<string, mixed>> $boxes
@@ -89,7 +102,7 @@ class ReadingPrintData
         return [
             ...self::report($labels, $fields, $data, $context, count($data), [
                 'density' => 'relaxed',
-                'group' => ['key' => 'field:subAreaName'],
+                'group' => ['key' => 'field:subAreaName', 'then' => ['الطبلون'], 'unit' => 'مشترك', ...self::CENTRED_HEADINGS],
                 'footer' => ['signatures' => ['القارئ', 'المراجع']],
             ]),
             'warnings' => array_values(array_map(
@@ -122,7 +135,11 @@ class ReadingPrintData
     private static function row(array $cells, array $fields, array $values): array
     {
         foreach ($fields as $key => $label) {
-            $cells['field:'.$key] = $values[$key] ?? '';
+            $value = $values[$key] ?? '';
+            // Dates print day first (29/10/2026), as everywhere else.
+            $cells['field:'.$key] = in_array($key, ['weekStart', 'weekEnd', 'readingDate'], true) && is_string($value) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $date)
+                ? $date[3].'/'.$date[2].'/'.$date[1]
+                : $value;
         }
 
         return ['type' => 'row', 'cells' => array_map(fn (mixed $value): string => (string) ($value ?? ''), $cells)];

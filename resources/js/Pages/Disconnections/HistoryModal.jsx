@@ -2,7 +2,7 @@ import Modal from '@/Components/Modal';
 import Icon from '@/Components/Icon';
 import StatusPill from '@/Components/DataTable/StatusPill';
 import { balanceInText } from '@/lib/balance';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatDate } from '@/lib/format';
 
 const EVENT_ICONS = { added: 'plus', extended: 'calendar', warned: 'send', removed: 'undo', disconnected: 'power' };
 
@@ -13,9 +13,9 @@ function eventDetails(event, reasonLabels) {
 
     switch (event.type) {
         case 'added':
-            return [`السبب: ${reasonLabels[after.reason] ?? after.reason}`, `الموعد: ${after.scheduled_for}`, `الرصيد عند الإدراج: ${balanceInText(after.balance)}`, after.note && `ملاحظة: ${after.note}`].filter(Boolean).join(' · ');
+            return [`السبب: ${reasonLabels[after.reason] ?? after.reason}`, `الموعد: ${formatDate(after.scheduled_for)}`, `الرصيد عند الإدراج: ${balanceInText(after.balance)}`, after.note && `ملاحظة: ${after.note}`].filter(Boolean).join(' · ');
         case 'extended':
-            return `من ${before.scheduled_for} إلى ${after.scheduled_for}`;
+            return `من ${formatDate(before.scheduled_for)} إلى ${formatDate(after.scheduled_for)}`;
         case 'warned':
             return after.channel === 'whatsapp' ? 'عبر واتساب' : 'رسالة SMS';
         case 'disconnected':

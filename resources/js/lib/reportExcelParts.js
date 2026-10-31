@@ -6,6 +6,7 @@
  * holds whatever of the report the user picks, with the same words as the
  * page.
  */
+import { formatDate } from './format.js';
 import { weekDayName } from './weekDays.js';
 
 const money = (key, label, extra = {}) => ({ key, label, type: 'money', width: 16, ...extra });
@@ -29,7 +30,7 @@ function summaryPart(flow, collections, comparison) {
             { label: 'الرصيد الختامي', value: flow.closing, note: change > 0 ? 'زاد' : change < 0 ? 'نقص' : 'لم يتغير' },
             { label: 'التغيّر خلال الفترة', value: flow.change },
             ...(comparison ? [
-                { label: 'المحصّل في الفترة السابقة', value: comparison.total, note: `${comparison.from} – ${comparison.to}` },
+                { label: 'المحصّل في الفترة السابقة', value: comparison.total, note: `${formatDate(comparison.from)} – ${formatDate(comparison.to)}` },
                 { label: 'فرق التحصيل عن الفترة السابقة', value: comparison.difference, note: comparison.percentage === null ? 'لا تحصيل في الفترة السابقة' : `${comparison.percentage}%` },
             ] : []),
         ],

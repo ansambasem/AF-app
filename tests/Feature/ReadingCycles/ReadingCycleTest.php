@@ -158,7 +158,7 @@ class ReadingCycleTest extends TestCase
         $this->assertSame('2026-10-20', MeterReading::query()->sole()->week_end->toDateString());
     }
 
-    public function test_a_branch_with_its_own_schedule_does_not_follow_a_company_day_change(): void
+    public function test_a_company_day_change_overrides_the_custom_branch_schedule_used_by_an_existing_cycle(): void
     {
         $cycle = $this->cycle();
         ReadingEntrySetting::factory()->forBranch($this->branch)->create();
@@ -169,13 +169,14 @@ class ReadingCycleTest extends TestCase
 
         $this->actingAs($this->branchAdmin)->get(route('reading-cycles.show', $cycle))
             ->assertInertia(fn ($page) => $page
-                ->where('cycle.scheduledReadingDate', '2026-10-22')
-                ->where('cycle.minReadingDate', '2026-10-22')
-                ->where('cycle.maxReadingDate', '2026-10-28'));
+                ->where('cycle.scheduledReadingDate', '2026-10-20')
+                ->where('cycle.minReadingDate', '2026-10-20')
+                ->where('cycle.maxReadingDate', '2026-10-26'));
         $this->patch(route('reading-cycles.update', $cycle), ['reading_date' => '2026-10-20'])
-            ->assertSessionHasErrors('reading_date');
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame('2026-10-22', $cycle->fresh()->reading_date->toDateString());
+        $this->assertSame('2026-10-20', $cycle->fresh()->reading_date->toDateString());
+        $this->assertSame(2, ReadingEntrySetting::forBranch($this->branch)->reading_day);
     }
 
     public function test_rescheduling_one_cycle_does_not_change_the_permanent_reading_schedule(): void

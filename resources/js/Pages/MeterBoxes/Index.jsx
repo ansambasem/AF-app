@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import SettingsLayout from '@/Layouts/SettingsLayout';
 import AddButton from '@/Components/AddButton';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
@@ -22,21 +22,30 @@ import './meter-boxes.css';
 import PageHeader from '@/Components/PageHeader';
 import SecondaryButton from '@/Components/SecondaryButton';
 import SearchableSelect from '@/Components/SearchableSelect';
+import { readingPrintUrl } from '@/Components/PrintButton';
+import { secondaryButtonClass } from '@/Components/SecondaryButton';
 
 const SUBSCRIPTION_DIRECTION_KEY = 'meter-box-subscription-direction';
+const SUBSCRIPTION_SORT_KEY = 'meter-box-subscription-sort';
+const SUBSCRIPTION_ORDERS = [
+    { value: 'name:asc', label: 'الاسم: من أ إلى ي' },
+    { value: 'name:desc', label: 'الاسم: من ي إلى أ' },
+    { value: 'account_number:asc', label: 'رقم الحساب: تصاعدي' },
+    { value: 'account_number:desc', label: 'رقم الحساب: تنازلي' },
+];
 let handledReload = false;
 
-function readSubscriptionDirection() {
+/** The order of the subscribers inside every box, as last chosen in this browser. */
+function readSubscriptionOrder() {
     try {
-        const saved = localStorage.getItem(SUBSCRIPTION_DIRECTION_KEY);
-        if (saved === 'asc' || saved === 'desc') {
-            return saved;
-        }
+        const sort = localStorage.getItem(SUBSCRIPTION_SORT_KEY) === 'account_number' ? 'account_number' : 'name';
+        const direction = localStorage.getItem(SUBSCRIPTION_DIRECTION_KEY) === 'desc' ? 'desc' : 'asc';
+
+        return { sort, direction };
     } catch {
         // Use the default order when browser storage is unavailable.
+        return { sort: 'name', direction: 'asc' };
     }
-
-    return 'asc';
 }
 
 function MeterBoxSummary({ summary }) {
@@ -80,6 +89,7 @@ export default function Index({
     branchScope,
     selectedBranch,
     summary,
+    groupByRegion,
     canViewSubscriptions,
     canRecordReadings,
     canSendMessages,
@@ -89,12 +99,13 @@ export default function Index({
     const [expandedIds, setExpandedIds] = useState(new Set());
     const [collapsedIds, setCollapsedIds] = useState(new Set());
     const [expandingAll, setExpandingAll] = useState(false);
-    const [groupByRegion, setGroupByRegion] = useState(false);
-    const [subscriptionDirection, setSubscriptionDirection] = useState(readSubscriptionDirection);
+    const [subscriptionOrder, setSubscriptionOrder] = useState(readSubscriptionOrder);
 
-    function sortSubscriptions(direction) {
-        setSubscriptionDirection(direction);
+    function sortSubscriptions(value) {
+        const [sort, direction] = value.split(':');
+        setSubscriptionOrder({ sort, direction });
         try {
+            localStorage.setItem(SUBSCRIPTION_SORT_KEY, sort);
             localStorage.setItem(SUBSCRIPTION_DIRECTION_KEY, direction);
         } catch {
             // The order still applies to every box during this visit.
@@ -113,7 +124,15 @@ export default function Index({
     }, []);
     const rowClick = useRowClick();
     const { requestDelete, deleteDialog } = useDeleteRecord('الطبلون');
-    const { search, setSearch, sort, sortBy, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/meter-boxes', filters);
+    // Grouped by region, the server lists each region's boxes together so a region doesn't split across pages.
+    const groupParams = groupByRegion ? { group: 'region' } : {};
+    const { search, setSearch, sort, sortBy, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/meter-boxes', filters, groupParams);
+    const canPrint = usePage().props.can?.printAuditReports !== false;
+    const subscriptionsPrintHref = () => readingPrintUrl('الطبلونات ومشتركوها', `/meter-boxes/subscriptions-print${window.location.search}`, { subscription_sort: subscriptionOrder.sort, subscription_direction: subscriptionOrder.direction });
+
+    function toggleGroupByRegion() {
+        router.get('/meter-boxes', { search, sort: filters.sort, direction: filters.direction, per_page: filters.per_page, filter: filterValues, group: groupByRegion ? undefined : 'region' }, { preserveState: true, preserveScroll: true, replace: true });
+    }
     // The Super Admin picks the branch in the banner above the list, not among the filters; clearing those keeps it.
     const branchFilter = splitBranchFilter(branchScope, filterOptions, filterValues);
     const isExpanded = (id) => expandingAll ? !collapsedIds.has(id) : expandedIds.has(id);
@@ -189,16 +208,13 @@ export default function Index({
                                 { value: 'created_at', label: 'تاريخ الإضافة' },
                             ]}
                         />
-                        {canViewSubscriptions && <div role="group" aria-label="ترتيب مشتركي جميع الطبلونات" className="flex w-full min-w-0 flex-col gap-1.5 sm:w-44">
-                            <label htmlFor="all-meter-box-subscriptions-direction" className="text-xs font-semibold text-gray-500">اتجاه ترتيب المشتركين</label>
+                        {canViewSubscriptions && <div role="group" aria-label="ترتيب مشتركي جميع الطبلونات" className="flex w-full min-w-0 flex-col gap-1.5 sm:w-52">
+                            <label htmlFor="all-meter-box-subscriptions-direction" className="text-xs font-semibold text-gray-500">ترتيب المشتركين داخل الطبلون</label>
                             <SearchableSelect
                                 id="all-meter-box-subscriptions-direction"
-                                value={subscriptionDirection}
+                                value={`${subscriptionOrder.sort}:${subscriptionOrder.direction}`}
                                 onChange={sortSubscriptions}
-                                options={[
-                                    { value: 'asc', label: 'من أ إلى ي' },
-                                    { value: 'desc', label: 'من ي إلى أ' },
-                                ]}
+                                options={SUBSCRIPTION_ORDERS}
                                 clearable={false}
                                 searchable={false}
                                 portal
@@ -213,7 +229,8 @@ export default function Index({
                     <SecondaryButton onClick={expandAll} disabled={meterBoxes.data.length === 0 || allExpanded}><Icon name="chevron-down" className="h-4 w-4" />توسيع الكل</SecondaryButton>
                     <SecondaryButton onClick={collapseAll} disabled={!anyExpanded}><Icon name="chevron-down" className="h-4 w-4 rotate-180" />طي الكل</SecondaryButton>
                 </>}
-                <SecondaryButton aria-pressed={groupByRegion} onClick={() => setGroupByRegion((current) => !current)} className={groupByRegion ? '!border-brand-500/30 !bg-brand-500/10 !text-brand-600' : ''}><Icon name="pin" className="h-4 w-4" />تجميع حسب المنطقة</SecondaryButton>
+                <SecondaryButton aria-pressed={groupByRegion} onClick={toggleGroupByRegion} className={groupByRegion ? '!border-brand-500/30 !bg-brand-500/10 !text-brand-600' : ''}><Icon name="pin" className="h-4 w-4" />تجميع حسب المنطقة</SecondaryButton>
+                {canViewSubscriptions && canPrint && <a href={subscriptionsPrintHref()} onClick={(event) => { event.currentTarget.href = subscriptionsPrintHref(); }} target="_blank" rel="noopener noreferrer" className={`${secondaryButtonClass} tone-print`} title="طباعة كل طبلون تحت منطقته ومشتركوه تحته، بنفس البحث والتصفية وترتيب المشتركين"><Icon name="printer" className="h-4 w-4" />طباعة الطبلونات مع المشتركين</a>}
                 {canViewSubscriptions && <span className="text-xs text-gray-500">التوسيع يعرض مشتركي طبلونات الصفحة الحالية، ويستمر عند الانتقال للصفحة التالية.</span>}
             </div>
 
@@ -278,7 +295,7 @@ export default function Index({
                                     </td>
                                 </tr>
                                 {canViewSubscriptions && isExpanded(meterBox.id) && <tr className="meter-box-detail"><td colSpan={5}>
-                                    <MeterBoxSubscriptions key={`${meterBox.id}-${meterBox.subscriptionsCount}-${filters.search}-${filters.sort}`} meterBox={meterBox} sort="name" direction={subscriptionDirection} canRecordReadings={canRecordReadings} canSendMessages={canSendMessages} />
+                                    <MeterBoxSubscriptions key={`${meterBox.id}-${meterBox.subscriptionsCount}-${filters.search}-${filters.sort}`} meterBox={meterBox} sort={subscriptionOrder.sort} direction={subscriptionOrder.direction} canRecordReadings={canRecordReadings} canSendMessages={canSendMessages} />
                                 </td></tr>}
                                 </Fragment>
                             ))}</Fragment>)
@@ -287,7 +304,7 @@ export default function Index({
                 </table>
             </div>
 
-            <Pagination meta={meterBoxes} filters={filters} baseUrl="/meter-boxes" />
+            <Pagination meta={meterBoxes} filters={filters} baseUrl="/meter-boxes" extraParams={groupParams} />
 
             <MeterBoxModal
                 key={`new-${selectedBranch?.id ?? 'all'}`}

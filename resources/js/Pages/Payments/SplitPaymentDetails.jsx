@@ -3,7 +3,7 @@ import { useHttp } from '@inertiajs/react';
 import Icon from '@/Components/Icon';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatDate } from '@/lib/format';
 
 /** One line of the transfer's own details. */
 function Detail({ label, children, ltr = false }) {
@@ -91,10 +91,10 @@ export default function SplitPaymentDetails({ id, onClose }) {
                                 <Detail label="سجّلها">
                                     <span className="block">{split.recordedByName || '—'}</span>
                                     <span className="mt-1 block text-sm font-normal text-gray-600">
-                                        <bdi dir="ltr" className="font-display">{split.date} {split.time}</bdi>
+                                        <bdi dir="ltr" className="font-display">{formatDate(split.date)} {split.time}</bdi>
                                     </span>
                                 </Detail>
-                                <Detail label="تاريخ وصول الحوالة إلى البنك" ltr>{split.bankReceivedOn?.split('-').reverse().join('/')}</Detail>
+                                <Detail label="تاريخ وصول الحوالة إلى البنك" ltr>{formatDate(split.bankReceivedOn)}</Detail>
                             </dl>
 
                             <div>

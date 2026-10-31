@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import TopBar from '@/Components/TopBar/TopBar';
+import BranchViewSwitcher from '@/Components/BranchViewSwitcher';
 import NavigationDrawer from '@/Components/TopBar/NavigationDrawer';
 import { Breadcrumb, SectionPages } from '@/Components/TopBar/PageTrail';
 import { handlePaletteShortcut, pageWindowOpen } from '@/Components/TopBar/shortcuts';
@@ -25,6 +26,7 @@ const NO_BADGES = {};
 
 // The first page of a visit to the app keeps the browser's own focus; later pages put it on their content.
 let openedOnce = false;
+let cachedBranchKey;
 
 // How far down the floating bar reaches, so content under it counts as scrolled away.
 const BAR_CLEARANCE = 90;
@@ -45,6 +47,13 @@ function isTyping(target) {
 export default function AuthenticatedLayout({ header, badges = NO_BADGES, scope = null, children, beforePrint }) {
     const { props, url } = usePage();
     const { can } = props;
+    const branchKey = `${props.auth?.user?.username ?? ''}:${props.branchView?.current?.id ?? 'all'}`;
+    useEffect(() => {
+        if (cachedBranchKey !== branchKey) {
+            router.flushAll();
+            cachedBranchKey = branchKey;
+        }
+    }, [branchKey]);
     const { dark, changePreference } = useTheme();
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [paletteOpen, setPaletteOpen] = useState(false);
@@ -215,6 +224,7 @@ export default function AuthenticatedLayout({ header, badges = NO_BADGES, scope 
             />
 
             <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1720px] px-[var(--tn-gutter)] pb-16 pt-8 outline-none">
+                <BranchViewSwitcher />
                 <Breadcrumb trail={trail} />
                 <SectionPages trail={trail} url={url} badges={badges} />
                 {header && <div className="rise-in mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">{header}</div>}

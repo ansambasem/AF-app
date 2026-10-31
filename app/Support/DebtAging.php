@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -97,6 +98,43 @@ class DebtAging
     }
 
     /**
+     * A balance split by age over the charges that make it up: the newest
+     * charges are the ones still unpaid, since payments settle the oldest
+     * first. Whatever of the balance no charge accounts for is aged with
+     * the oldest charge reached. The receivables page ages as of today and
+     * the reports as of a period's end; both split the same way.
+     *
+     * @param  iterable<int, array{day: string, cents: int}>  $charges  newest first
+     * @param  Closure(string): int  $daysOld  how many days old a charge of that day is
+     * @return array{buckets: array<string, int>, oldestDate: ?string, oldestDays: int}
+     */
+    public static function split(int $balance, iterable $charges, Closure $daysOld): array
+    {
+        $remaining = $balance;
+        $buckets = array_fill_keys(array_keys(self::BUCKETS), 0);
+        $oldestDate = null;
+        $oldestDays = 0;
+
+        foreach ($charges as ['day' => $day, 'cents' => $cents]) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $taken = min($remaining, $cents);
+            $oldestDate = $day;
+            $oldestDays = $daysOld($day);
+            $buckets[self::bucketFor($oldestDays)] += $taken;
+            $remaining -= $taken;
+        }
+
+        if ($remaining > 0) {
+            $buckets[self::bucketFor($oldestDays)] += $remaining;
+        }
+
+        return ['buckets' => $buckets, 'oldestDate' => $oldestDate, 'oldestDays' => $oldestDays];
+    }
+
+    /**
      * One debtor's balance split over the charges that make it up, newest
      * first.
      *
@@ -106,27 +144,11 @@ class DebtAging
     private function age(Subscription $subscription, Collection $charges, ?string $lastPaidAt): array
     {
         $balance = self::cents((string) $subscription->balance);
-        $remaining = $balance;
-        $buckets = array_fill_keys(array_keys(self::BUCKETS), 0);
-        $oldestDate = null;
-        $oldestDays = 0;
-
-        foreach ($charges as $charge) {
-            if ($remaining <= 0) {
-                break;
-            }
-
-            $taken = min($remaining, self::cents($charge->amount));
-            $oldestDate = DailySeries::localDate($charge->created_at);
-            $oldestDays = $this->daysSince($oldestDate);
-            $buckets[self::bucketFor($oldestDays)] += $taken;
-            $remaining -= $taken;
-        }
-
-        if ($remaining > 0) {
-            $buckets[self::bucketFor($oldestDays)] += $remaining;
-        }
-
+        ['buckets' => $buckets, 'oldestDate' => $oldestDate, 'oldestDays' => $oldestDays] = self::split(
+            $balance,
+            $charges->lazy()->map(fn (object $charge): array => ['day' => DailySeries::localDate($charge->created_at), 'cents' => self::cents($charge->amount)]),
+            fn (string $day): int => $this->daysSince($day),
+        );
         $lastPaymentDate = $lastPaidAt ? DailySeries::localDate($lastPaidAt) : null;
 
         return [

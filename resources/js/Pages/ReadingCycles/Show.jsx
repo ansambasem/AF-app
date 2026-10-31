@@ -7,7 +7,7 @@ import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton, { secondaryButtonClass } from '@/Components/SecondaryButton';
 import InputError from '@/Components/InputError';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, formatDate } from '@/lib/format';
 import { STAGES, assignmentMatches, boardColumns, boardCounters, boxMatches, columnTotals, distributionAreas, distributionBoxOptions, movePayload, toggleBoxSelection } from '@/lib/readingBoard';
 import PageHeader from '@/Components/PageHeader';
 import DateInput from '@/Components/DateInput';
@@ -240,9 +240,9 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
                 <>
                     <PageHeader
                         eyebrow={showBranchSelector ? <><Link href="/reading-cycles" className="hover:underline">الفروع</Link> / {cycle.branchName}</> : 'توزيع القراءة القادمة'}
-                        title={<>قراءة {cycle.readingDayName} <span dir="ltr" className="font-display">{cycle.readingDate}</span></>}
+                        title={<>قراءة {cycle.readingDayName} <span dir="ltr" className="font-display">{formatDate(cycle.readingDate)}</span></>}
                         titleAddon={<StatusPill tone={stage.tone} label={stage.label} />}
-                        meta={<>أسبوع القراءة <span dir="ltr">{cycle.weekStart}</span> — <span dir="ltr">{cycle.weekEnd}</span> · إتاحة المهام <span dir="ltr">{cycle.availableOn}</span>{cycle.readingDate !== cycle.weekEnd && ' · يوم القراءة مؤجل لهذه الدورة'}</>}
+                        meta={<>أسبوع القراءة <span dir="ltr">{formatDate(cycle.weekStart)}</span> — <span dir="ltr">{formatDate(cycle.weekEnd)}</span> · إتاحة المهام <span dir="ltr">{formatDate(cycle.availableOn)}</span>{cycle.readingDate !== cycle.weekEnd && ' · يوم القراءة مؤجل لهذه الدورة'}</>}
                     />
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
                         <SecondaryButton disabled={busy} onClick={() => setSummaryOpen(true)}>ملخّص توزيع الفرع</SecondaryButton>
@@ -270,7 +270,7 @@ export default function Show({ cycle, boards, readers, paperSheets, reviewCount,
                 </>
             }
         >
-            <Head title={`توزيع القراءات — ${cycle.readingDate}`} />
+            <Head title={`توزيع القراءات — ${formatDate(cycle.readingDate)}`} />
 
             {!actionsOpen && allocationReport}
             {(errors.box_ids || errors.approve || errors.copy) && !result && <p className="mb-4 rounded-control bg-red-500/10 px-4 py-2 text-sm text-red-700">{errors.box_ids ?? errors.approve ?? errors.copy}</p>}

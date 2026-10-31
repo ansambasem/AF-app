@@ -33,9 +33,11 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
     const { props, url } = usePage();
     const { appName, auth } = props;
     const user = auth?.user;
+    const branchLabel = props.branchView ? props.branchView.current?.name ?? 'جميع الفروع' : user?.branchName;
     const items = topBarItems(groups);
     const current = currentGroup(groups, url);
-    const pageLabel = where ? (where.scope ? [where.page, where.scope] : [where.section, where.page]).filter(Boolean).join(' · ') : null;
+    const currentScope = props.branchView?.current ? branchLabel : where?.scope;
+    const pageLabel = where ? (currentScope ? [where.page, currentScope] : [where.section, where.page]).filter(Boolean).join(' · ') : null;
 
     const [scrolled, setScrolled] = useState(false);
     const [hoverKey, setHoverKey] = useState(null);
@@ -450,13 +452,13 @@ export default function TopBar({ groups, badges, where, onOpenPalette, onOpenDra
                     }}
                 >
                     <div className="flex min-w-0 items-center">
-                        <Link href={HOME_LINK.href} prefetch={shouldPrefetchPage(HOME_LINK.href)} className="tn-brand" data-tour="brand" aria-label={`${appName}، ${user?.branchName ?? 'نظام التحصيل الكهربائي'}، الصفحة الرئيسية`}>
+                        <Link href={HOME_LINK.href} prefetch={shouldPrefetchPage(HOME_LINK.href)} className="tn-brand" data-tour="brand" aria-label={`${appName}، ${branchLabel ?? 'نظام التحصيل الكهربائي'}، الصفحة الرئيسية`}>
                             <img src="/images/logo-af.webp" alt={appName} />
                             <span className="tn-brand-divider" aria-hidden="true" />
                             <span className="tn-brand-text">
                                 <span className="tn-brand-name" dir="auto">{shortAppName(appName)}</span>
                                 <span className="tn-brand-branch" dir="auto">
-                                    <span key={pageLabel ?? ''} className={`tn-brand-swap ${pageLabel ? 'is-page' : ''}`}>{pageLabel ?? user?.branchName ?? 'نظام التحصيل الكهربائي'}</span>
+                                    <span key={pageLabel ?? ''} className={`tn-brand-swap ${pageLabel ? 'is-page' : ''}`}>{pageLabel ?? branchLabel ?? 'نظام التحصيل الكهربائي'}</span>
                                 </span>
                             </span>
                         </Link>

@@ -3,6 +3,7 @@ import { usePage } from '@inertiajs/react';
 import DateInput from '@/Components/DateInput';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
+import { formatDate } from '@/lib/format';
 
 export function BankReceivedDateField({ value, onChange, error }) {
     const id = useId();
@@ -19,5 +20,5 @@ export function BankReceivedDateField({ value, onChange, error }) {
 export default function BankReceivedDate({ value }) {
     if (!value) return null;
 
-    return <span className="mt-1 block whitespace-normal text-xs leading-6 text-gray-600 dark:text-gray-400">وصول البنك: <bdi dir="ltr" className="font-display">{value.split('-').reverse().join('/')}</bdi></span>;
+    return <span className="mt-1 block whitespace-normal text-xs leading-6 text-gray-600 dark:text-gray-400">وصول البنك: <bdi dir="ltr" className="font-display">{formatDate(value)}</bdi></span>;
 }

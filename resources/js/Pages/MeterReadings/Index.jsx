@@ -15,7 +15,7 @@ import SearchableSelect from '@/Components/SearchableSelect';
 import { useDataTable } from '@/hooks/useDataTable';
 import { useLastReadingEdit } from '@/hooks/useLastReadingEdit';
 import { printFieldsProps, printRowProps } from '@/lib/print';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, formatShekels } from '@/lib/currency';
 import { formatMonthName } from '@/lib/format';
 import { consumptionBetween, steppedReading, weeklyCharges } from '@/lib/readings';
 import { activeReadingStatus, readingStatusFilters, readingWeekParams } from '@/lib/readingSheet';
@@ -312,15 +312,15 @@ export function SheetRow({ row, week, approvable, showRecorder, selected, onTogg
             <td className={`re-diff re-number ${charges && charges.consumption < 0 ? 'text-red-600' : 'text-brand-700'}`}>
                 {charges ? charges.consumption : '—'}
             </td>
-            <td className="re-rate re-number">{formatCurrency(row.unitPrice)}</td>
+            <td className="re-rate re-number">{formatShekels(row.unitPrice)}</td>
             <td className={`re-fee re-number ${belowMinimum ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
-                {charges ? formatCurrency(charges.readingFee) : '—'}
+                {charges ? formatShekels(charges.readingFee) : '—'}
             </td>
             <td className={`re-min re-number ${belowMinimum ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
-                {formatCurrency(row.minimumPayment)}
+                {formatShekels(row.minimumPayment)}
             </td>
             <td className={`re-due re-number ${billCancelled && !isDraft ? 'text-gray-400' : ''}`}>
-                {charges && charges.consumption >= 0 ? <span className={billCancelled && !isDraft ? 'line-through' : ''}>{formatCurrency(charges.amountDue)}</span> : '—'}
+                {charges && charges.consumption >= 0 ? <span className={billCancelled && !isDraft ? 'line-through' : ''}>{formatShekels(charges.amountDue)}</span> : '—'}
                 {dueNotes.length > 0 && (
                     <p className="re-line text-xs font-normal text-gray-500" title={dueNotes.map((note) => note.text).join(' · ')}>
                         {dueNotes.map((note, index) => (

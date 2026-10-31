@@ -105,7 +105,7 @@ class MessageComposer
             $reading = $subscription->relationLoaded('meterReadings') ? $subscription->meterReadings->first() : null;
 
             $variables += [
-                'تاريخ_القراءة' => ($reading?->week_end ?? $reading?->week_start)?->format('j/n/Y') ?? '',
+                'تاريخ_القراءة' => ($reading?->week_end ?? $reading?->week_start)?->format('d/m/Y') ?? '',
                 'يوم_القراءة' => ($reading?->week_end ?? $reading?->week_start)?->copy()->locale('ar')->dayName ?? '',
                 'سعر_الكيلو' => $reading ? self::number((float) $reading->unit_price) : '',
                 'القراءة_السابقة' => $reading ? self::number($reading->previous_reading) : '',

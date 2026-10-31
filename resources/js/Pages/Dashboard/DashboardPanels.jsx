@@ -20,7 +20,7 @@ export function CollectionsTile({ collections, period }) {
             hero
             label={`التحصيل · آخر ${period}`}
             value={formatMoney(collections.total)}
-            unit="شيكل"
+            unit="₪"
             badge={<ChangeBadge change={collections.change} />}
             hint={`${formatNumber(collections.count)} دفعة · الفترة السابقة ${formatMoney(collections.previousTotal)} ₪`}
         >
@@ -403,7 +403,7 @@ export function LatestPayments({ payments, latestPayments, period, search, onSea
                                     </td>
                                     <td
                                         className="whitespace-nowrap text-gray-500"
-                                        title={new Date(payment.recordedAt).toLocaleString('ar-SY-u-nu-latn')}
+                                        title={new Date(payment.recordedAt).toLocaleString('ar-EG-u-nu-latn')}
                                     >
                                         {timeAgo(payment.recordedAt)}
                                     </td>
