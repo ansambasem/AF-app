@@ -121,7 +121,8 @@ class BranchClosingWorkflow
             if (! $setting?->workflow_started_at) {
                 return;
             }
-            $latest = Closing::query()->where('branch_id', $branchId)->whereNotNull('workflow_settings')->orderByDesc('coverage_until')->orderBy('id')->firstOrFail();
+            $latest = Closing::query()->where('branch_id', $branchId)->whereNotNull('workflow_settings')->orderByDesc('coverage_until')->orderBy('id')->first()
+                ?? $this->restartPeriods($branchId, $setting);
             if ((int) $latest->workflow_settings['week_starts_on'] !== $setting->week_starts_on || $latest->workflow_settings['cutoff_time'] !== ClosingSetting::DEFAULT_CUTOFF) {
                 $settings = $this->settings($setting);
                 $until = $this->nextEnd($latest->coverage_from, $settings);
@@ -151,6 +152,20 @@ class BranchClosingWorkflow
                     }
                 });
         });
+    }
+
+    /**
+     * The current week of a branch whose workflow started but which has no
+     * period left (its periods were removed from the database): opened as
+     * start() opens the first one, so its payments and boxes have a week to
+     * sit in again instead of every page and payment of the branch failing.
+     */
+    private function restartPeriods(int $branchId, ClosingSetting $setting): Closing
+    {
+        $settings = $this->settings($setting);
+        $end = $this->nextEnd(CarbonImmutable::now()->utc(), $settings);
+
+        return $this->createPeriod($branchId, $end->setTimezone(config('app.business_timezone'))->subWeek()->utc(), $end, $settings);
     }
 
     public function capture(SubscriptionTransaction $payment): void

@@ -379,6 +379,25 @@ class BranchClosingWorkflowTest extends TestCase
         $this->assertDatabaseCount('cash_box_audits', 0);
     }
 
+    public function test_a_started_branch_whose_periods_were_removed_opens_the_current_week_again(): void
+    {
+        [$branch, , $collector] = $this->start();
+        $this->payment($branch, $collector);
+        CashBoxPayment::query()->delete();
+        CashBox::query()->delete();
+        Closing::query()->delete();
+        $superAdmin = User::factory()->superAdmin()->create();
+        $subscription = Subscription::factory()->for($branch)->create();
+
+        $this->actingAs($superAdmin)->post(route('subscriptions.payments.store', $subscription), ['amount' => '54', 'currency' => 'ILS', 'payment_method' => 'cash'])
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $this->actingAs($superAdmin)->get(route('payments.cash-boxes', ['place' => 'open']))->assertOk();
+
+        $closing = app(BranchClosingWorkflow::class)->current($branch->id);
+        $this->assertTrue($closing->coverage_from->lessThanOrEqualTo(now()) && $closing->coverage_until->greaterThan(now()));
+        $this->assertSame(2, CashBoxPayment::query()->whereHas('box', fn ($box) => $box->where('closing_id', $closing->id))->count());
+    }
+
     public function test_a_payment_synced_after_its_week_ended_joins_the_collectors_open_box(): void
     {
         [$branch, , $collector] = $this->start();
