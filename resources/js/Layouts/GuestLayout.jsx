@@ -28,7 +28,7 @@ export default function GuestLayout({ children }) {
                     {children}
                 </div>
 
-                <AppFooter compact />
+                <AppFooter />
             </div>
 
             <div className="login-brand-panel relative hidden flex-col items-center justify-center overflow-hidden border-s border-gray-100 px-10 py-12 text-center lg:flex">

@@ -7,7 +7,6 @@ import { Breadcrumb, SectionPages } from '@/Components/TopBar/PageTrail';
 import { handlePaletteShortcut, pageWindowOpen } from '@/Components/TopBar/shortcuts';
 import { useTheme } from '@/hooks/useTheme';
 import { currentPrintSettings } from '@/lib/print';
-import AppFooter from '@/Components/AppFooter';
 import { watchSessionStatus } from '@/lib/sessionStatus';
 import { HOME_LINK, MAIN_LINKS, allowedNavigationGroups, navigationGroups, pageTrail } from '@/lib/navigation';
 import { useResponsiveTables } from '@/hooks/useResponsiveTables';
@@ -231,7 +230,6 @@ export default function AuthenticatedLayout({ header, badges = NO_BADGES, scope 
                 <div ref={titleEndRef} aria-hidden="true" />
                 {children}
             </main>
-            <AppFooter />
 
             <NavigationDrawer
                 open={drawerOpen}
