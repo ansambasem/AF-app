@@ -20,6 +20,12 @@ test('in running text the signed balance is isolated left to right', () => {
     assert.equal(balanceInText(-30), '⁦-30 ₪⁩');
 });
 
+test('a balance already shown with thousands separators keeps its value', () => {
+    assert.equal(signedBalance('-100,338'), '-100,338');
+    assert.equal(balanceInText(signedBalance('-100321.50')), '⁦-100,321.50 ₪⁩');
+    assert.equal(balanceTone('1,250.75'), 'owes');
+});
+
 test('on paper the balance carries its word', () => {
     assert.equal(balanceWord(120), 'عليه');
     assert.equal(balanceWord('-30.5'), 'له');

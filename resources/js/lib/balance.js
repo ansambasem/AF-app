@@ -38,8 +38,9 @@ export const BALANCE_CHIP_CLASSES = {
     settled: 'bg-gray-100 text-gray-600',
 };
 
+/** A balance in cents, whether given as a number or as text already shown with thousands separators ("-100,338"). */
 function cents(value) {
-    return Math.round(Number(value ?? 0) * 100) || 0;
+    return Math.round(Number(String(value ?? 0).replaceAll(',', '')) * 100) || 0;
 }
 
 /** Owed, credit or settled, to the cent. */
