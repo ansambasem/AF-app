@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\SmsSetting;
 use App\Models\SubscriptionTransaction;
+use App\Support\BillingPeriods;
 use App\Support\BranchClosingWorkflow;
 use App\Support\BranchDomainScope;
 use App\Support\BranchSettings;
@@ -22,6 +23,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // The reading and closing schedules are read by every week and period calculation, so loaded once per request or job.
         $this->app->scoped(BranchSettings::class);
+        // A branch's billing periods decide every line's and reading's period, so they are read once per request or job too.
+        $this->app->scoped(BillingPeriods::class);
 
         // SMS go out through the provider set up in the dashboard while it is on, else the gateway named in
         // services.sms.driver; until one is set up they're only logged.

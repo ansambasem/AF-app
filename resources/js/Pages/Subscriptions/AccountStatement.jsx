@@ -604,7 +604,7 @@ function SummaryCard({ label, value, hint, tone = 'default', className = '' }) {
  * with the company and `subscription` (the statement's header) above them
  * and only the statement on the page, light whatever the app's theme.
  */
-export default function AccountStatement({ subscription, entries, summary, paymentMethods, transactionTypes, onAction, focusLineId = null, printOptions = null }) {
+export default function AccountStatement({ subscription, entries, summary, periods = {}, paymentMethods, transactionTypes, onAction, focusLineId = null, printOptions = null }) {
     const [filters, setFilters] = useState(() => printOptions?.filters ?? EMPTY_FILTERS);
     const [view, setView] = useState(() => printOptions?.view ?? 'compact');
     const [openHistories, setOpenHistories] = useState(() => new Set(printOptions?.openHistories ?? []));
@@ -884,12 +884,21 @@ export default function AccountStatement({ subscription, entries, summary, payme
                                     </td>
                                 </tr>
                             ) : (
-                                rows.map((entry) => {
+                                rows.map((entry, index) => {
                                     const historyOpen = isCompact && openHistories.has(entry.id);
+                                    // Where a new billing period starts, a heading names it and what it opened with.
+                                    const period = entry.periodId && entry.periodId !== rows[index - 1]?.periodId ? periods?.[entry.periodId] : null;
                                     const rowProps = { isCompact, hasLineMenus, hoveredChain, onHoverChain: setHoveredChain, onJump: jumpToLine, onAction: actOn, fullPaymentDetails: printOptions !== null };
 
                                     return (
                                         <Fragment key={entry.id}>
+                                            {period && (
+                                                <tr className="statement-period-row bg-gray-50">
+                                                    <td colSpan={columns.length} className="px-3 py-2 text-sm font-semibold text-gray-700">
+                                                        الفترة <span dir="ltr">{period.label}</span> · {period.statusLabel} · المتراكم {formatAmount(period.accumulated)} ₪ · المقدم {formatAmount(period.advance)} ₪
+                                                    </td>
+                                                </tr>
+                                            )}
                                             <StatementRow
                                                 {...rowProps}
                                                 entry={entry}

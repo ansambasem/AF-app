@@ -10,6 +10,7 @@ use App\Enums\DiscountMethod;
 use App\Enums\PaymentMethod;
 use App\Enums\PermissionKey;
 use App\Models\Bank;
+use App\Models\BillingPeriod;
 use App\Models\MeterReading;
 use App\Models\StandingDiscount;
 use App\Models\Subscription;
@@ -127,7 +128,7 @@ trait BuildsSubscriptionStatement
                     $entry['actionEffects']['delete_tree'] = $this->money($effect);
                 }
 
-                return [...$entry, 'readingDiscount' => $readingDiscount ? SubscriptionTransaction::formatAmount(abs((float) $readingDiscount->amount)) : null];
+                return [...$entry, 'periodId' => $transaction->billing_period_id, 'readingDiscount' => $readingDiscount ? SubscriptionTransaction::formatAmount(abs((float) $readingDiscount->amount)) : null];
             })
             ->values();
 
@@ -166,6 +167,7 @@ trait BuildsSubscriptionStatement
                 'archiveHistory' => $subscription->archive_history ?? [],
             ],
             'subscriptions' => $this->profileSubscriptions($actor, $subscription),
+            'periods' => $this->statementPeriods($transactions),
             'entries' => $entries,
             'summary' => [
                 'balance' => $this->money($balanceInCents),
@@ -596,6 +598,37 @@ trait BuildsSubscriptionStatement
     private function cents(string $amount): int
     {
         return (int) round((float) $amount * 100);
+    }
+
+    /**
+     * The billing periods the statement's lines belong to, by id: each with
+     * its days, its state and what the subscription opened it with (every
+     * line before it), split into accumulated (owed) and advance (in hand),
+     * for the statement's period headings.
+     *
+     * @param  Collection<int, SubscriptionTransaction>  $transactions
+     * @return array<int, array{label: string, statusLabel: string, accumulated: string, advance: string}>
+     */
+    private function statementPeriods(Collection $transactions): array
+    {
+        $ids = $transactions->pluck('billing_period_id')->filter()->unique()->values();
+        if ($ids->isEmpty()) {
+            return [];
+        }
+        $periods = BillingPeriod::withoutGlobalScopes()->whereKey($ids)->get()->keyBy('id');
+
+        return $periods->mapWithKeys(function (BillingPeriod $period) use ($transactions, $periods): array {
+            $opening = $transactions->filter(fn (SubscriptionTransaction $line): bool => $line->billing_period_id === null
+                || ($periods->get($line->billing_period_id)?->starts_on->lt($period->starts_on) ?? false))
+                ->sum(fn (SubscriptionTransaction $line): int => $this->cents($line->amount));
+
+            return [$period->id => [
+                'label' => $period->label(),
+                'statusLabel' => $period->statusLabel(),
+                'accumulated' => $this->money(max($opening, 0)),
+                'advance' => $this->money(max(-$opening, 0)),
+            ]];
+        })->all();
     }
 
     private function money(int $cents): string

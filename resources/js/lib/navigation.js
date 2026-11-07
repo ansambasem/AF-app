@@ -20,7 +20,9 @@ export const MAIN_LINKS = [
     { href: '/receivables', label: 'أعمار الديون', description: 'الذمم المتأخرة حسب مدتها', icon: 'clock', can: 'viewDebtAging' },
     { href: '/transaction-audit', label: 'سجل التدقيق', description: 'من غيّر ماذا ومتى', icon: 'history', can: 'viewTransactionAudit' },
     { href: '/branch-performance', label: 'أداء الفروع', description: 'مقارنة نسب التحصيل بين الفروع', icon: 'trend', can: 'viewBranchPerformance' },
-    { href: '/reports', label: 'التقارير', description: 'تقارير التحصيل والقراءات الجاهزة', icon: 'receipt', can: 'viewReports' },
+    { href: '/reports/remaining', label: 'المبالغ المتبقية', description: 'الفواتير والمتراكم والمقدم والدفعات والمتبقي لكل مشترك وفرع في الفترة', icon: 'receipt', can: 'viewReports' },
+    { href: '/billing-periods', label: 'فترات الفوترة', description: 'فتح فترات القراءة والفوترة وإغلاقها واعتمادها', icon: 'calendar', can: 'viewBillingPeriods' },
+    { href: '/reports', label: 'التقارير', description: 'تقارير التحصيل والقراءات الجاهزة', icon: 'receipt', can: 'viewReports', exact: true },
     { href: '/company-forms', label: 'نماذج الشركة', description: 'تخصيص النماذج وطباعة نسخ فارغة ومعبأة وأرشفة الطلبات الورقية', icon: 'document-plus', can: 'viewCompanyForms' },
     { href: '/subscriptions', label: 'المشتركون', description: 'البحث عن مشترك وإضافته وتعديله', icon: 'users', can: 'viewSubscriptions' },
     { href: '/meter-boxes', label: 'الطبلونات', description: 'الطبلونات وأماكنها ومشتركوها', icon: 'table', can: 'viewMeterBoxes' },
@@ -62,8 +64,8 @@ function seesOwnBoxesOnly(can) {
 
 export const NAVIGATION_GROUPS = [
     { id: 'daily', label: 'المشتركون', shortLabel: 'المشتركون', icon: 'users', description: 'المشتركون والطبلونات والقراءات والرسائل', hrefs: ['/subscriptions', '/meter-boxes', '/meter-readings', '/reading-cycles', '/disconnection-lists', '/messages'] },
-    { id: 'finance', label: 'المالية والتحصيل', shortLabel: 'المالية', icon: 'wallet', description: 'الدفعات والصناديق والإغلاق', hrefs: ['/payments', '/payments/summary', '/payments/cash-boxes', '/ledger', '/receivables'] },
-    { id: 'reports', label: 'التقارير والرقابة', shortLabel: 'التقارير', icon: 'trend', description: 'التقارير والأداء والتدقيق', hrefs: ['/reports', '/company-forms', '/branch-performance', '/transaction-audit'] },
+    { id: 'finance', label: 'المالية والتحصيل', shortLabel: 'المالية', icon: 'wallet', description: 'الدفعات والصناديق والإغلاق', hrefs: ['/payments', '/payments/summary', '/payments/cash-boxes', '/billing-periods', '/ledger', '/receivables'] },
+    { id: 'reports', label: 'التقارير والرقابة', shortLabel: 'التقارير', icon: 'trend', description: 'التقارير والأداء والتدقيق', hrefs: ['/reports', '/reports/remaining', '/company-forms', '/branch-performance', '/transaction-audit'] },
     { id: 'infrastructure', label: 'الفروع والشبكة', shortLabel: 'الشبكة', icon: 'bolt', description: 'الفروع والبنية الكهربائية', hrefs: ['/branches', '/governorates', '/circuit-breakers'] },
     { id: 'administration', label: 'الإدارة والإعدادات', shortLabel: 'الإدارة', icon: 'cog', description: 'المستخدمون والصلاحيات والإعدادات', hrefs: ['/users', '/settings/permissions', '/tariffs', '/settings/payments', '/settings/reading-schedule', '/settings/print-templates', '/settings/sms', '/settings/mobile-app'], featured: ['/users', '/settings/permissions'] },
 ];

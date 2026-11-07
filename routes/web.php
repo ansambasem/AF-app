@@ -3,6 +3,7 @@
 use App\Http\Controllers\AreaController;
 use App\Http\Controllers\BankController;
 use App\Http\Controllers\BankTransferAuditController;
+use App\Http\Controllers\BillingPeriodController;
 use App\Http\Controllers\BranchAccessController;
 use App\Http\Controllers\BranchClosingController;
 use App\Http\Controllers\BranchController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\ReadingScheduleController;
 use App\Http\Controllers\ReadingSubmissionController;
 use App\Http\Controllers\ReadNotificationController;
 use App\Http\Controllers\ReceivableController;
+use App\Http\Controllers\RemainingAmountsReportController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SessionStatusController;
 use App\Http\Controllers\SmsSettingController;
@@ -117,6 +119,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/transaction-audit', [TransactionAuditController::class, 'index'])->name('transaction-audit.index');
 
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('/reports/remaining', [RemainingAmountsReportController::class, 'index'])->name('reports.remaining');
+    Route::get('/billing-periods', [BillingPeriodController::class, 'index'])->name('billing-periods.index');
+    Route::post('/billing-periods', [BillingPeriodController::class, 'store'])->name('billing-periods.store');
+    Route::patch('/billing-periods/{billingPeriod}', [BillingPeriodController::class, 'update'])->whereNumber('billingPeriod')->name('billing-periods.update');
+    Route::post('/billing-periods/{billingPeriod}/approve', [BillingPeriodController::class, 'approve'])->whereNumber('billingPeriod')->name('billing-periods.approve');
     Route::get('/company-forms', [CompanyFormTemplateController::class, 'index'])->name('company-forms.index');
     Route::get('/company-forms/create', [CompanyFormTemplateController::class, 'create'])->name('company-forms.create');
     Route::get('/company-forms/subscriptions', [CompanyDocumentController::class, 'subscriptions'])->name('company-forms.subscriptions');

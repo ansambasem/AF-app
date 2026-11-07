@@ -8,6 +8,7 @@ use App\Enums\MeterReadingStatus;
 use App\Enums\PermissionKey;
 use App\Enums\UserRole;
 use App\Models\Concerns\BelongsToBranch;
+use App\Support\BillingPeriods;
 use Carbon\CarbonInterface;
 use Database\Factories\MeterReadingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 #[Fillable([
-    'subscription_id', 'branch_id', 'week_start', 'week_end', 'previous_reading', 'current_reading',
+    'subscription_id', 'branch_id', 'billing_period_id', 'week_start', 'week_end', 'previous_reading', 'current_reading',
     'consumption', 'usual_consumption', 'unit_price', 'reading_fee', 'minimum_payment', 'discount_method', 'discount_value', 'discount_segment', 'discount_amount',
     'amount_due', 'status', 'recorded_by', 'notes', 'approved_by', 'approved_at', 'mobile_operation_id',
     'next_previous_reading', 'requires_reentry', 'adjustment_history',
@@ -31,6 +32,32 @@ class MeterReading extends Model
 {
     /** @use HasFactory<MeterReadingFactory> */
     use BelongsToBranch, HasFactory;
+
+    /**
+     * A reading of a closed billing period changes only by the branch's
+     * manager, and one of an approved period never does.
+     */
+    protected static function booted(): void
+    {
+        // Whichever page or app records it, a reading belongs to the billing period its week is.
+        static::creating(function (MeterReading $reading): void {
+            $periods = app(BillingPeriods::class);
+            $periodId = $reading->billing_period_id ?? self::periodOfWeek(Carbon::parse($reading->week_start), $reading->branch_id)?->id;
+            if ($periodId !== null) {
+                $reading->billing_period_id = $periodId;
+            }
+            if ($reason = $periods->lockReason($periods->find($reading->billing_period_id), auth()->user())) {
+                throw ValidationException::withMessages(['current_reading' => $reason]);
+            }
+        });
+
+        static::updating(function (MeterReading $reading): void {
+            $periods = app(BillingPeriods::class);
+            if ($reason = $periods->lockReason($periods->find($reading->getOriginal('billing_period_id')), auth()->user())) {
+                throw ValidationException::withMessages(['current_reading' => $reason]);
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -65,25 +92,60 @@ class MeterReading extends Model
      */
     public static function weekStartFor(CarbonInterface $date, Branch|int|null $branch): Carbon
     {
-        return ReadingEntrySetting::forBranch($branch)->weekStartFor($date);
+        $period = self::periodContaining($date, $branch);
+
+        return $period !== null ? Carbon::parse($period->starts_on->toDateString()) : ReadingEntrySetting::forBranch($branch)->weekStartFor($date);
     }
 
     /**
      * The reading day that ends the reading week containing the given date.
+     * In a branch that works by billing periods, the week is the period the
+     * date falls in, as its manager set it.
      */
     public static function weekEndFor(CarbonInterface $date, Branch|int|null $branch): Carbon
     {
-        return ReadingEntrySetting::forBranch($branch)->weekEndFor($date);
+        $period = self::periodContaining($date, $branch);
+
+        return $period !== null ? Carbon::parse($period->ends_on->toDateString()) : ReadingEntrySetting::forBranch($branch)->weekEndFor($date);
     }
 
     /**
      * The start of the latest week that has ended, counting today as its
      * last day if today is the reading day. "Today" is the business's local
-     * date.
+     * date. In a branch that works by billing periods, the week readings are
+     * entered for is its open period, from its first day.
      */
     public static function latestEndedWeekStart(Branch|int|null $branch, ?CarbonInterface $at = null): Carbon
     {
+        $branchId = $branch instanceof Branch ? $branch->id : $branch;
+        $periods = app(BillingPeriods::class);
+        if ($at === null && $periods->uses($branchId) && ($open = $periods->open($branchId)) !== null) {
+            return Carbon::parse($open->starts_on->toDateString());
+        }
+
         return ReadingEntrySetting::forBranch($branch)->latestEndedWeekStart($at);
+    }
+
+    /** The billing period a date falls in, for a branch that works by them. */
+    private static function periodContaining(CarbonInterface $date, Branch|int|null $branch): ?BillingPeriod
+    {
+        $branchId = $branch instanceof Branch ? $branch->id : $branch;
+        $periods = app(BillingPeriods::class);
+        if (! $periods->uses($branchId)) {
+            return null;
+        }
+        $periods->refresh($branchId);
+
+        return $periods->containing($branchId, $date);
+    }
+
+    /** The billing period of the branch whose readings start on `$weekStart`, if it works by them. */
+    public static function periodOfWeek(CarbonInterface $weekStart, Branch|int|null $branch): ?BillingPeriod
+    {
+        $branchId = $branch instanceof Branch ? $branch->id : $branch;
+
+        return $branchId === null ? null : app(BillingPeriods::class)->of($branchId)
+            ->first(fn (BillingPeriod $period): bool => $period->starts_on->toDateString() === $weekStart->toDateString());
     }
 
     /**

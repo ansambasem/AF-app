@@ -12,6 +12,7 @@ import SegmentedTabs from '@/Components/SegmentedTabs';
 import { useStatementWindow } from '@/hooks/useStatementWindow';
 import { formatMoney, formatNumber, percentOf } from '@/lib/format';
 import { formatWeekDay } from '@/lib/weekDays';
+import PeriodAccounts from './Dashboard/PeriodAccounts';
 import { AttentionItem, PendingPanel, PendingTile, READING_PARTS, SplitBar, TileLink } from './Dashboard/DashboardParts';
 import {
     BreakersPanel,
@@ -59,6 +60,7 @@ export default function Dashboard({
     governorateOptions,
     sections,
     debts,
+    periodAccounts,
     latestPayments,
     fieldApp,
     auth,
@@ -81,7 +83,7 @@ export default function Dashboard({
     const [chartView, setChartView] = useState('chart');
     const [search, setSearch] = useState(filters.search ?? '');
     const { collections, subscriptions, meterBoxes, readings, disconnections, boxes } = sections;
-    const hasAnyData = Object.keys(sections).length > 0 || Boolean(latestPayments);
+    const hasAnyData = Object.keys(sections).length > 0 || Boolean(latestPayments) || Boolean(periodAccounts);
     const period = periodLabel(filters.days);
     const branchView = useBranchView();
     const canOpenReceipts = can?.viewSubscriptions || can?.recordPayments;
@@ -241,6 +243,8 @@ export default function Dashboard({
             }
         >
             <Head title="لوحة التحكم" />
+
+            {periodAccounts && <PeriodAccounts accounts={periodAccounts} />}
 
             {!hasAnyData ? (
                 <div className="rounded-card border border-dashed border-gray-200 bg-surface px-6 py-16 text-center">

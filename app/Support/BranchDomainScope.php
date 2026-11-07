@@ -11,7 +11,7 @@ class BranchDomainScope implements Scope
 {
     /** @var list<string> */
     private const DIRECT = [
-        'Subscription', 'MeterBox', 'MeterReading', 'ReadingCycle', 'ReadingAssignment',
+        'Subscription', 'MeterBox', 'MeterReading', 'ReadingCycle', 'ReadingAssignment', 'BillingPeriod',
         'DisconnectionList', 'DisconnectionListItem', 'SubscriptionMessage', 'CashBox', 'Closing',
         'CashTransfer', 'CashBoxSync', 'MessageBatch', 'SubscriptionBulkChange', 'SubscriberProfileChange', 'CompanyDocument',
     ];

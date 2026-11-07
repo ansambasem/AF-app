@@ -6,6 +6,8 @@ use App\Enums\PermissionKey;
 use App\Models\MeterReading;
 use App\Models\ReadingEntrySetting;
 use App\Models\User;
+use App\Support\BillingPeriods;
+use App\Support\BranchClosingAccess;
 use Carbon\CarbonInterface;
 
 class MeterReadingPolicy
@@ -49,11 +51,23 @@ class MeterReadingPolicy
             return false;
         }
 
-        if (! MeterReading::weekStartFor($meterReading->week_start, $meterReading->branch_id)->equalTo(MeterReading::latestEndedWeekStart($meterReading->branch_id))) {
+        if (! MeterReading::weekStartFor($meterReading->week_start, $meterReading->branch_id)->equalTo(MeterReading::latestEndedWeekStart($meterReading->branch_id))
+            && ! $this->inClosedPeriodOf($user, $meterReading)) {
             return false;
         }
 
         return $user->isSuperAdmin() || $meterReading->branch_id === $user->workBranchId();
+    }
+
+    /**
+     * Whether the reading belongs to a closed billing period, not approved
+     * yet, of a branch the actor manages: its manager may still correct it.
+     */
+    private function inClosedPeriodOf(User $user, MeterReading $meterReading): bool
+    {
+        $period = app(BillingPeriods::class)->find($meterReading->billing_period_id);
+
+        return $period !== null && $period->isClosed() && BranchClosingAccess::manage($user, $period->branch_id);
     }
 
     /**
@@ -130,6 +144,7 @@ class MeterReadingPolicy
         return $this->approveAny($user)
             && ! $meterReading->requires_reentry
             && $meterReading->isPending()
+            && app(BillingPeriods::class)->lockReason(app(BillingPeriods::class)->find($meterReading->billing_period_id), $user) === null
             && ($user->isSuperAdmin() || $meterReading->branch_id === $user->workBranchId());
     }
 
