@@ -1,0 +1,90 @@
+/* The SMS settings page, on the settings pages' shared look (ReadingSchedule.css: tokens, rs-panel, rs-status, rs-savebar). */
+.sm-stats { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.sm-stat { display: inline-flex; align-items: baseline; gap: 6px; padding: 3px 10px; border-radius: 12px; background: #ffffff12; border: 1px solid #ffffff1a; color: #c9ced5; font-size: 13px; }
+.sm-stat b { font: 700 14px Alexandria, sans-serif; color: #fff; }
+.sm-stat.is-failed b { color: #fca5a5; }
+
+.sm-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; margin-top: 14px; }
+.sm-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sm-field.is-wide { grid-column: 1 / -1; }
+/* Every label is one height, with or without its "!", so the fields of a row line up. */
+.sm-field > label, .sm-field > .sm-label { color: var(--rs-ink2); font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 28px; }
+.sm-field small { color: var(--rs-faint); font-size: 12.5px; font-weight: 500; }
+/* Fields as everywhere in the app (app.css): a white field, a quiet border, burgundy under the pointer and while typing; grey and dashed only when disabled. */
+.sm-input { width: 100%; min-width: 0; border: 1px solid var(--rs-line); border-radius: 12px; padding: 10px 12px; background: var(--rs-surface); color: var(--rs-ink); font-size: 15px; box-shadow: 0 1px 2px #1018280a; transition: border-color .15s, box-shadow .15s; }
+input.sm-input { height: 44px; }
+.sm-input::placeholder { color: rgb(var(--gray-400) / 0.55); font-weight: 400; }
+.sm-input:hover:not(:disabled):not(:focus) { border-color: rgb(var(--brand-500) / 0.45); }
+.sm-input:focus, .sms-settings .sm-input:focus-visible { border-color: rgb(var(--brand-500)); box-shadow: 0 0 0 4px rgb(var(--brand-500) / 0.15); outline: none; }
+.sm-input[aria-invalid=true] { border-color: var(--rs-brand); }
+.sm-input:disabled { border-style: dashed; background: var(--rs-raised); color: var(--rs-faint); }
+.sm-input.is-code { direction: ltr; text-align: right; font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 14px; }
+textarea.sm-input { resize: vertical; min-height: 84px; line-height: 1.7; }
+.sm-pair { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 8px; }
+.sm-secret { position: relative; display: flex; gap: 8px; }
+.sm-secret .sm-input { flex: 1; }
+.sm-secret-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--rs-success); }
+.sm-secret-state svg { width: 14px; height: 14px; }
+.sm-secret-state.is-cleared { color: var(--rs-warn); }
+.sm-link { border: 0; background: transparent; padding: 0; color: var(--rs-brand); font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.sm-link:hover { text-decoration: underline; }
+.sm-icon-button { width: 42px; flex: none; border: 1px solid var(--rs-line); border-radius: 12px; background: var(--rs-surface); color: var(--rs-faint); display: grid; place-items: center; cursor: pointer; box-shadow: 0 1px 2px #1018280a; }
+.sm-icon-button:hover { color: var(--rs-ink); }
+.sm-icon-button svg { width: 18px; height: 18px; }
+
+.sm-segments { display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--rs-surface); border: 1px solid var(--rs-line2); width: fit-content; max-width: 100%; flex-wrap: wrap; }
+.sm-segments button { border: 0; background: transparent; color: var(--rs-faint); min-height: 36px; padding: 4px 14px; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.sm-segments button small { font: 500 12px Alexandria, sans-serif; color: inherit; opacity: .85; direction: ltr; }
+.sm-segments button:hover { color: var(--rs-ink); }
+.sm-segments button[aria-pressed=true] { background: var(--rs-ink); color: var(--rs-surface); }
+.sm-segments button[aria-pressed=true] small { color: inherit; opacity: .7; }
+
+.sm-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--rs-line2); }
+.sm-section h3 { display: flex; align-items: center; gap: 8px; margin: 0; font: 700 17px 'El Messiri', serif; }
+.sm-section h3 svg { width: 18px; height: 18px; color: var(--rs-faint); }
+.sm-section > p { margin: 3px 0 0; font-size: 13px; color: var(--rs-faint); }
+.sm-advanced > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rs-line2); font: 700 16px 'El Messiri', serif; color: var(--rs-ink2); }
+.sm-advanced > summary::-webkit-details-marker { display: none; }
+.sm-advanced > summary svg { width: 16px; height: 16px; color: var(--rs-faint); transition: transform .15s; }
+.sm-advanced[open] > summary svg { transform: rotate(180deg); }
+.sm-advanced > summary small { font: 500 12.5px 'IBM Plex Sans Arabic', sans-serif; color: var(--rs-faint); }
+
+.sm-request { margin-top: 14px; border-radius: 18px; overflow: hidden; border: 1px solid var(--rs-line2); background: #111820; color: #e6e9ed; direction: ltr; text-align: left; font: 13px/1.7 'IBM Plex Mono', ui-monospace, Menlo, monospace; }
+.sm-request-line { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: #ffffff0d; border-bottom: 1px solid #ffffff14; overflow-x: auto; white-space: nowrap; }
+.sm-method { flex: none; padding: 1px 8px; border-radius: 8px; font-weight: 700; font-size: 12px; background: var(--ui-brand); color: #fff; }
+.sm-request ul { list-style: none; margin: 0; padding: 10px 14px 12px; display: grid; gap: 2px; }
+.sm-request li { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 10px; }
+.sm-request li span:first-child { color: #9aa3ae; }
+.sm-request li span:last-child { color: #fff; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+.sm-request li.is-to span:last-child, .sm-request li.is-message span:last-child { color: #86efac; }
+.sm-request li.is-secret span:last-child { color: #fbbf24; }
+.sm-request-empty { color: #9aa3ae; }
+.sm-request-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--rs-faint); }
+.sm-request-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sm-request-legend i { width: 10px; height: 10px; border-radius: 3px; }
+
+.sm-test-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.sm-send { height: 44px; border: 0; border-radius: 12px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; color: #fff; background: linear-gradient(180deg, #b8232c, #7d121b); cursor: pointer; box-shadow: 0 10px 22px -12px #a51d26; }
+.sm-send svg { width: 17px; height: 17px; }
+.sm-test-note { font-size: 12.5px; color: var(--rs-faint); }
+.sm-result { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 18px; font-size: 14px; line-height: 1.7; }
+.sm-result svg { width: 17px; height: 17px; flex: none; margin-top: 3px; }
+.sm-result.is-ok { background: var(--rs-success-t); color: var(--rs-success); border: 1px solid color-mix(in srgb, var(--rs-success) 25%, transparent); }
+.sm-result.is-failed { background: var(--ui-danger-t); color: var(--ui-danger); border: 1px solid color-mix(in srgb, var(--ui-danger) 25%, transparent); }
+.sm-result code { display: block; margin-top: 4px; direction: ltr; text-align: left; font: 12.5px/1.6 'IBM Plex Mono', ui-monospace, Menlo, monospace; overflow-wrap: anywhere; color: var(--rs-ink2); }
+
+.sm-checklist { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; counter-reset: ask; }
+.sm-checklist li { counter-increment: ask; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; font-size: 14px; }
+.sm-checklist li::before { content: counter(ask); width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: var(--rs-sunken); color: var(--rs-ink2); font: 700 12px Alexandria, sans-serif; }
+.sm-checklist small { display: block; color: var(--rs-faint); font-size: 12.5px; }
+
+.sm-switch-note { margin-top: 8px; font-size: 12.5px; color: #aeb6c1; }
+.sm-switch-note b { color: #fbbf24; }
+
+@media (max-width: 760px) {
+    .sm-fields { grid-template-columns: minmax(0, 1fr); }
+    .sm-pair { grid-template-columns: minmax(0, 1fr); }
+    .sm-segments { width: 100%; }
+    .sm-segments button { flex: 1; justify-content: center; padding: 4px 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .sm-advanced > summary svg, .sm-input { transition: none; } }

@@ -1,0 +1,27 @@
+.af-login-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 16px;
+    width: 100%;
+    max-width: 28rem;
+    margin-inline: auto;
+    padding-block: 8px;
+    border-top: 1px solid rgb(var(--gray-200));
+    color: rgb(var(--gray-500));
+    font-size: 12px;
+    line-height: 1.8;
+    text-align: start;
+}
+
+.af-login-footer > p {
+    flex: 1 1 200px;
+    margin: 0;
+}
+
+@media print {
+    .af-login-footer {
+        display: none !important;
+    }
+}

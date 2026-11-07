@@ -1,0 +1,1372 @@
+/*
+ * The top bar: a floating glass bar with the logo, the six sections in the
+ * middle and the tools at the end. Hovering a section slides a dark graphite
+ * light under it and opens one panel that reshapes itself between sections.
+ * Colors are the design tokens from app.css, so both themes follow.
+ */
+:root {
+    --tn-gutter: clamp(16px, 2.6vw, 44px);
+    --tn-bar-height: 68px;
+    /* The bar's height before it slims: the room it keeps in the page whatever its own height. */
+    --tn-bar-rest-height: 68px;
+    --tn-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --tn-graphite: linear-gradient(135deg, #262c33, #1b2026 60%, #111519);
+    --tn-graphite-dark: linear-gradient(135deg, #3a434e, #2a3039 60%, #20252c);
+}
+
+html {
+    scroll-padding-top: 110px;
+    scrollbar-gutter: stable;
+}
+
+html.tn-locked {
+    overflow: hidden;
+}
+
+/* The bar and its menus keep their own type size, whatever the page around them uses. */
+.tn-header,
+.tn-mega,
+.tn-popover,
+.tn-scrim,
+.tn-drawer,
+.tn-tour-card {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.tn-trail,
+.tn-subnav {
+    line-height: 1.5;
+}
+
+/* The design's focus ring for everything in the bar and its menus; components with their own ring keep it. */
+:where(.tn-header, .tn-mega, .tn-popover, .tn-drawer, .tn-scrim, .tn-trail, .tn-subnav, .tn-tour-card) :focus-visible:not(input) {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: 2px;
+    border-radius: 12px;
+}
+
+/* The design's lifted shadow for the search, the keys window, the tour card and the skip link. */
+.tn-lift {
+    box-shadow: 0 2px 6px rgb(16 24 40 / 0.06), 0 30px 60px -24px rgb(16 24 40 / 0.38);
+}
+
+/* A soft burgundy and silver glow behind every page. */
+.tn-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        radial-gradient(42% 38% at 8% 0%, rgb(var(--brand-500) / 0.1), transparent 70%),
+        radial-gradient(38% 34% at 96% 6%, rgb(var(--gray-400) / 0.12), transparent 70%);
+}
+
+.tn-num {
+    font-family: Alexandria, 'IBM Plex Sans Arabic', sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+
+/* The loading line while a page opens. */
+.tn-progress {
+    position: fixed;
+    z-index: 100;
+    top: 0;
+    inset-inline-start: 0;
+    height: 3px;
+    width: 0;
+    background: linear-gradient(90deg, #ff6b6b, rgb(var(--brand-500)));
+    box-shadow: 0 0 10px rgb(var(--brand-500) / 0.6);
+    border-radius: 0 3px 3px 0;
+    pointer-events: none;
+}
+
+.tn-progress.is-loading {
+    animation: tn-progress-load 0.42s var(--tn-ease) forwards;
+}
+
+.tn-progress.is-done {
+    animation: tn-progress-done 0.18s var(--tn-ease) forwards;
+}
+
+@keyframes tn-progress-load {
+    0% { width: 0; opacity: 1; }
+    100% { width: 85%; opacity: 1; }
+}
+
+@keyframes tn-progress-done {
+    0% { width: 85%; opacity: 1; }
+    100% { width: 100%; opacity: 0; }
+}
+
+/* ═════ The floating glass bar ═════
+   The header keeps the same height in the page when the bar slims: were it
+   to shrink, the page would move up under the reader, scroll back above the
+   point where the bar slims, and the bar would grow and shrink in turn. */
+.tn-header {
+    pointer-events: none;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    height: calc(12px + var(--tn-bar-rest-height));
+    padding: 12px var(--tn-gutter) 0;
+    transition: padding 0.3s var(--tn-ease);
+}
+
+.tn-header.is-scrolled {
+    padding-top: 8px;
+    --tn-bar-height: 58px;
+}
+
+.tn-glass {
+    pointer-events: auto;
+    position: relative;
+    height: var(--tn-bar-height);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    max-width: 1720px;
+    margin-inline: auto;
+    padding-inline: 12px 10px;
+    border-radius: 22px;
+    background: rgb(var(--surface) / 0.72);
+    backdrop-filter: blur(22px) saturate(1.6);
+    border: 1px solid rgb(255 255 255 / 0.7);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.7),
+        0 1px 2px rgb(16 24 40 / 0.05),
+        0 14px 34px -20px rgb(16 24 40 / 0.35);
+    transition: height 0.3s var(--tn-ease), background 0.3s, box-shadow 0.3s;
+}
+
+.dark .tn-glass {
+    background: rgb(20 23 28 / 0.66);
+    border-color: rgb(255 255 255 / 0.08);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 18px 40px -20px #000;
+}
+
+.tn-header.is-scrolled .tn-glass {
+    background: rgb(var(--surface) / 0.84);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 20px 44px -22px rgb(16 24 40 / 0.5);
+}
+
+.dark .tn-header.is-scrolled .tn-glass {
+    background: rgb(20 23 28 / 0.82);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 22px 48px -18px #000;
+}
+
+.tn-glass::before {
+    content: '';
+    position: absolute;
+    inset-inline: 22px;
+    top: -1px;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #5c0d14, #a51d26 40%, #9aa3ae 75%, transparent);
+    opacity: 0.9;
+}
+
+/* The logo, as everywhere in the app. */
+.tn-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 8px;
+    border-radius: 14px;
+    transition: background 0.2s;
+}
+
+.tn-brand:hover {
+    background: rgb(var(--gray-900) / 0.05);
+}
+
+.tn-brand img {
+    height: 44px;
+    width: auto;
+    display: block;
+    transition: height 0.3s var(--tn-ease);
+}
+
+.tn-header.is-scrolled .tn-brand img {
+    height: 38px;
+}
+
+.tn-brand-divider {
+    width: 1px;
+    height: 34px;
+    background: rgb(var(--gray-200));
+}
+
+.tn-brand-name {
+    display: block;
+    font: 700 1.25rem/1.2 'IBM Plex Sans Arabic', sans-serif;
+    color: rgb(var(--gray-900));
+    white-space: nowrap;
+}
+
+.tn-brand-branch {
+    display: block;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: rgb(var(--gray-500));
+    white-space: nowrap;
+}
+
+/* The line under the name: the branch, then the page once its title has scrolled away. */
+.tn-brand-swap {
+    display: block;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: tn-swap 0.28s var(--tn-ease);
+}
+
+.tn-brand-swap.is-page {
+    color: rgb(var(--gray-700));
+    font-weight: 600;
+}
+
+@keyframes tn-swap {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+}
+
+/* On phones the page's name sits beside the logo once its title has scrolled away. */
+.tn-where {
+    display: none;
+}
+
+@media (max-width: 1023px) {
+    .tn-where {
+        display: block;
+        min-width: 0;
+        padding-inline-start: 4px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-size: 14px;
+        font-weight: 600;
+        color: rgb(var(--gray-700));
+        animation: tn-swap 0.28s var(--tn-ease);
+    }
+}
+
+/* The sections, and the dark light that slides between them. */
+.tn-sections {
+    position: relative;
+    justify-self: center;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 100%;
+}
+
+.tn-highlight {
+    position: absolute;
+    z-index: 0;
+    top: 50%;
+    left: 0;
+    height: 42px;
+    width: 0;
+    margin-top: -21px;
+    border-radius: 13px;
+    background: var(--tn-graphite);
+    opacity: 0;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 12px 24px -12px rgb(16 24 40 / 0.7);
+    transition: transform 0.38s var(--tn-ease), width 0.38s var(--tn-ease), opacity 0.2s;
+    pointer-events: none;
+}
+
+.dark .tn-highlight {
+    background: var(--tn-graphite-dark);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 0 0 1px rgb(255 255 255 / 0.1), 0 12px 24px -12px #000;
+}
+
+.tn-section {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 42px;
+    padding-inline: 13px;
+    border-radius: 13px;
+    color: rgb(var(--gray-600));
+    font-weight: 600;
+    font-size: 14.5px;
+    white-space: nowrap;
+    transition: color 0.22s, transform 0.12s;
+}
+
+.tn-section:active {
+    transform: scale(0.97);
+}
+
+.tn-section:focus-visible {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: 2px;
+}
+
+.tn-section .tn-section-icon {
+    width: 19px;
+    height: 19px;
+    color: rgb(var(--gray-500));
+    transition: color 0.22s;
+}
+
+.tn-section .tn-chevron {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+    transition: transform 0.25s var(--tn-ease);
+}
+
+.tn-section[aria-expanded='true'] .tn-chevron {
+    transform: rotate(180deg);
+}
+
+.tn-section[data-lit='true'],
+.tn-section[data-lit='true'] .tn-section-icon {
+    color: #fff;
+}
+
+/* The current section: a glowing burgundy line at the bar's bottom edge. */
+.tn-section[data-current='true']::after {
+    content: '';
+    position: absolute;
+    inset-inline: 16px;
+    bottom: calc((var(--tn-bar-height) - 42px) / -2);
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: rgb(var(--brand-500));
+    box-shadow: 0 -2px 14px 1px rgb(var(--brand-500) / 0.75);
+    transition: bottom 0.3s var(--tn-ease);
+}
+
+.tn-section .tn-badge {
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 99px;
+    background: rgb(var(--brand-500));
+    color: #fff;
+    font: 700 11px/19px Alexandria, sans-serif;
+    text-align: center;
+    box-shadow: 0 0 0 2px rgb(var(--surface) / 0.9);
+}
+
+.tn-section[data-lit='true'] .tn-badge {
+    box-shadow: 0 0 0 2px #1b2026;
+}
+
+.tn-section .tn-label-full {
+    display: none;
+}
+
+@media (min-width: 1800px) {
+    .tn-section .tn-label-full {
+        display: inline;
+    }
+
+    .tn-section .tn-label-short {
+        display: none;
+    }
+}
+
+@media (max-width: 1379px) {
+    .tn-section .tn-section-icon {
+        display: none;
+    }
+
+    .tn-section {
+        padding-inline: 11px;
+    }
+}
+
+/* The tools at the bar's end. */
+.tn-tool {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    color: rgb(var(--gray-600));
+    transition: background 0.2s, color 0.2s, transform 0.12s;
+}
+
+.tn-tool:hover,
+.tn-tool[aria-expanded='true'] {
+    background: var(--tn-graphite);
+    color: #fff;
+    box-shadow: 0 10px 20px -12px rgb(16 24 40 / 0.7);
+}
+
+.dark .tn-tool:hover,
+.dark .tn-tool[aria-expanded='true'] {
+    background: var(--tn-graphite-dark);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+
+.tn-tool:active {
+    transform: scale(0.95);
+}
+
+.tn-tool:focus-visible {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: 2px;
+}
+
+.tn-tool svg {
+    width: 21px;
+    height: 21px;
+}
+
+.tn-tool .tn-tool-count {
+    position: absolute;
+    top: 3px;
+    inset-inline-end: 2px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 99px;
+    background: rgb(var(--brand-500));
+    color: #fff;
+    font: 700 10.5px/17px Alexandria, sans-serif;
+    box-shadow: 0 0 0 2px rgb(var(--surface));
+}
+
+.tn-tool .tn-tool-count.is-pinging::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    animation: tn-ping 1.8s var(--tn-ease) 3;
+}
+
+@keyframes tn-ping {
+    0% { box-shadow: 0 0 0 0 rgb(var(--brand-500) / 0.6); }
+    100% { box-shadow: 0 0 0 9px rgb(var(--brand-500) / 0); }
+}
+
+.tn-search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 236px;
+    height: 42px;
+    padding: 0 10px 0 8px;
+    border-radius: 13px;
+    border: 1px solid rgb(var(--gray-200));
+    background: rgb(var(--gray-50) / 0.7);
+    color: rgb(var(--gray-500));
+    font-size: 14.5px;
+    transition: border-color 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.tn-search:hover {
+    border-color: rgb(var(--gray-400));
+    background: rgb(var(--surface));
+    color: rgb(var(--gray-700));
+    box-shadow: 0 8px 20px -14px rgb(16 24 40 / 0.5);
+}
+
+.tn-search:focus-visible {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: 2px;
+}
+
+.tn-search svg {
+    width: 18px;
+    height: 18px;
+}
+
+.tn-search .tn-search-text {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tn-kbd {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 6px;
+    border: 1px solid rgb(var(--gray-200));
+    background: rgb(var(--surface));
+    font: 600 11.5px Alexandria, sans-serif;
+    color: rgb(var(--gray-500));
+    white-space: nowrap;
+}
+
+.tn-account {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 46px;
+    padding: 3px 3px 3px 10px;
+    border-radius: 15px;
+    transition: background 0.2s;
+}
+
+.tn-account:hover,
+.tn-account[aria-expanded='true'] {
+    background: rgb(var(--gray-900) / 0.06);
+}
+
+.dark .tn-account:hover,
+.dark .tn-account[aria-expanded='true'] {
+    background: rgb(255 255 255 / 0.07);
+}
+
+.tn-account:focus-visible {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: 2px;
+}
+
+.tn-avatar {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--tn-graphite);
+    color: #fff;
+    font: 700 15px Alexandria, 'IBM Plex Sans Arabic', sans-serif;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.15), 0 0 0 1px rgb(255 255 255 / 0.06);
+    flex: none;
+    position: relative;
+}
+
+.tn-avatar.is-large {
+    width: 44px;
+    height: 44px;
+}
+
+.tn-avatar .tn-avatar-online {
+    position: absolute;
+    bottom: -2px;
+    inset-inline-start: -2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 0 2px rgb(var(--surface));
+}
+
+.tn-separator {
+    width: 1px;
+    height: 26px;
+    background: rgb(var(--gray-200));
+    margin-inline: 4px;
+}
+
+@media (max-width: 1599px) {
+    .tn-search {
+        width: 42px;
+        padding: 0;
+        justify-content: center;
+        border-color: transparent;
+        background: none;
+    }
+
+    .tn-search .tn-search-text,
+    .tn-search .tn-kbd {
+        display: none;
+    }
+
+    .tn-search:hover {
+        background: var(--tn-graphite);
+        color: #fff;
+        border-color: transparent;
+    }
+
+    .tn-account .tn-account-text {
+        display: none;
+    }
+
+    .tn-account {
+        padding: 3px;
+    }
+}
+
+@media (max-width: 1199px) {
+    .tn-brand-divider,
+    .tn-brand-text {
+        display: none;
+    }
+}
+
+.tn-mobile-only {
+    display: none;
+}
+
+@media (max-width: 1023px) {
+    :root {
+        --tn-bar-height: 60px;
+        --tn-bar-rest-height: 60px;
+    }
+
+    .tn-sections,
+    .tn-separator,
+    .tn-account {
+        display: none;
+    }
+
+    .tn-mobile-only {
+        display: grid;
+    }
+
+    .tn-glass {
+        grid-template-columns: minmax(0, 1fr) auto;
+        border-radius: 18px;
+        padding-inline: 8px 6px;
+    }
+
+    .tn-brand img {
+        height: 38px;
+    }
+}
+
+/* ═════ The big menu: one panel that reshapes itself between sections ═════ */
+.tn-mega {
+    position: fixed;
+    z-index: 45;
+    top: var(--tn-mega-top, 92px);
+    left: 0;
+    width: var(--tn-mega-width, 560px);
+    height: var(--tn-mega-height, 300px);
+    transform: translateX(var(--tn-mega-x, 0));
+    border-radius: 24px;
+    overflow: hidden;
+    background: rgb(var(--surface) / 0.97);
+    backdrop-filter: blur(24px) saturate(1.5);
+    border: 1px solid rgb(var(--gray-200) / 0.8);
+    box-shadow: 0 2px 6px rgb(16 24 40 / 0.06), 0 34px 70px -26px rgb(16 24 40 / 0.45);
+    opacity: 0;
+    translate: 0 -8px;
+    scale: 0.985;
+    pointer-events: none;
+    transform-origin: top center;
+    transition:
+        transform 0.34s var(--tn-ease),
+        width 0.34s var(--tn-ease),
+        height 0.34s var(--tn-ease),
+        opacity 0.2s,
+        translate 0.25s var(--tn-ease),
+        scale 0.25s var(--tn-ease);
+}
+
+.dark .tn-mega {
+    border-color: rgb(255 255 255 / 0.08);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 40px 80px -24px #000;
+}
+
+.tn-mega.is-open {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+    pointer-events: auto;
+}
+
+.tn-mega.is-still {
+    transition: opacity 0.2s, translate 0.25s var(--tn-ease), scale 0.25s var(--tn-ease);
+}
+
+.tn-mega::before {
+    content: '';
+    position: absolute;
+    z-index: 2;
+    inset-inline: 0;
+    top: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #5c0d14, #a51d26 40%, #9aa3ae 75%, #dfe3e8);
+}
+
+.tn-mega-content {
+    position: absolute;
+    top: 0;
+    right: 0;
+    animation: tn-mega-in 0.32s var(--tn-ease);
+}
+
+@keyframes tn-mega-in {
+    from {
+        opacity: 0;
+        transform: translateX(var(--tn-shift, 0));
+    }
+}
+
+.tn-mega-content.is-leaving {
+    animation: tn-mega-out 0.2s ease forwards;
+}
+
+@keyframes tn-mega-out {
+    to {
+        opacity: 0;
+        transform: translateX(calc(var(--tn-shift, 0) * -1));
+    }
+}
+
+.tn-mega-link {
+    position: relative;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    height: 100%;
+    align-items: start;
+    gap: 12px;
+    padding: 9px 10px;
+    border-radius: 15px;
+    transition: background 0.18s;
+}
+
+.tn-mega-link > :is(.tn-go, .tn-lock, .tn-badge) {
+    align-self: center;
+}
+
+.tn-mega-link .tn-tile {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    border: 1px solid rgb(var(--gray-200) / 0.8);
+    background: rgb(var(--gray-50));
+    color: rgb(var(--gray-500));
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+}
+
+.tn-mega-link .tn-tile svg {
+    width: 20px;
+    height: 20px;
+}
+
+.tn-mega-link:hover,
+.tn-mega-link:focus-visible {
+    background: rgb(var(--gray-100) / 0.75);
+    outline: none;
+}
+
+.tn-mega-link:hover .tn-tile,
+.tn-mega-link:focus-visible .tn-tile {
+    background: var(--tn-graphite);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 10px 18px -10px rgb(16 24 40 / 0.7);
+    transform: translateY(-1px);
+}
+
+.tn-mega-link b {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: rgb(var(--gray-900));
+}
+
+.tn-mega-link small {
+    display: block;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: rgb(var(--gray-500));
+}
+
+.tn-mega-link .tn-go {
+    width: 16px;
+    height: 16px;
+    color: rgb(var(--gray-400));
+    opacity: 0;
+    transform: translateX(6px);
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+/* A page the user may not open: a small lock where the arrow would be. */
+.tn-lock {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: rgb(var(--gray-400));
+}
+
+.tn-lock svg {
+    width: 14px !important;
+    height: 14px !important;
+    color: inherit !important;
+}
+
+.tn-feature .tn-lock {
+    color: rgb(255 255 255 / 0.55);
+}
+
+/* A locked page's link opens nothing. */
+:is(.tn-mega-link, .tn-feature, .tn-subnav a, .tn-drawer-link)[aria-disabled='true'] {
+    cursor: not-allowed;
+}
+
+.tn-mega-link:hover .tn-go {
+    opacity: 1;
+    transform: none;
+}
+
+.tn-mega-link[aria-current='page'] {
+    background: rgb(var(--brand-50));
+    box-shadow: inset -3px 0 0 rgb(var(--brand-600));
+}
+
+.tn-mega-link[aria-current='page'] b {
+    color: rgb(var(--brand-600));
+}
+
+.tn-mega-link[aria-current='page'] .tn-tile {
+    background: rgb(var(--brand-500) / 0.1);
+    color: rgb(var(--brand-600));
+    border-color: transparent;
+}
+
+/* After the current page's edge, so the focus ring replaces it. */
+.tn-mega-link:focus-visible {
+    box-shadow: inset 0 0 0 2px rgb(var(--gray-900));
+}
+
+.tn-mega-link .tn-badge {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: 99px;
+    background: rgb(var(--brand-500));
+    color: #fff;
+    font: 700 12px/22px Alexandria, sans-serif;
+    text-align: center;
+}
+
+.tn-feature {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 18px;
+    background: var(--tn-graphite);
+    color: #fff;
+    transition: transform 0.2s var(--tn-ease), box-shadow 0.2s;
+}
+
+.tn-feature::after {
+    content: '';
+    position: absolute;
+    inset-inline-end: -30px;
+    top: -40px;
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgb(184 35 44 / 0.55), transparent 70%);
+    transition: transform 0.4s var(--tn-ease);
+}
+
+.tn-feature:hover,
+.tn-feature:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 32px -16px rgb(16 24 40 / 0.8);
+    outline: none;
+}
+
+.tn-feature:focus-visible {
+    box-shadow: 0 0 0 3px rgb(var(--surface)), 0 0 0 5px rgb(var(--brand-500));
+}
+
+.tn-feature:hover::after {
+    transform: scale(1.25);
+}
+
+.tn-feature .tn-feature-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: rgb(255 255 255 / 0.1);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+
+.tn-feature .tn-feature-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.tn-feature b {
+    font-size: 15.5px;
+}
+
+.tn-feature small {
+    font-size: 12.5px;
+    color: #b8c0ca;
+    line-height: 1.5;
+}
+
+.tn-feature[aria-current='page'] {
+    box-shadow: inset 0 -3px 0 rgb(var(--brand-500)), 0 0 0 2px rgb(var(--brand-500) / 0.5);
+}
+
+/* ═════ The small menus (activity and account) ═════ */
+.tn-popover {
+    position: fixed;
+    z-index: 60;
+    border-radius: 22px;
+    background: rgb(var(--surface) / 0.97);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgb(var(--gray-200) / 0.8);
+    box-shadow: 0 30px 60px -24px rgb(16 24 40 / 0.45);
+    animation: tn-pop-in 0.22s var(--tn-ease);
+    overflow: hidden;
+}
+
+.dark .tn-popover {
+    border-color: rgb(255 255 255 / 0.08);
+    box-shadow: 0 30px 60px -20px #000;
+}
+
+@keyframes tn-pop-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+}
+
+.tn-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    text-align: start;
+    font-size: 15px;
+    color: rgb(var(--gray-700));
+    transition: background 0.15s, color 0.15s;
+}
+
+.tn-menu-item:hover,
+.tn-menu-item:focus-visible {
+    background: rgb(var(--gray-100));
+    color: rgb(var(--gray-900));
+    outline: none;
+}
+
+.tn-menu-item svg {
+    width: 19px;
+    height: 19px;
+    color: rgb(var(--gray-500));
+}
+
+.tn-menu-item.is-danger:hover,
+.tn-menu-item.is-danger:focus-visible {
+    background: rgb(var(--brand-50));
+    color: rgb(var(--brand-600));
+}
+
+.tn-segments button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 34px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgb(var(--gray-500));
+    transition: background 0.2s, color 0.2s;
+}
+
+.tn-segments button svg {
+    width: 15px;
+    height: 15px;
+}
+
+.tn-segments button[aria-pressed='true'] {
+    background: var(--tn-graphite);
+    color: #fff;
+    box-shadow: 0 6px 14px -8px rgb(16 24 40 / 0.7);
+}
+
+.tn-note {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 14px;
+    text-align: start;
+    transition: background 0.15s;
+}
+
+.tn-note:hover {
+    background: rgb(var(--gray-100));
+}
+
+.tn-note .tn-note-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: rgb(var(--gray-100));
+    color: rgb(var(--gray-600));
+    flex: none;
+}
+
+.tn-note .tn-note-icon svg {
+    width: 19px;
+    height: 19px;
+}
+
+.tn-note.is-unread .tn-note-icon {
+    background: rgb(var(--brand-500) / 0.1);
+    color: rgb(var(--brand-600));
+}
+
+.tn-note .tn-unread-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgb(var(--brand-500));
+    margin-top: 7px;
+    flex: none;
+}
+
+/* ═════ Search and commands ═════ */
+.tn-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgb(10 13 16 / 0.5);
+    backdrop-filter: blur(6px);
+    animation: tn-fade 0.2s;
+}
+
+@keyframes tn-fade {
+    from { opacity: 0; }
+}
+
+.tn-palette {
+    animation: tn-palette-in 0.24s var(--tn-ease);
+}
+
+@keyframes tn-palette-in {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.98);
+    }
+}
+
+.tn-palette-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 13px;
+    text-align: start;
+    font-size: 15px;
+}
+
+.tn-palette-item .tn-tile {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: rgb(var(--gray-100));
+    color: rgb(var(--gray-500));
+    flex: none;
+    transition: background 0.15s, color 0.15s;
+}
+
+.tn-palette-item .tn-tile svg {
+    width: 18px;
+    height: 18px;
+}
+
+.tn-palette-item.is-active {
+    background: rgb(var(--gray-100));
+}
+
+.tn-palette-item.is-active .tn-tile {
+    background: var(--tn-graphite);
+    color: #fff;
+}
+
+.tn-palette-item mark {
+    background: rgb(var(--brand-500) / 0.15);
+    color: inherit;
+    border-radius: 4px;
+    padding: 0 1px;
+}
+
+.tn-palette-item .tn-enter {
+    opacity: 0;
+    width: 16px;
+    height: 16px;
+    color: rgb(var(--gray-400));
+}
+
+.tn-palette-item.is-active .tn-enter {
+    opacity: 1;
+}
+
+/* ═════ The phone menu ═════ */
+.tn-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 75;
+}
+
+.tn-drawer .tn-scrim {
+    z-index: 0;
+}
+
+.tn-drawer .tn-drawer-panel {
+    position: absolute;
+    z-index: 1;
+    inset-block: 0;
+    right: 0;
+    width: min(88vw, 380px);
+    display: flex;
+    flex-direction: column;
+    background: rgb(var(--surface));
+    box-shadow: -30px 0 60px -20px rgb(0 0 0 / 0.45);
+    animation: tn-drawer-in 0.32s var(--tn-ease);
+}
+
+@keyframes tn-drawer-in {
+    from { transform: translateX(100%); }
+}
+
+.tn-drawer.is-closing .tn-drawer-panel {
+    animation: tn-drawer-out 0.24s ease forwards;
+}
+
+.tn-drawer.is-closing .tn-scrim {
+    animation: tn-fade-out 0.24s forwards;
+}
+
+@keyframes tn-drawer-out {
+    to { transform: translateX(100%); }
+}
+
+@keyframes tn-fade-out {
+    to { opacity: 0; }
+}
+
+.tn-drawer-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: rgb(var(--gray-800));
+    transition: background 0.2s, color 0.2s;
+}
+
+.tn-drawer-group svg.tn-section-icon {
+    width: 20px;
+    height: 20px;
+    color: rgb(var(--gray-500));
+}
+
+.tn-drawer-group .tn-chevron {
+    width: 16px;
+    height: 16px;
+    margin-inline-start: auto;
+    transition: transform 0.25s var(--tn-ease);
+}
+
+.tn-drawer-group[aria-expanded='true'],
+.tn-drawer-group[data-current='true'] {
+    background: var(--tn-graphite);
+    color: #fff;
+    box-shadow: inset -3px 0 0 rgb(var(--brand-500)), 0 12px 24px -14px rgb(16 24 40 / 0.6);
+}
+
+.tn-drawer-group[aria-expanded='true'] svg,
+.tn-drawer-group[data-current='true'] svg {
+    color: #fff;
+}
+
+.tn-drawer-group[aria-expanded='true'] .tn-chevron {
+    transform: rotate(180deg);
+}
+
+.tn-drawer-group:focus-visible,
+.tn-drawer-link:focus-visible {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: 2px;
+}
+
+.tn-drawer-pages {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s var(--tn-ease);
+}
+
+.tn-drawer-pages.is-open {
+    grid-template-rows: 1fr;
+}
+
+.tn-drawer-pages > div {
+    overflow: hidden;
+}
+
+.tn-drawer-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 12px;
+    font-size: 14.5px;
+    color: rgb(var(--gray-700));
+}
+
+.tn-drawer-link svg {
+    width: 19px;
+    height: 19px;
+    color: rgb(var(--gray-500));
+}
+
+.tn-drawer-link[aria-current='page'] {
+    background: rgb(var(--brand-50));
+    color: rgb(var(--brand-600));
+    font-weight: 700;
+    box-shadow: inset -3px 0 0 rgb(var(--brand-600));
+}
+
+.tn-drawer-link[aria-current='page'] svg {
+    color: rgb(var(--brand-600));
+}
+
+/* ═════ The page: where you are, and the section's other pages ═════ */
+/* The end of the strip that hides more pages fades (right to left: the start is on the right). */
+.tn-subnav[data-fade='end'] {
+    mask-image: linear-gradient(to right, transparent 0, #000 2.5rem);
+}
+
+.tn-subnav[data-fade='start'] {
+    mask-image: linear-gradient(to left, transparent 0, #000 2.5rem);
+}
+
+.tn-subnav[data-fade='both'] {
+    mask-image: linear-gradient(to right, transparent 0, #000 2.5rem, #000 calc(100% - 2.5rem), transparent 100%);
+}
+
+.tn-subnav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 17px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    color: rgb(var(--gray-900));
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.tn-subnav a:hover {
+    background: rgb(var(--gray-900) / 0.06);
+    color: rgb(var(--gray-900));
+}
+
+.dark .tn-subnav a:hover {
+    background: rgb(255 255 255 / 0.07);
+}
+
+.tn-subnav a[aria-current='page'] {
+    background: var(--tn-graphite);
+    color: #fff;
+    box-shadow: inset 0 -2px 0 rgb(var(--brand-500)), 0 10px 20px -12px rgb(16 24 40 / 0.7);
+}
+
+.tn-subnav a:focus-visible {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: 2px;
+}
+
+.tn-subnav a svg {
+    width: 19px;
+    height: 19px;
+    color: rgb(var(--gray-600));
+}
+
+.tn-subnav a[aria-current='page'] svg {
+    color: #fff;
+}
+
+.tn-subnav a .tn-badge {
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 99px;
+    background: rgb(var(--brand-500));
+    color: #fff;
+    font: 700 11px/19px Alexandria, sans-serif;
+    text-align: center;
+}
+
+.tn-rise {
+    animation: tn-rise 0.4s var(--tn-ease) backwards;
+}
+
+@keyframes tn-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+}
+
+/* ═════ The quick tour ═════ */
+.tn-spot {
+    position: fixed;
+    z-index: 90;
+    border-radius: 16px;
+    box-shadow: 0 0 0 9999px rgb(10 13 16 / 0.6), 0 0 0 3px rgb(var(--brand-500));
+    transition: all 0.4s var(--tn-ease);
+    pointer-events: none;
+}
+
+.tn-tour-card {
+    position: fixed;
+    z-index: 91;
+    width: min(340px, calc(100vw - 32px));
+    animation: tn-palette-in 0.25s var(--tn-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tn-header *,
+    .tn-header *::before,
+    .tn-header *::after,
+    .tn-mega,
+    .tn-mega *,
+    .tn-popover,
+    .tn-scrim,
+    .tn-palette,
+    .tn-drawer *,
+    .tn-subnav *,
+    .tn-rise,
+    .tn-spot,
+    .tn-tour-card,
+    .tn-progress,
+    .tn-brand-swap,
+    .tn-where {
+        animation: none !important;
+        transition: none !important;
+    }
+}

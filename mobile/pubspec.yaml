@@ -1,0 +1,37 @@
+name: power_collect
+version: 1.0.7+8
+publish_to: none
+description: PowerCollect field app for meter readings and payment collection.
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  google_mlkit_text_recognition: ^0.17.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: PlexArabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700
+    - family: ElMessiri
+      fonts:
+        - asset: assets/fonts/ElMessiri[wght].ttf
+    - family: Alexandria
+      fonts:
+        - asset: assets/fonts/Alexandria[wght].ttf
+  assets:
+    - assets/images/brand.webp
+    - assets/images/brand-mark.webp
+    - assets/images/banks/

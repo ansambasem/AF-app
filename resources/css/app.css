@@ -1,0 +1,2209 @@
+@import './fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens (AF PowerCollect design system). Colors are RGB triples so
+ * Tailwind's opacity modifiers work: `bg-brand-500` or `bg-brand-500/10`.
+ * The same class works in both themes: `.dark` on <html> swaps the values.
+ * Change a color here and every class that uses it follows.
+ */
+@layer base {
+    :root {
+        color-scheme: light;
+
+        /* Burgundy, from the logo's arrow. 500 is the primary color. */
+        --brand-50: 251 241 241;
+        --brand-100: 244 214 216;
+        --brand-200: 236 188 191;
+        --brand-300: 216 134 140;
+        --brand-400: 196 81 90;
+        --brand-500: 165 29 38;
+        --brand-600: 143 24 32;
+        --brand-700: 118 18 26;
+        --brand-800: 92 13 20;
+        --brand-900: 63 0 8;
+
+        /*
+         * Graphite and silver neutrals, from the logo's AF letters. Quiet
+         * text (400) reads at 5.1:1 on the page's soft gray (50) and muted
+         * text (500) higher still, above the WCAG AA minimum of 4.5.
+         */
+        --gray-50: 239 241 244;
+        --gray-100: 233 236 239;
+        --gray-200: 223 226 230;
+        --gray-300: 205 211 218;
+        --gray-400: 94 103 115;
+        --gray-500: 76 84 96;
+        --gray-600: 70 78 89;
+        --gray-700: 53 60 70;
+        --gray-800: 35 42 51;
+        --gray-900: 17 24 32;
+        --gray-950: 11 13 16;
+
+        /* Blue, for editing: calm enough to sit beside the burgundy and graphite. */
+        --blue-500: 47 102 214;
+        --blue-600: 32 84 190;
+        --blue-700: 24 64 150;
+
+        /*
+         * Violet, for printing, and Excel's own green, for exporting to Excel:
+         * each action wears its colour on every page so it is found at a glance.
+         * 300 is the soft ink on a dark header, 600 the ink on a light tint.
+         */
+        --print-300: 196 181 253;
+        --print-500: 124 58 237;
+        --print-600: 109 40 217;
+        --print-700: 91 33 182;
+        --excel-300: 134 220 165;
+        --excel-500: 31 135 80;
+        --excel-600: 33 115 70;
+        --excel-700: 22 84 51;
+
+        /* Cards, tables, dialogs and fields. */
+        --surface: 255 255 255;
+
+        /* Dark graphite that stays dark in both themes: the active nav item, avatars, the dashboard's main card. */
+        --graphite-700: 38 44 51;
+        --graphite-800: 27 32 38;
+        --graphite-900: 17 21 25;
+
+        /* The signature line: burgundy fading into silver, like the logo's arrow. */
+        --spectrum: linear-gradient(90deg, #5c0d14, #a51d26 40%, #9aa3ae 75%, #dfe3e8);
+    }
+
+    .dark {
+        color-scheme: dark;
+
+        --brand-50: 42 16 19;
+        --brand-100: 58 20 24;
+        --brand-200: 92 28 34;
+        --brand-300: 140 40 48;
+        --brand-400: 196 70 78;
+        --brand-500: 184 35 44;
+        --brand-600: 222 92 100;
+        --brand-700: 236 128 135;
+        --brand-800: 243 164 169;
+        --brand-900: 249 204 207;
+
+        --gray-50: 11 13 16;
+        --gray-100: 27 31 37;
+        --gray-200: 37 42 50;
+        --gray-300: 52 58 67;
+        --gray-400: 128 137 149;
+        --gray-500: 158 166 177;
+        --gray-600: 184 190 199;
+        --gray-700: 204 209 216;
+        --gray-800: 226 229 233;
+        --gray-900: 244 245 247;
+        --gray-950: 250 250 251;
+
+        --blue-500: 96 143 240;
+        --blue-600: 133 169 245;
+        --blue-700: 62 104 196;
+
+        --print-600: 196 181 253;
+        --excel-500: 26 128 72;
+        --excel-600: 110 220 150;
+        --excel-700: 20 96 54;
+
+        --surface: 20 23 28;
+
+        --spectrum: linear-gradient(90deg, #5c0d14, #b8232c 40%, #6b7480 75%, #252a32);
+    }
+
+    /*
+     * The same tokens as named colours, for the pages that keep a stylesheet
+     * of their own (reports, the ledger, reading entry, the profile, reading
+     * schedule, SMS settings). Each page names its colours (--ledger-ink…)
+     * and points them here, so they follow the tokens above in both themes.
+     * Errors and danger share the brand's red, as everywhere else.
+     */
+    :root {
+        --ui-page: rgb(var(--gray-50));
+        --ui-surface: rgb(var(--surface));
+        --ui-raised: color-mix(in srgb, rgb(var(--gray-50)) 45%, rgb(var(--surface)));
+        --ui-sunken: rgb(var(--gray-50));
+        --ui-line: rgb(var(--gray-200));
+        --ui-line2: rgb(var(--gray-100));
+        --ui-ink: rgb(var(--gray-900));
+        --ui-ink2: rgb(var(--gray-700));
+        --ui-muted: rgb(var(--gray-500));
+        --ui-faint: rgb(var(--gray-400));
+        --ui-brand: rgb(var(--brand-500));
+        --ui-brand-ink: rgb(var(--brand-600));
+        --ui-brand-hi: #b8232c;
+        --ui-brand-lo: #7d121b;
+        --ui-success: #047857;
+        --ui-success-t: rgb(4 120 87 / 0.1);
+        --ui-info: rgb(var(--blue-600));
+        --ui-info-t: rgb(var(--blue-600) / 0.08);
+        --ui-warn: #b45309;
+        --ui-warn-t: rgb(180 83 9 / 0.1);
+        --ui-danger: rgb(var(--brand-600));
+        --ui-danger-t: rgb(var(--brand-500) / 0.08);
+        --ui-focus: rgb(var(--gray-900));
+        --ui-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 14px 34px -18px rgb(16 24 40 / 0.18);
+        --ui-pop: 0 2px 6px rgb(16 24 40 / 0.06), 0 24px 44px -20px rgb(16 24 40 / 0.32);
+        --ui-hero: linear-gradient(135deg, #262c33, #1b2026 60%, #111519);
+    }
+
+    .dark {
+        --ui-raised: rgb(var(--gray-100));
+        --ui-line: rgb(var(--gray-300));
+        --ui-line2: rgb(var(--gray-200));
+        --ui-ink2: rgb(var(--gray-800));
+        --ui-success: #34d399;
+        --ui-success-t: rgb(52 211 153 / 0.1);
+        --ui-warn: #fbbf24;
+        --ui-warn-t: rgb(251 191 36 / 0.1);
+        --ui-danger-t: rgb(var(--brand-600) / 0.12);
+        --ui-focus: rgb(var(--gray-700));
+        --ui-shadow: 0 20px 40px -24px #000;
+        --ui-pop: 0 30px 60px -20px #000;
+        --ui-hero: linear-gradient(135deg, #1c2127, #161a1f 55%, #0b0d10);
+    }
+
+    /* Text with no size of its own takes the base size, with looser lines than the browser's 1.5. */
+    body {
+        font-size: 1.0625rem;
+        line-height: 1.7;
+    }
+
+    /*
+     * El Messiri is kept for page titles only; smaller headings stay in
+     * IBM Plex Sans Arabic, which reads better at card and dialog sizes.
+     * Numbers and amounts use Alexandria (`font-display`).
+     */
+    h1,
+    h2 {
+        @apply font-luxe;
+    }
+
+    /*
+     * Fields: 12px corners and a quiet border that turns burgundy under the
+     * pointer and, with a soft ring, while typing in it, so the user always
+     * sees which field they are on. Selectors are kept as weak as the forms
+     * plugin's, so a utility class on a field still wins.
+     */
+    input:where(:not([type])),
+    [type='text'],
+    [type='email'],
+    [type='password'],
+    [type='number'],
+    [type='search'],
+    [type='tel'],
+    [type='date'],
+    select,
+    textarea {
+        @apply rounded-control border-gray-200 bg-surface text-gray-900;
+    }
+
+    /*
+     * A field's example text (a placeholder) is only a faint suggestion of
+     * what goes in it, light and never bold, so it is never mistaken for a
+     * value already typed. The label above the field names it.
+     */
+    ::placeholder {
+        color: rgb(var(--gray-400) / 0.55);
+        font-weight: 400;
+        opacity: 1;
+    }
+
+    /*
+     * A field written left to right (a username, a phone, an amount, a
+     * code) keeps its characters in that order but sits on the right like
+     * every other field, its example text with it.
+     */
+    :is(input:not([type='checkbox'], [type='radio']), textarea)[dir='ltr'] {
+        text-align: right;
+    }
+
+    input:where(:not([type])):focus,
+    [type='text']:focus,
+    [type='email']:focus,
+    [type='password']:focus,
+    [type='number']:focus,
+    [type='search']:focus,
+    [type='tel']:focus,
+    [type='date']:focus,
+    select:focus,
+    textarea:focus {
+        @apply border-brand-500 ring-4 ring-brand-500/15;
+    }
+
+    :is(
+            input:where(:not([type])),
+            [type='text'],
+            [type='email'],
+            [type='password'],
+            [type='number'],
+            [type='search'],
+            [type='tel'],
+            [type='date'],
+            select,
+            textarea
+        ):hover:not(:disabled, [readonly], :focus) {
+        border-color: rgb(var(--brand-500) / 0.45);
+    }
+
+    /* A field with an error shown under it gets a red border. */
+    :where(div):has(> [data-input-error]) :is(input:not([type='checkbox'], [type='radio']), select, textarea) {
+        @apply border-brand-500;
+    }
+
+    /*
+     * A field with a format to fit (`data-feedback` and a `pattern`, e.g. an
+     * identity or mobile number) says so as soon as what was typed fits it:
+     * a green border and a ✓ at its end. Only once the user has typed in it.
+     */
+    input[data-feedback]:user-valid:not(:placeholder-shown) {
+        @apply border-emerald-600;
+        padding-inline-end: 2.5rem;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23059669' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-size: 1.1rem;
+        background-position: left 0.85rem center;
+    }
+
+    input[data-feedback][dir='ltr']:user-valid:not(:placeholder-shown) {
+        background-position: right 0.85rem center;
+    }
+
+    input[data-feedback]:user-valid:not(:placeholder-shown):focus {
+        @apply ring-emerald-600/15;
+    }
+
+    /* A read-only or disabled field gets a dashed border. */
+    :read-only:where(input:not([type='checkbox'], [type='radio'])),
+    :disabled:where(input, select, textarea) {
+        @apply border-dashed bg-gray-50 text-gray-500;
+    }
+
+    [type='checkbox'] {
+        @apply rounded border-gray-300 bg-surface text-brand-500 focus:ring-gray-900/20;
+    }
+
+    [type='date'] {
+        color-scheme: inherit;
+    }
+
+    /*
+     * Drop-down lists drawn by the page instead of the operating system
+     * (Chrome/Edge's customizable select). They follow the theme, and they
+     * avoid the native list's glitch under zoom or display scaling, where it
+     * shrinks its options and fills the rest with white. Other browsers keep
+     * their own list.
+     */
+    @supports (appearance: base-select) {
+        select:not([multiple]),
+        ::picker(select) {
+            appearance: base-select;
+        }
+
+        /* The forms plugin already draws the chevron. */
+        select::picker-icon {
+            display: none;
+        }
+
+        ::picker(select) {
+            @apply my-1.5 rounded-2xl border border-gray-100 bg-surface p-1.5 text-gray-900 shadow-lift;
+            max-block-size: min(18rem, 60vh);
+        }
+
+        select option {
+            @apply gap-2 rounded-lg px-3 py-2 text-sm text-gray-700;
+        }
+
+        select option:hover,
+        select option:focus-visible {
+            @apply bg-gray-100 text-gray-900 outline-none;
+        }
+
+        select option:checked {
+            @apply font-semibold text-gray-900;
+        }
+
+        select option::checkmark {
+            @apply text-brand-500;
+        }
+    }
+
+    /* Theme switch: colors glide instead of jumping. Added only while switching. */
+    .theme-transition,
+    .theme-transition *,
+    .theme-transition *::before,
+    .theme-transition *::after {
+        transition:
+            background-color 380ms ease,
+            border-color 380ms ease,
+            color 380ms ease,
+            fill 380ms ease,
+            box-shadow 380ms ease !important;
+    }
+}
+
+@layer components {
+    /* A thin signature line. Use sparingly: under the logo, above tables and dialogs. */
+    .brand-spectrum {
+        @apply h-[3px] rounded-full bg-spectrum;
+    }
+
+    /* Small monospace chip for codes like a meter box number. */
+    .data-chip {
+        @apply inline-block whitespace-nowrap rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs text-gray-700;
+    }
+
+    /* Login: the brand half — soft metal texture with a burgundy glow; follows the theme. */
+    .login-brand-panel {
+        background:
+            radial-gradient(55% 45% at 15% 100%, rgb(var(--brand-500) / 0.2), transparent 70%),
+            repeating-linear-gradient(135deg, rgb(var(--gray-900) / 0.025) 0 1px, transparent 1px 7px),
+            linear-gradient(160deg, rgb(var(--gray-100)), rgb(var(--gray-200) / 0.75) 55%, rgb(var(--gray-100)));
+    }
+
+    .login-form-panel {
+        background: radial-gradient(40% 35% at 0% 0%, rgb(var(--brand-500) / 0.07), transparent 70%), rgb(var(--gray-50));
+    }
+
+    .kbd {
+        @apply inline-flex items-center rounded-md border border-gray-200 bg-surface px-1.5 py-0.5 font-display text-[12px] font-semibold text-gray-500;
+    }
+
+}
+
+/*
+ * Tables: every row is a floating card on a soft tray. The toolbar, the
+ * table and the pagination stack into one rounded card.
+ */
+.data-table-toolbar {
+    position: relative;
+    padding: 20px 24px;
+    border: 1px solid rgb(var(--gray-100));
+    border-bottom: 0;
+    border-radius: 28px 28px 0 0;
+    background: rgb(var(--surface));
+}
+
+.data-table-toolbar::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    inset-inline: 28px;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, rgb(var(--brand-500) / 0.55));
+}
+
+/*
+ * A table's search and filters answer in the brand's burgundy: the border
+ * on hover, the border and a soft ring once in them (or a drop-down open),
+ * the search icon with them. A filter holding a choice keeps a burgundy
+ * border and tint, so what narrows the table stands out. `.table-controls`
+ * gives the same to a table's own search row outside a toolbar.
+ */
+:is(.data-table-toolbar, .table-controls) :is(input:not([type='checkbox'], [type='radio']), select, button[aria-expanded]) {
+    transition:
+        border-color 150ms ease,
+        box-shadow 150ms ease,
+        background-color 150ms ease;
+}
+
+:is(.data-table-toolbar, .table-controls) :is(input:not([type='checkbox'], [type='radio']), select, button[aria-expanded]):hover:not(:disabled) {
+    border-color: rgb(var(--brand-500) / 0.45);
+}
+
+:is(.data-table-toolbar, .table-controls) :is(input:not([type='checkbox'], [type='radio']), select):focus,
+:is(.data-table-toolbar, .table-controls) button[aria-expanded]:focus-visible,
+:is(.data-table-toolbar, .table-controls) button[aria-expanded='true'] {
+    border-color: rgb(var(--brand-500));
+    --tw-ring-color: rgb(var(--brand-500) / 0.15);
+}
+
+:is(.data-table-toolbar, .table-controls) button[data-active],
+:is(.data-table-toolbar, .table-controls) select:has(option[value='']):has(option:checked:not([value=''])) {
+    border-color: rgb(var(--brand-500) / 0.6);
+    background-color: rgb(var(--brand-50));
+}
+
+:is(.data-table-toolbar, .table-controls) :has(> input:focus) > svg {
+    color: rgb(var(--brand-500));
+}
+
+/* Relative so what is placed absolutely inside a wide table (the actions
+   column's hidden title) scrolls with it instead of widening the page. */
+.data-table-container {
+    position: relative;
+    container-type: inline-size;
+    overflow-x: auto;
+    padding: 4px 16px 12px;
+    border: 1px solid rgb(var(--gray-100));
+    border-radius: 28px;
+    background: rgb(var(--gray-50));
+}
+
+.data-table-toolbar + .data-table-container {
+    border-top: 1px solid rgb(var(--gray-100));
+    border-start-start-radius: 0;
+    border-start-end-radius: 0;
+}
+
+.data-table-container:has(+ .data-table-pagination) {
+    border-bottom: 0;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+}
+
+/* A row's ⋯ in burgundy (RowActionsMenu `coloredMenu`): a soft tint at rest, filled while its menu is open. */
+.row-action.row-action-menu {
+    border-color: rgb(var(--brand-500) / 0.3);
+    background: rgb(var(--brand-500) / 0.1);
+    color: rgb(var(--brand-600));
+}
+
+.row-action.row-action-menu:hover,
+.row-action.row-action-menu[aria-expanded='true'] {
+    border-color: transparent;
+    background: linear-gradient(135deg, #b8232c, #7d121b);
+    color: #fff;
+    box-shadow: 0 8px 16px -10px #7d121b;
+}
+
+/* A منطقة 2 in a table: a soft chip in the area's own hue (lib/areaColors.js). */
+.area-chip {
+    display: inline-block;
+    white-space: nowrap;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--area-hue) 60% 45% / 0.25);
+    background: hsl(var(--area-hue) 70% 50% / 0.1);
+    padding: 1px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--area-hue) 55% 30%);
+}
+
+.dark .area-chip {
+    border-color: hsl(var(--area-hue) 60% 60% / 0.3);
+    background: hsl(var(--area-hue) 60% 55% / 0.14);
+    color: hsl(var(--area-hue) 75% 75%);
+}
+
+/* A subscriber far behind on what they owe: a light burgundy edge on their row's start (a chosen row's is full). */
+.data-table tbody tr.is-far-behind:not(.bg-brand-50, :focus-within) td:first-child {
+    box-shadow: inset -3px 0 0 rgb(var(--brand-500) / 0.5);
+}
+
+/* A totals line between a table and its pagination (the financial log). */
+.data-table-totals {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 24px;
+    padding: 14px 24px;
+    border: 1px solid rgb(var(--gray-100));
+    border-top: 0;
+    background: rgb(var(--surface));
+}
+
+.data-table-container:has(+ .data-table-totals) {
+    border-bottom: 0;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+}
+
+.data-table-totals:not(:has(+ .data-table-pagination)) {
+    border-radius: 0 0 28px 28px;
+}
+
+.data-table-totals + .data-table-pagination {
+    border-top: 1px solid rgb(var(--gray-100));
+}
+
+.data-table-pagination {
+    padding: 16px 24px 20px;
+    border: 1px solid rgb(var(--gray-100));
+    border-top: 0;
+    border-radius: 0 0 28px 28px;
+    background: rgb(var(--surface));
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.data-table thead,
+.data-table thead tr {
+    background: transparent;
+}
+
+/* Column titles: 14.5px and dark enough to read at a glance (about 9:1). */
+.data-table th {
+    padding: 10px 16px 0;
+    color: rgb(var(--gray-700));
+    font-size: 14.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-align: start;
+    text-transform: none;
+}
+
+.data-table td {
+    padding: 14px 16px;
+    white-space: nowrap;
+    vertical-align: middle;
+    background: rgb(var(--surface));
+    border-block: 1px solid rgb(var(--gray-100));
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+/* Tables with many columns, such as the box entries: tighter cells, so
+   every column fits on the screen without scrolling sideways. */
+.data-table-dense th,
+.data-table-dense td {
+    padding-inline: 10px;
+}
+
+.data-table-dense th {
+    white-space: normal;
+    vertical-align: bottom;
+    line-height: 1.35;
+}
+
+/* The app is right-to-left, so a row starts on the right. Physical sides
+   keep the corners right even when a cell's own text runs left-to-right. */
+.data-table td:first-child {
+    border-right: 1px solid rgb(var(--gray-100));
+    border-top-right-radius: 18px;
+    border-bottom-right-radius: 18px;
+}
+
+.data-table td:last-child {
+    border-left: 1px solid rgb(var(--gray-100));
+    border-top-left-radius: 18px;
+    border-bottom-left-radius: 18px;
+}
+
+.data-table tbody tr:hover td,
+.data-table tbody tr:focus-within td {
+    border-color: rgb(var(--gray-200));
+}
+
+/* The row lifts as one card: its shadow is drawn once around the whole
+   row, not under each cell (which left light seams between the cells). */
+.data-table tbody tr:hover,
+.data-table tbody tr:focus-within {
+    filter: drop-shadow(0 6px 6px rgb(16 24 40 / 0.1));
+}
+
+.data-table tbody tr:hover td:first-child,
+.data-table tbody tr:focus-within td:first-child,
+.data-table tbody tr.bg-brand-50 td:first-child {
+    box-shadow: inset -3px 0 0 rgb(var(--brand-500));
+}
+
+.data-table tbody tr.bg-brand-50 td {
+    background: rgb(var(--brand-50));
+}
+
+.data-table th.text-center,
+.data-table td.text-center {
+    text-align: center;
+}
+
+.data-table td[colspan] {
+    padding: 48px 16px;
+    text-align: center;
+    white-space: normal;
+    color: rgb(var(--gray-400));
+    font-size: 15px;
+}
+
+.data-table td[dir='ltr'] {
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+}
+
+/* Narrow tables (many columns, or a small screen) get tighter cells. */
+@container (max-width: 1180px) {
+    .data-table th,
+    .data-table td {
+        padding-inline: 10px;
+    }
+
+    .data-table td {
+        white-space: normal;
+    }
+}
+
+/* Phones: each row becomes a card, with the column title above each value. */
+@container (max-width: 640px) {
+    .data-table,
+    .data-table tbody {
+        display: block;
+    }
+
+    .data-table thead {
+        display: none;
+    }
+
+    .data-table tbody tr {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 10px;
+        padding: 14px;
+        border: 1px solid rgb(var(--gray-100));
+        border-radius: 18px;
+        background: rgb(var(--surface));
+    }
+
+    .data-table td,
+    .data-table td:first-child,
+    .data-table td:last-child,
+    .data-table tbody tr:hover td,
+    .data-table tbody tr:hover td:first-child {
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        white-space: normal;
+    }
+
+    .data-table td:first-child,
+    .data-table td[colspan] {
+        grid-column: 1 / -1;
+    }
+
+    .data-table td:not(:first-child)[data-label]:not([data-label=''])::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 2px;
+        color: rgb(var(--gray-500));
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .data-table td[dir='ltr'] {
+        text-align: start;
+    }
+}
+
+/* The account statement has many columns: wider than a phone it keeps each
+   cell on one line and scrolls sideways instead of squeezing them. */
+@container (min-width: 641px) {
+    .data-table-ledger {
+        min-width: 1540px;
+    }
+
+    .data-table-ledger td {
+        white-space: nowrap;
+    }
+
+    .data-table-ledger .ledger-description {
+        min-width: 220px;
+        max-width: 320px;
+        white-space: normal;
+    }
+}
+
+/* Tables with set column widths (a <colgroup>): a big or small figure never
+   widens its column or squeezes the next. Wider than a phone each cell keeps
+   one line, cuts what does not fit, and the table scrolls sideways. */
+@container (min-width: 641px) {
+    .data-table-fixed {
+        table-layout: fixed;
+        min-width: var(--table-min-width, 100%);
+    }
+
+    .data-table-fixed td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/*
+ * A statement line that was corrected or deleted stays, greyed and struck
+ * through; the reversal and replacement under it are marked in blue.
+ */
+.data-table tbody tr.ledger-cancelled td {
+    background: rgb(var(--gray-50));
+}
+
+.data-table tbody tr.ledger-cancelled .ledger-struck {
+    color: rgb(var(--gray-400));
+    text-decoration: line-through;
+}
+
+.data-table tbody tr.ledger-follow-up td {
+    background: rgb(var(--blue-500) / 0.04);
+}
+
+.data-table tbody tr.ledger-follow-up td:first-child {
+    border-right: 3px solid rgb(var(--blue-500) / 0.55);
+}
+
+/* In the compact statement, a cancelled line and its reversal opened under the line that outlived them. */
+.data-table tbody tr.ledger-history td {
+    background: rgb(var(--gray-50));
+    color: rgb(var(--gray-500));
+    font-size: 0.8125rem;
+}
+
+.data-table tbody tr.ledger-history td:first-child {
+    border-right: 3px solid rgb(245 158 11 / 0.5);
+}
+
+/*
+ * Lines that belong together (a line, its cancellation or refund, its
+ * correction, a reading's discount) share a colour on their edge and a
+ * faint tint of it, and are all lit while the pointer is on one of them.
+ */
+.data-table tbody tr[data-chain]:not(.ledger-cancelled, .ledger-history) td {
+    background: rgb(var(--ledger-chain) / 0.05);
+}
+
+.data-table tbody tr[data-chain] td:first-child {
+    border-right: 3px solid rgb(var(--ledger-chain));
+}
+
+.data-table tbody tr.ledger-related[data-chain] td {
+    background: rgb(var(--ledger-chain) / 0.12);
+}
+
+/* The line a statement was opened at (from a cash box's entry): marked as a chosen row is, in the brand's colour, over any chain colour. */
+.data-table tbody tr.ledger-focused td,
+.data-table tbody tr.ledger-focused[data-chain]:not(.ledger-cancelled, .ledger-history) td {
+    background: rgb(var(--brand-50));
+    border-color: rgb(var(--brand-500) / 0.35);
+}
+
+.data-table tbody tr.ledger-focused td:first-child {
+    border-right: 1px solid rgb(var(--brand-500) / 0.35);
+    box-shadow: inset -3px 0 0 rgb(var(--brand-500));
+}
+
+/*
+ * The account statement printed (its print button, or the browser's own
+ * print while it is open, on its page or in its window over a list): only
+ * the statement — its print heading, summary and lines — on landscape
+ * paper, as a plain bordered table without the filters or line menus.
+ */
+.statement-print-only {
+    display: none;
+}
+
+/* A balance's word (عليه / له / مسدّد) shows only on paper, where colour and hover are lost. */
+.balance-paper-word {
+    display: none;
+}
+
+.print-mode .balance-paper-word {
+    display: inline;
+}
+
+@media print {
+    .balance-paper-word {
+        display: inline;
+    }
+}
+
+/* A paper reading sheet prints alone, like the account statement below. */
+@media print {
+    body:has(.paper-sheet) *:not(:has(.paper-sheet)):not(.paper-sheet):not(.paper-sheet *) {
+        display: none !important;
+    }
+
+    body:has(.paper-sheet) :has(.paper-sheet) {
+        display: block !important;
+        position: static !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    html:has(.paper-sheet),
+    body:has(.paper-sheet) {
+        background: #fff !important;
+    }
+}
+
+/* The reports page prints its sheet of the period and its summaries alone (Pages/Reports/ReportPrintSheet). */
+.report-print {
+    display: none;
+}
+
+@page report {
+    size: A4 portrait;
+    margin: 12mm 11mm 14mm;
+}
+
+@media print {
+    body:has(.report-print) *:not(:has(.report-print)):not(.report-print):not(.report-print *) {
+        display: none !important;
+    }
+
+    html:has(.report-print),
+    body:has(.report-print) {
+        background: #fff !important;
+    }
+
+    body:has(.report-print) :has(.report-print) {
+        display: block !important;
+        position: static !important;
+        overflow: visible !important;
+        width: auto !important;
+        max-width: none !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .report-print {
+        display: block !important;
+        page: report;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .report-print .report-print-block,
+    .report-print tr {
+        break-inside: avoid;
+    }
+
+    .report-print h2 {
+        break-after: avoid;
+    }
+}
+
+@page statement {
+    size: A4 landscape;
+    margin: 10mm;
+}
+
+@media print {
+    body:has(.account-statement) *:not(:has(.account-statement)):not(.account-statement):not(.account-statement *) {
+        display: none !important;
+    }
+
+    html:has(.account-statement),
+    body:has(.account-statement) {
+        background: #fff !important;
+    }
+
+    body:has(.account-statement) :has(.account-statement) {
+        display: block !important;
+        position: static !important;
+        overflow: visible !important;
+        width: auto !important;
+        max-width: none !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .account-statement {
+        page: statement;
+        color: #111827;
+    }
+
+    .account-statement .statement-print-only {
+        display: block;
+    }
+
+    .account-statement .statement-screen-only,
+    .account-statement .data-table-toolbar {
+        display: none !important;
+    }
+
+    .account-statement .statement-summary {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    .account-statement .statement-summary > div {
+        padding: 6px 8px;
+        break-inside: avoid;
+    }
+
+    .account-statement .statement-summary > div > p:nth-child(2) {
+        font-size: 15px;
+    }
+
+    .account-statement .data-table-container {
+        overflow: visible !important;
+        padding: 0;
+        border: 0;
+        background: none;
+    }
+
+    .account-statement .data-table-ledger {
+        min-width: 0 !important;
+        border-collapse: collapse;
+        font-size: 9.5px;
+    }
+
+    .account-statement .data-table-ledger thead {
+        display: table-header-group;
+    }
+
+    .account-statement .data-table-ledger tr {
+        break-inside: avoid;
+        animation: none !important;
+    }
+
+    .account-statement .data-table-ledger th,
+    .account-statement .data-table-ledger td,
+    .account-statement .data-table-ledger td:first-child,
+    .account-statement .data-table-ledger td:last-child {
+        padding: 3px 5px;
+        border: 1px solid #d1d5db;
+        border-radius: 0;
+        box-shadow: none !important;
+        white-space: normal;
+        color: #111827;
+    }
+
+    .account-statement .data-table-ledger th {
+        background: #f3f4f6;
+        font-size: 9.5px;
+        font-weight: 700;
+    }
+
+    .account-statement .data-table-ledger td *,
+    .account-statement .data-table-ledger th * {
+        font-size: inherit !important;
+        line-height: 1.4;
+    }
+
+    .account-statement .data-table-ledger .ledger-description {
+        min-width: 0;
+        max-width: none;
+    }
+
+    .account-statement .data-table-ledger button {
+        pointer-events: none;
+    }
+}
+
+/* Rows float in one after another, quickly. */
+.data-table tbody tr {
+    animation: rise-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.data-table tbody tr:nth-child(2) {
+    animation-delay: 20ms;
+}
+.data-table tbody tr:nth-child(3) {
+    animation-delay: 40ms;
+}
+.data-table tbody tr:nth-child(4) {
+    animation-delay: 60ms;
+}
+.data-table tbody tr:nth-child(5) {
+    animation-delay: 80ms;
+}
+.data-table tbody tr:nth-child(6) {
+    animation-delay: 100ms;
+}
+.data-table tbody tr:nth-child(n + 7) {
+    animation-delay: 120ms;
+}
+
+/* A row that opens when clicked anywhere (see useRowClick). */
+.data-table tbody tr[data-clickable] {
+    cursor: pointer;
+}
+
+/* A day's header in a table grouped by day (the financial log): plain text on the tray, not a card. */
+.data-table tbody tr.data-table-group td,
+.data-table tbody tr.data-table-group:hover td,
+.data-table tbody tr.data-table-group:hover td:first-child {
+    padding: 16px 8px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    font-size: inherit;
+    text-align: start;
+    white-space: normal;
+}
+
+@container (max-width: 640px) {
+    .data-table tbody tr.data-table-group {
+        display: block;
+        padding: 14px 4px 0;
+        border: 0;
+        background: none;
+    }
+}
+
+/*
+ * Compact rows (the density switch in the table's toolbar): thin rows,
+ * about twice as many on screen. Phones keep their cards.
+ */
+@container (min-width: 641px) {
+    :root[data-table-density='compact'] .data-table {
+        border-spacing: 0 4px;
+    }
+
+    :root[data-table-density='compact'] .data-table td {
+        padding-block: 6px;
+    }
+
+    :root[data-table-density='compact'] .data-table td:first-child {
+        border-top-right-radius: 12px;
+        border-bottom-right-radius: 12px;
+    }
+
+    :root[data-table-density='compact'] .data-table td:last-child {
+        border-top-left-radius: 12px;
+        border-bottom-left-radius: 12px;
+    }
+
+    :root[data-table-density='compact'] .row-identity-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        font-size: 11.5px;
+    }
+
+    :root[data-table-density='compact'] .row-identity-text {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+    }
+
+    :root[data-table-density='compact'] .row-action {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+    }
+
+    :root[data-table-density='compact'] .row-action-view {
+        height: 32px;
+        border-radius: 10px;
+    }
+}
+
+/*
+ * Row actions, always showing: same-size icon buttons (edit in blue,
+ * delete in burgundy, print in teal, Excel in green, more) and the
+ * graphite "عرض" split button, the row's main action.
+ */
+.row-actions {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+}
+
+.row-actions-buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.row-action {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgb(var(--gray-200));
+    border-radius: 12px;
+    background: rgb(var(--surface));
+    color: rgb(var(--gray-700));
+    box-shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        color 120ms ease;
+}
+
+.row-action:hover {
+    border-color: rgb(var(--gray-300));
+    background: rgb(var(--gray-100));
+    color: rgb(var(--gray-900));
+}
+
+.row-action-edit {
+    border-color: rgb(var(--blue-500) / 0.28);
+    background: rgb(var(--blue-500) / 0.08);
+    color: rgb(var(--blue-600));
+}
+
+.row-action-edit:hover {
+    border-color: transparent;
+    background: linear-gradient(180deg, rgb(var(--blue-500)), rgb(var(--blue-700)));
+    color: #fff;
+    box-shadow: 0 8px 16px -8px rgb(var(--blue-600) / 0.8);
+}
+
+.row-action-delete {
+    border-color: rgb(var(--brand-500) / 0.25);
+    background: rgb(var(--brand-500) / 0.07);
+    color: rgb(var(--brand-600));
+}
+
+.row-action-delete:hover {
+    border-color: transparent;
+    background: linear-gradient(180deg, #b8232c, #7d121b);
+    color: #fff;
+    box-shadow: 0 8px 16px -8px rgb(165 29 38 / 0.8);
+}
+
+.row-action-print {
+    border-color: rgb(var(--print-500) / 0.28);
+    background: rgb(var(--print-500) / 0.08);
+    color: rgb(var(--print-600));
+}
+
+.row-action-print:hover {
+    border-color: transparent;
+    background: linear-gradient(180deg, rgb(var(--print-500)), rgb(var(--print-700)));
+    color: #fff;
+    box-shadow: 0 8px 16px -8px rgb(var(--print-500) / 0.8);
+}
+
+.row-action-excel {
+    border-color: rgb(var(--excel-500) / 0.28);
+    background: rgb(var(--excel-500) / 0.08);
+    color: rgb(var(--excel-600));
+}
+
+.row-action-excel:hover {
+    border-color: transparent;
+    background: linear-gradient(180deg, rgb(var(--excel-500)), rgb(var(--excel-700)));
+    color: #fff;
+    box-shadow: 0 8px 16px -8px rgb(var(--excel-500) / 0.8);
+}
+
+/*
+ * A print or Excel button in its own colour, on any button: a soft tint at
+ * rest, filled solid on hover. Outside the components layer so it wins over
+ * the colours of the button it sits on (PrimaryButton, SecondaryButton…).
+ * Page styles that restyle their own buttons read the same variables.
+ */
+.tone-print {
+    --tone: var(--print-500);
+    --tone-ink: var(--print-600);
+    --tone-deep: var(--print-700);
+    --tone-soft: var(--print-300);
+}
+
+.tone-excel {
+    --tone: var(--excel-500);
+    --tone-ink: var(--excel-600);
+    --tone-deep: var(--excel-700);
+    --tone-soft: var(--excel-300);
+}
+
+.tone-print,
+.tone-excel {
+    border-color: rgb(var(--tone) / 0.3);
+    background: rgb(var(--tone) / 0.08);
+    color: rgb(var(--tone-ink));
+}
+
+:is(.tone-print, .tone-excel):hover:not(:disabled) {
+    border-color: transparent;
+    background: linear-gradient(180deg, rgb(var(--tone)), rgb(var(--tone-deep)));
+    color: #fff;
+    box-shadow: 0 8px 16px -8px rgb(var(--tone) / 0.8);
+}
+
+/* The screen's main action: filled in its colour at rest too. */
+:is(.tone-print, .tone-excel).tone-solid {
+    border-color: transparent;
+    background: linear-gradient(180deg, rgb(var(--tone)), rgb(var(--tone-deep)));
+    color: #fff;
+    box-shadow: 0 10px 24px -12px rgb(var(--tone) / 0.9);
+}
+
+/* On a dark bar or header: a lighter ink so it stays readable. */
+:is(.tone-print, .tone-excel).tone-on-dark:not(:hover) {
+    border-color: rgb(var(--tone) / 0.5);
+    background: rgb(var(--tone) / 0.2);
+    color: rgb(var(--tone-soft));
+}
+
+.row-action[aria-expanded='true'] {
+    border-color: rgb(var(--gray-900));
+    background: rgb(var(--gray-900));
+    color: rgb(var(--surface));
+}
+
+.row-action-view {
+    display: inline-flex;
+    align-items: stretch;
+    height: 38px;
+    overflow: hidden;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #262c33, #111519);
+    color: #fff;
+    box-shadow:
+        0 8px 16px -8px rgb(17 24 32 / 0.7),
+        inset 0 1px 0 rgb(255 255 255 / 0.13);
+    transition:
+        background 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.row-action-view:hover,
+.row-action-view:focus-within {
+    background: linear-gradient(180deg, #b8232c, #7d121b);
+    box-shadow:
+        0 10px 20px -8px rgb(165 29 38 / 0.8),
+        inset 0 1px 0 rgb(255 255 255 / 0.2);
+}
+
+.row-action-view > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding-inline: 12px;
+    font-size: 14.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.row-action-view > button + button {
+    padding-inline: 8px;
+    border-inline-start: 1px solid rgb(255 255 255 / 0.15);
+}
+
+.row-action-view > button[aria-expanded='true'] {
+    background: rgb(0 0 0 / 0.18);
+}
+
+.row-action:focus-visible,
+.row-action-view > button:focus-visible {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: 2px;
+}
+
+.row-action-view > button:focus-visible {
+    outline-offset: -3px;
+    outline-color: #fff;
+}
+
+/* In the dark theme the main button is polished silver, so it stays the brightest thing in the row. */
+.dark .row-action-view {
+    background: linear-gradient(180deg, #f4f5f7, #c9ced5);
+    color: #111820;
+}
+
+.dark .row-action-view > button + button {
+    border-inline-start-color: rgb(17 24 32 / 0.15);
+}
+
+.dark .row-action-view > button:focus-visible {
+    outline-color: #111820;
+}
+
+/* Phones: the buttons span the card, with 44px targets. */
+@container (max-width: 640px) {
+    .data-table td:has(> .row-actions) {
+        grid-column: 1 / -1;
+    }
+
+    .data-table .row-actions,
+    .data-table .row-actions-buttons {
+        display: flex;
+        width: 100%;
+    }
+
+    .data-table .row-action {
+        width: 44px;
+        height: 44px;
+    }
+
+    .data-table .row-action-view {
+        flex: 1;
+        height: 44px;
+    }
+
+    .data-table .row-action-view > button:first-child {
+        flex: 1;
+        justify-content: center;
+    }
+}
+
+/* Notifications */
+@keyframes flash-notification-in {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes flash-notification-out {
+    to {
+        opacity: 0;
+        transform: translateX(24px) scale(0.96);
+    }
+}
+
+/* A short nudge so a failed save catches the eye. */
+@keyframes flash-notification-shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    20% {
+        transform: translateX(-6px);
+    }
+    40% {
+        transform: translateX(5px);
+    }
+    60% {
+        transform: translateX(-3px);
+    }
+    80% {
+        transform: translateX(2px);
+    }
+}
+
+@keyframes flash-notification-countdown {
+    from {
+        transform: scaleX(1);
+    }
+    to {
+        transform: scaleX(0);
+    }
+}
+
+.flash-notification {
+    animation: flash-notification-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.flash-notification-error {
+    animation:
+        flash-notification-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        flash-notification-shake 420ms ease-in-out 260ms;
+}
+
+.flash-notification-leaving {
+    animation: flash-notification-out 200ms ease-in forwards;
+}
+
+/* Drains from left to right (toward the start in RTL); pauses while the card is hovered, as its timer does. */
+.flash-notification-countdown {
+    transform-origin: right;
+    animation: flash-notification-countdown var(--flash-duration, 4s) linear forwards;
+}
+
+.flash-notification:hover .flash-notification-countdown {
+    animation-play-state: paused;
+}
+
+/* Dialogs */
+@keyframes modal-backdrop-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes modal-panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.animate-modal-backdrop {
+    animation: modal-backdrop-in 200ms ease-out;
+}
+
+.animate-modal-panel {
+    animation: modal-panel-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* The page behind an open window keeps still (the gutter stays, so nothing shifts). */
+html[data-modal-open] {
+    overflow: hidden;
+}
+
+/*
+ * Glass windows: the page behind is dimmed and softly blurred, and the
+ * panel is a frosted sheet with a light rim. The panel stays nearly opaque
+ * so text on it reads as on any card. Without blur support, or when the
+ * viewer asks for less transparency, both fall back to solid colours.
+ */
+.modal-glass-backdrop {
+    background: rgb(var(--graphite-900) / 0.55);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    backdrop-filter: blur(10px) saturate(140%);
+}
+
+.modal-glass-panel {
+    border: 1px solid rgb(255 255 255 / 0.6);
+    background: rgb(var(--surface) / 0.9);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.55),
+        0 2px 6px rgb(16 24 40 / 0.08),
+        0 36px 80px -24px rgb(16 24 40 / 0.55);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    backdrop-filter: blur(22px) saturate(160%);
+}
+
+.dark .modal-glass-panel {
+    border-color: rgb(255 255 255 / 0.09);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.06),
+        0 36px 80px -24px rgb(0 0 0 / 0.8);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .modal-glass-backdrop {
+        background: rgb(var(--graphite-900) / 0.7);
+    }
+
+    .modal-glass-panel {
+        background: rgb(var(--surface));
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .modal-glass-backdrop {
+        background: rgb(var(--graphite-900) / 0.7);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    .modal-glass-panel {
+        background: rgb(var(--surface));
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+}
+
+/*
+ * A dialog scrolls inside its own full-screen layer; a slim translucent
+ * scrollbar keeps it from showing as a bright bar beside the dimmed page.
+ */
+.modal-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.35) transparent;
+}
+
+.modal-scroll::-webkit-scrollbar {
+    width: 10px;
+}
+
+.modal-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.35) padding-box;
+}
+
+/* Menus that drop down from a top-bar button. */
+@keyframes dropdown-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.animate-dropdown {
+    animation: dropdown-in 160ms ease-out;
+    transform-origin: top left;
+}
+
+/* A row's actions menu grows out of its button (from 96%, 140ms); on phones it rises as a sheet. */
+@keyframes menu-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes sheet-in {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+.animate-menu {
+    animation: menu-in 140ms ease-out;
+    transform-origin: top left;
+}
+
+.animate-sheet {
+    animation: sheet-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Cards rise in one after another; give each a --rise-delay. */
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.rise-in {
+    animation: rise-in 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: var(--rise-delay, 0ms);
+}
+
+/*
+ * The login page's animated logo (Components/AnimatedLogo.jsx). While it
+ * plays its outlines trace themselves, the dots pop in and the metal wipes
+ * across over the tinted shapes; once done it floats and a shine passes over
+ * it. Above the form on small screens, in the brand panel on large ones.
+ */
+.af-logo {
+    position: relative;
+    width: min(270px, 70vw);
+    aspect-ratio: 782 / 455;
+    margin: 0 auto 34px;
+    perspective: 600px;
+}
+
+.af-logo--brand {
+    width: 390px;
+    margin: 0;
+    filter: drop-shadow(0 18px 30px rgba(16, 24, 40, 0.35));
+}
+
+@media (min-width: 1024px) {
+    .af-logo--form {
+        display: none;
+    }
+}
+
+.af-logo svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    transform-style: preserve-3d;
+    transition: transform 0.25s ease-out;
+}
+
+.af-logo .st {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    stroke-width: 3.2;
+    vector-effect: non-scaling-stroke;
+}
+
+.af-logo .st-af,
+.af-logo .st-sw {
+    stroke: #3b4049;
+}
+
+.dark .af-logo .st-af,
+.dark .af-logo .st-sw {
+    stroke: #c9ced6;
+}
+
+.af-logo .st-red,
+.af-logo .st-hole {
+    stroke: #9b262c;
+}
+
+.af-logo .st-hole {
+    stroke-width: 1.6;
+}
+
+.af-logo .tint path {
+    opacity: 0;
+}
+
+.af-logo .tint-silver {
+    fill: #dfdfe1;
+}
+
+.af-logo .tint-af {
+    fill: #bdbfc2;
+}
+
+.af-logo .tint-red {
+    fill: #681e21;
+}
+
+.af-logo .wipe {
+    transform: scaleX(0);
+    transform-origin: 0 0;
+    transform-box: view-box;
+}
+
+.af-logo .dot {
+    fill: #6b2125;
+    transform: scale(0);
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.af-logo .shine {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.85) 50%, transparent 62%) no-repeat;
+    background-size: 260% 100%;
+    background-position: 160% 0;
+}
+
+.af-logo.play .st-af {
+    animation: af-draw 1.68s cubic-bezier(0.6, 0, 0.3, 1) 0.08s forwards;
+}
+
+.af-logo.play .st-sw {
+    animation: af-draw 1.28s cubic-bezier(0.6, 0, 0.3, 1) 0.72s forwards;
+}
+
+.af-logo.play .st-red {
+    animation: af-draw 1.6s cubic-bezier(0.6, 0, 0.3, 1) 0.32s forwards;
+}
+
+.af-logo.play .st-hole {
+    animation: af-draw 0.56s ease-out 1.52s forwards;
+}
+
+.af-logo.play .dot {
+    animation: af-pop 0.67s cubic-bezier(0.3, 1.6, 0.5, 1) calc(1.36s + var(--i) * 44.8ms) forwards;
+}
+
+.af-logo.play .tint path {
+    animation: af-fade 0.64s ease-out 1.84s forwards;
+}
+
+.af-logo.play .wipe {
+    animation: af-wipe 1.2s cubic-bezier(0.7, 0, 0.25, 1) 2.32s forwards;
+}
+
+.af-logo.play .lines {
+    animation: af-out 0.8s ease-in 3.04s forwards;
+}
+
+.af-logo.play .dots {
+    animation: af-out 0.56s ease-in 3.28s forwards;
+}
+
+.af-logo.play svg {
+    animation: af-settle 0.96s cubic-bezier(0.3, 1.5, 0.5, 1) 3.44s both;
+}
+
+.af-logo.done .tint,
+.af-logo.done .lines,
+.af-logo.done .dots {
+    display: none;
+}
+
+.af-logo.done .wipe {
+    transform: none;
+}
+
+.af-logo.done svg {
+    animation: af-float 6s ease-in-out infinite;
+}
+
+.af-logo.done .shine {
+    opacity: 1;
+    animation: af-shine 5.5s ease-in-out 0.2s infinite;
+}
+
+/* The login's welcome rises in as the logo finishes drawing; --welcome-index staggers its lines. */
+.login-welcome {
+    animation: af-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(3s + var(--welcome-index, 0) * 120ms);
+}
+
+@keyframes af-draw {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes af-pop {
+    to {
+        transform: scale(1);
+    }
+}
+
+@keyframes af-fade {
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes af-wipe {
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@keyframes af-out {
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes af-settle {
+    0% {
+        transform: scale(1);
+    }
+    40% {
+        transform: scale(1.045);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes af-float {
+    0%,
+    100% {
+        translate: 0 0;
+    }
+    50% {
+        translate: 0 -5px;
+    }
+}
+
+@keyframes af-shine {
+    0% {
+        background-position: 160% 0;
+    }
+    35%,
+    100% {
+        background-position: -60% 0;
+    }
+}
+
+@keyframes af-up {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .af-logo .lines,
+    .af-logo .dots,
+    .af-logo .tint {
+        display: none;
+    }
+
+    .af-logo .wipe {
+        transform: none;
+    }
+
+    .af-logo *,
+    .login-welcome {
+        animation: none !important;
+    }
+}
+
+/* The login page's breathing glow behind the logo. */
+@keyframes glow-breathe {
+    0%,
+    100% {
+        opacity: 0.55;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.9;
+        transform: scale(1.08);
+    }
+}
+
+.animate-glow-breathe {
+    animation: glow-breathe 8s ease-in-out infinite;
+}
+
+/*
+ * Instant feedback: every control answers the press itself, with no grey
+ * flash or double-tap delay on phones. Small controls (the "!" notes, the
+ * row checkboxes, the page trail) keep their look but get a finger-sized
+ * target on touch screens.
+ */
+a,
+button,
+[role='button'],
+summary,
+label,
+input[type='checkbox'],
+input[type='radio'] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.tap-expand {
+    position: relative;
+}
+
+@media (pointer: coarse) {
+    .tap-expand::after {
+        content: '';
+        position: absolute;
+        inset: -10px;
+    }
+
+    main input[type='checkbox'],
+    .modal-scroll input[type='checkbox'] {
+        width: 22px;
+        height: 22px;
+    }
+
+    .tn-trail a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+    }
+}
+
+/* Dashboard rows that open a subscriber's statement: the whole row answers the pointer and the press. */
+.dashboard-row-link {
+    margin-inline: -10px;
+    padding-inline: 10px;
+    border-radius: 14px;
+    transition:
+        background-color 140ms ease,
+        transform 140ms ease;
+}
+
+.dashboard-row-link:hover {
+    background: rgb(var(--gray-50));
+}
+
+.dashboard-row-link:active {
+    transform: scale(0.99);
+}
+
+.dashboard-row-link:focus-within {
+    outline: 2px solid rgb(var(--gray-900));
+    outline-offset: -2px;
+}
+
+/* Quick actions: their titles wrap on a narrow card instead of being cut off. */
+.quick-action-title,
+.quick-action-subtitle {
+    overflow-wrap: anywhere;
+}
+
+/* Everything above stops for people who ask their device for less motion. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        animation-delay: 0ms !important;
+        transition-duration: 1ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+/*
+ * The print designer (Components/Print/PrintDesigner.jsx): a sheet of the
+ * chosen paper beside its settings. The page being printed is drawn out of
+ * sight, laid out (so its texts keep their line breaks) but without the
+ * parts that aren't data: icons, avatars and screen-reader-only text.
+ */
+.pd-source {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -1;
+    width: 1400px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pd-source .data-table-container {
+    container-type: normal;
+}
+
+.pd-source [aria-hidden='true'],
+.pd-source .row-identity-avatar,
+.pd-source .sr-only {
+    display: none !important;
+}
+
+.pd-paper {
+    position: relative;
+    isolation: isolate;
+    margin: 0 auto;
+    background: #fff;
+    color: #111827;
+    line-height: 1.5;
+    box-shadow: 0 18px 40px -18px rgb(16 24 40 / 0.45);
+}
+
+.pd-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pd-table th,
+.pd-table td {
+    padding: var(--pd-pad) 6px;
+    vertical-align: top;
+    white-space: pre-line;
+}
+
+.pd-table th {
+    font-weight: 700;
+}
+
+.pd-nowrap th,
+.pd-nowrap td {
+    white-space: nowrap;
+}
+
+.pd-borders-grid th,
+.pd-borders-grid td {
+    border: 1px solid #9ca3af;
+}
+
+.pd-borders-rows th,
+.pd-borders-rows td {
+    border-bottom: 1px solid #d1d5db;
+}
+
+.pd-borders-rows thead th,
+.pd-borders-none thead th,
+.pd-borders-rows tr.pd-column-titles th,
+.pd-borders-none tr.pd-column-titles th {
+    border-bottom: 2px solid var(--pd-accent);
+}
+
+.pd-shade thead th,
+.pd-shade tr.pd-column-titles th {
+    background: color-mix(in srgb, var(--pd-accent) 12%, #fff);
+}
+
+.pd-zebra tbody tr.pd-row:nth-child(even) td {
+    background: #f3f4f6;
+}
+
+.pd-table tfoot td {
+    border-top: 2px solid var(--pd-accent);
+    font-weight: 700;
+}
+
+.pd-table .pd-number {
+    width: 1%;
+    color: #6b7280;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.pd-table tr.pd-group td {
+    padding-top: calc(var(--pd-pad) + 6px);
+    background: #f9fafb;
+    font-weight: 700;
+}
+
+.pd-table tr.pd-group-title,
+.pd-table tr.pd-column-titles {
+    break-after: avoid;
+}
+
+.pd-table tr.pd-group-title td {
+    border-bottom: 2px solid var(--pd-accent);
+    background: color-mix(in srgb, var(--pd-accent) 8%, #fff);
+}
+
+/* Stacked headings: the outer level (e.g. the area) stands out, the next (the box) sits lighter under it. */
+.pd-table tr.pd-group-level-0 + tr.pd-group-level-1 td {
+    padding-top: var(--pd-pad);
+}
+
+.pd-table tr.pd-group-level-0:has(+ tr.pd-group-level-1) td {
+    font-size: 1.12em;
+    background: color-mix(in srgb, var(--pd-accent) 14%, #fff);
+}
+
+.pd-table tr.pd-group-level-1 td,
+.pd-table tr.pd-group-level-2 td {
+    border-bottom-width: 1px;
+}
+
+.pd-table tr.pd-subtotal td {
+    border-top: 1px solid var(--pd-accent);
+    font-weight: 600;
+}
+
+/* Written faintly across the sheet, over the table so shaded cells don't hide it; printed, it repeats on every page. */
+.pd-watermark {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6mm;
+    pointer-events: none;
+    color: #111827;
+    font-size: 42px;
+    font-weight: 700;
+    transform: rotate(-24deg);
+}
+
+.pd-watermark img {
+    width: 55%;
+    max-height: 40%;
+    object-fit: contain;
+}
+
+@media print {
+    .pd-watermark {
+        position: fixed;
+    }
+}
+
+/* A group kept whole on one page where it fits. */
+.pd-table tbody.pd-keep {
+    break-inside: avoid;
+}
+
+/* Empty lines left under a group to write in by hand. */
+.pd-table tr.pd-blank-row td {
+    height: calc(var(--pd-pad) * 2 + 1.6em);
+}
+
+/* A group set to start on its own page: a dashed line on screen, a page break in print. */
+.pd-table tbody.pd-new-page tr:first-child td {
+    border-top: 2px dashed #9ca3af;
+}
+
+@media print {
+    .pd-table tbody.pd-new-page {
+        break-before: page;
+    }
+
+    .pd-table tbody.pd-new-page tr:first-child td {
+        border-top-style: solid;
+    }
+}
+
+.pd-table thead {
+    display: table-header-group;
+}
+
+.pd-table tfoot {
+    display: table-footer-group;
+}
+
+.pd-table tr,
+.pd-signatures {
+    break-inside: avoid;
+}
+
+@media print {
+    html.print-mode,
+    html.print-mode body {
+        background: #fff;
+    }
+
+    .pd-toolbar,
+    .pd-panel,
+    .pd-source,
+    .pd-screen-only {
+        display: none !important;
+    }
+
+    .pd-root,
+    .pd-body,
+    .pd-stage {
+        display: block !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        background: none !important;
+    }
+
+    .pd-paper {
+        width: auto !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        zoom: 1 !important;
+    }
+
+    .pd-paper,
+    .pd-paper * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
