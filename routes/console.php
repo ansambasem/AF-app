@@ -12,3 +12,5 @@ Artisan::command('inspire', function () {
 Schedule::command('backup:run')->dailyAt('02:30')->withoutOverlapping()->onFailure(fn () => report(new RuntimeException('The nightly backup failed; see the log.')));
 Schedule::command('closings:process')->everyMinute()->withoutOverlapping();
 Schedule::command('readings:prepare-distributions')->hourly()->withoutOverlapping();
+// A billing period set up ahead opens on its first day (pages open it too, should the scheduler not run).
+Schedule::command('billing-periods:open')->everyMinute()->withoutOverlapping();

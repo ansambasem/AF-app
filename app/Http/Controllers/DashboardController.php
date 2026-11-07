@@ -96,6 +96,8 @@ class DashboardController extends Controller
             'governorateOptions' => $company ? $allBranches->pluck('governorate')->filter()->unique('id')->sortBy('name')->map(fn (Governorate $governorate): array => ['value' => $governorate->id, 'label' => $governorate->name])->values() : null,
             'sections' => $sections,
             // Aged one debtor at a time, so it follows the page instead of holding it up.
+            // The open billing period's accounts: what the branches are owed and have collected in it.
+            'periodAccounts' => fn () => $overview->periodAccounts(),
             'debts' => Inertia::defer(fn () => $overview->debts()),
             'latestPayments' => fn () => $overview->latestPayments($validated['method'] ?? null, trim((string) ($validated['search'] ?? '')), (int) ($validated['page'] ?? 1)),
             // Someone whose work is in the field app and who has nothing to see here is told so.

@@ -10,6 +10,7 @@ use App\Enums\DiscountMethod;
 use App\Enums\PaymentMethod;
 use App\Enums\PermissionKey;
 use App\Enums\TransactionAction;
+use App\Support\BillingPeriods;
 use App\Support\BranchClosingWorkflow;
 use App\Support\BranchDomainContext;
 use App\Support\BranchDomainScope;
@@ -44,6 +45,7 @@ use Illuminate\Validation\ValidationException;
 #[Fillable([
     'subscription_id',
     'branch_id',
+    'billing_period_id',
     'recorded_by',
     'employee_id',
     'meter_reading_id',
@@ -196,6 +198,7 @@ class SubscriptionTransaction extends Model
             $transaction->employee_id ??= $transaction->recorded_by;
             $transaction->reference_transaction_id ??= $transaction->reverses_id;
             $transaction->branch_id ??= $transaction->subscription()->value('branch_id');
+            $transaction->assignBillingPeriod();
 
             if ($transaction->balance_after === null && $transaction->subscription_id !== null) {
                 $currentBalance = (float) self::query()
@@ -219,8 +222,11 @@ class SubscriptionTransaction extends Model
             return parent::save($options);
         }
 
-        return $this->withMutationLock(function () use ($options): bool {
-            $this->ensureMutable();
+        // Cancelling a line (its reversal counts in the open period) or amending its details leaves its period's figures as they were.
+        $changesFigures = $this->isDirty(['amount', 'currency_amount', 'subscription_id', 'type', 'billing_period_id']);
+
+        return $this->withMutationLock(function () use ($options, $changesFigures): bool {
+            $this->ensureMutable($changesFigures);
 
             return parent::save($options);
         });
@@ -233,7 +239,7 @@ class SubscriptionTransaction extends Model
         }
 
         return $this->withMutationLock(function (): ?bool {
-            $this->ensureMutable();
+            $this->ensureMutable(changesFigures: true);
 
             return parent::delete();
         });
@@ -246,13 +252,55 @@ class SubscriptionTransaction extends Model
         return app(BranchClosingWorkflow::class)->locked((int) $branchId, $operation);
     }
 
-    private function ensureMutable(): void
+    private function ensureMutable(bool $changesFigures = false): void
     {
         $stored = self::query()->lockForUpdate()->findOrFail($this->getKey());
 
         if ($stored->type === self::TYPE_BANK_AUDIT_ADJUSTMENT || $stored->isInClosedDay(lockForUpdate: true)) {
             throw ValidationException::withMessages(['action' => 'لا يمكن تغيير أو حذف حركة ضمن صندوق مغلق أو كشف إغلاق أُرسل للتدقيق أو اعتُمد.']);
         }
+
+        if ($changesFigures && $reason = $stored->billingPeriodLockReason(auth()->user())) {
+            throw ValidationException::withMessages(['action' => $reason]);
+        }
+    }
+
+    /**
+     * The billing period a new line belongs to: a weekly reading's lines
+     * to their reading's period, every other line (a reversal included,
+     * which counts when it is made) to the branch's period open now. None
+     * while the branch has no period. A period the actor may not change
+     * refuses it.
+     */
+    private function assignBillingPeriod(): void
+    {
+        $periods = app(BillingPeriods::class);
+        if ($this->billing_period_id === null) {
+            $readingPeriod = $this->meter_reading_id !== null && $this->reverses_id === null
+                ? MeterReading::withoutGlobalScopes()->whereKey($this->meter_reading_id)->value('billing_period_id')
+                : null;
+            $periodId = $readingPeriod ?? $periods->open($this->branch_id)?->id;
+            if ($periodId !== null) {
+                $this->billing_period_id = $periodId;
+            }
+        }
+
+        if ($reason = $periods->lockReason($periods->find($this->billing_period_id), auth()->user())) {
+            throw ValidationException::withMessages(['action' => $reason]);
+        }
+    }
+
+    /** Why `$actor` may not change this line for its billing period, or null when they may. */
+    public function billingPeriodLockReason(?User $actor): ?string
+    {
+        $periods = app(BillingPeriods::class);
+
+        return $periods->lockReason($periods->find($this->billing_period_id), $actor);
+    }
+
+    public function billingPeriod(): BelongsTo
+    {
+        return $this->belongsTo(BillingPeriod::class);
     }
 
     /**
@@ -767,6 +815,14 @@ class SubscriptionTransaction extends Model
             $businessActions = array_values(array_filter(
                 $businessActions,
                 fn (TransactionAction $action): bool => ! $action->isPermanentDeletion(),
+            ));
+        }
+
+        // A closed period's figures change by its manager only, an approved one's never: cancelling still works, in the open period.
+        if ($this->billingPeriodLockReason($actor) !== null) {
+            $businessActions = array_values(array_filter(
+                $businessActions,
+                fn (TransactionAction $action): bool => $action !== TransactionAction::Edit && ! $action->isPermanentDeletion(),
             ));
         }
 

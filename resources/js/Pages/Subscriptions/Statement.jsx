@@ -72,6 +72,7 @@ export default function Statement(statement) {
                 subscription={subscription}
                 entries={entries}
                 summary={summary}
+                periods={statement.periods}
                 paymentMethods={paymentMethods}
                 transactionTypes={transactionTypes}
                 onAction={(action, entry) => setOpenForm({ action, entry })}

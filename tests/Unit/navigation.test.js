@@ -67,7 +67,7 @@ test('nested and query-string pages identify their task group without matching a
 test('retired closing destinations stay absent even with old permission flags', () => {
     const links = allowedNavigationGroups({ viewClosings: true, manageClosingSchedule: true, viewLedger: true, viewReports: true }).flatMap((group) => group.links);
 
-    assert.deepEqual(links.map((link) => link.href), ['/ledger', '/reports', '/settings/mobile-app']);
+    assert.deepEqual(links.map((link) => link.href), ['/ledger', '/reports', '/reports/remaining', '/settings/mobile-app']);
     assert.equal([...MAIN_LINKS, ...SETTINGS_LINKS].some((link) => link.href.includes('closing') || link.href.includes('cash-transfers')), false);
 });
 

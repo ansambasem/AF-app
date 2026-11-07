@@ -154,6 +154,7 @@ export default function StatementModal({ subscription, statement, initialForm = 
                                     subscription={statement.subscription}
                                     entries={statement.entries}
                                     summary={statement.summary}
+                                    periods={statement.periods}
                                     paymentMethods={statement.paymentMethods}
                                     transactionTypes={statement.transactionTypes}
                                     onAction={(action, entry) => setOpenForm({ action, entry })}

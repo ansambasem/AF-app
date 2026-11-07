@@ -108,6 +108,7 @@ class HandleInertiaRequests extends Middleware
                 'viewDebtAging' => $user->can('viewDebtAging', SubscriptionTransaction::class),
                 'viewTransactionAudit' => $user->can('viewTransactionAudit', SubscriptionTransaction::class),
                 'viewReports' => FinancialReportAccess::view($user),
+                'viewBillingPeriods' => FinancialReportAccess::view($user) || ($user->workBranchId() !== null && BranchClosingAccess::manage($user, $user->workBranchId())) || $user->isSuperAdmin(),
                 'viewUsers' => $user->can('viewAny', User::class),
                 'viewUserTypes' => $user->can('viewAny', UserType::class),
                 'viewTariffs' => $user->can('viewAny', Tariff::class),
