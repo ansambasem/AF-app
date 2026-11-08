@@ -283,7 +283,6 @@ class DashboardOverview
         $totals = PeriodStatement::summarize($rows);
         $subscriptions = Subscription::query()->whereIn('branch_id', $groups->pluck('branch.id'))->whereNull('archived_at')
             ->selectRaw("SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active, SUM(CASE WHEN status != 'active' THEN 1 ELSE 0 END) as disconnected")->first();
-        $due = max($totals['beforePayments'], 0);
 
         return [
             'periods' => $groups->map(fn (array $group): array => ['branch' => $group['branch']->name, 'label' => $group['period']->label()])->values()->all(),
@@ -294,11 +293,11 @@ class DashboardOverview
                 'owing' => $totals['owing'],
                 'ahead' => $totals['ahead'],
             ],
-            'collectionRate' => $due > 0 ? min(100, (int) round($totals['payments'] / $due * 100)) : null,
+            'rates' => ['total' => $totals['totalRate'], 'invoice' => $totals['invoiceRate'], 'accumulated' => $totals['accumulatedRate']],
             'byBranch' => $groups->count() > 1 ? $groups->map(function (array $group): array {
                 $branchTotals = PeriodStatement::summarize($group['rows']);
 
-                return ['id' => $group['branch']->id, 'name' => $group['branch']->name, 'due' => Closing::money(max($branchTotals['beforePayments'], 0)), 'payments' => Closing::money($branchTotals['payments'])];
+                return ['id' => $group['branch']->id, 'name' => $group['branch']->name, 'due' => Closing::money($branchTotals['collectible']), 'payments' => Closing::money($branchTotals['payments']), 'totalRate' => $branchTotals['totalRate']];
             })->sortByDesc(fn (array $branch): float => (float) $branch['payments'])->values()->all() : null,
             'top' => $rows->sortByDesc('remaining')->filter(fn (array $row): bool => $row['remaining'] > 0)->take(5)
                 ->map(fn (array $row): array => ['subscriptionId' => $row['subscriptionId'], 'name' => $row['name'], 'accountNumber' => $row['accountNumber'], 'branchName' => $row['branchName'], 'remaining' => Closing::money($row['remaining'])])->values()->all(),

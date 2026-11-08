@@ -210,6 +210,10 @@ class BillingPeriods
                     'opening' => Closing::money($row['opening']), 'invoice' => Closing::money($row['invoice']),
                     'discounts' => Closing::money($row['discounts']), 'charges' => Closing::money($row['charges']),
                     'payments' => Closing::money($row['payments']), 'closing' => Closing::money($row['remaining']),
+                    'invoice_target' => Closing::money($row['invoiceTarget']), 'advance_used' => Closing::money($row['advanceUsed']),
+                    'paid_to_invoice' => Closing::money($row['paidToInvoice']), 'discount_to_invoice' => Closing::money($row['discountToInvoice']),
+                    'invoice_settled' => Closing::money($row['invoiceSettled']), 'paid_to_accumulated' => Closing::money($row['paidToAccumulated']),
+                    'discount_to_accumulated' => Closing::money($row['discountToAccumulated']), 'new_advance' => Closing::money($row['newAdvance']),
                     'created_at' => $now, 'updated_at' => $now,
                 ], $chunk));
             }
