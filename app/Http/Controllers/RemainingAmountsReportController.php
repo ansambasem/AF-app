@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Enums\SubscriptionStatus;
 use App\Models\BillingPeriod;
 use App\Models\Branch;
+use App\Models\Subscription;
 use App\Support\BillingPeriods;
 use App\Support\DailySeries;
 use App\Support\FinancialReportAccess;
 use App\Support\PeriodStatement;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -76,11 +78,30 @@ class RemainingAmountsReportController extends Controller
                 ...PeriodStatement::present(PeriodStatement::summarize($group['rows'])),
             ])->values(),
             'rows' => new LengthAwarePaginator(
-                $rows->forPage($page, self::PER_PAGE)->map(fn (array $row): array => PeriodStatement::present($row))->values(),
+                $rows->forPage($page, self::PER_PAGE)->map(fn (array $row): array => [...PeriodStatement::present($row), ...PeriodStatement::rates($row)])->values(),
                 $rows->count(), self::PER_PAGE, $page, ['path' => $request->url(), 'query' => $request->query()],
             ),
             'today' => DailySeries::today()->toDateString(),
         ]);
+    }
+
+    /**
+     * One subscription's period settled payment by payment: its row, its
+     * rates, and the part of each payment that went to the invoice, the
+     * accumulated debt or the new advance. The period is its branch's one
+     * that the date falls in (the open one without a date).
+     */
+    public function payments(Request $request, Subscription $subscription): JsonResponse
+    {
+        $actor = $request->user();
+        abort_unless(FinancialReportAccess::view($actor), 403);
+        abort_unless(FinancialReportAccess::branches($actor)->contains('id', $subscription->branch_id), 403);
+        $date = $request->validate(['date' => ['nullable', 'date_format:Y-m-d']])['date'] ?? null;
+        $period = $date === null ? $this->periods->open($subscription->branch_id) : $this->periods->containing($subscription->branch_id, CarbonImmutable::parse($date));
+        $detail = $period ? $this->statement->detail($period, $subscription->id) : null;
+        abort_if($detail === null, 404);
+
+        return response()->json([...$detail, 'period' => ['label' => $period->label(), 'statusLabel' => $period->statusLabel()]]);
     }
 
     /**

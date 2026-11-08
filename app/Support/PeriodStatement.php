@@ -34,15 +34,26 @@ class PeriodStatement
     public const TOTALS = ['invoice', 'accumulated', 'advance', 'net', 'discounts', 'charges', 'beforePayments', 'payments', 'remaining'];
 
     /**
+     * How each subscription's period was settled (see allocate()), summed in
+     * the report's and the dashboard's totals. Never columns of the
+     * subscriptions table: they are read in the details and the indicators.
+     */
+    public const SETTLEMENT = [
+        'invoiceTarget', 'advanceUsed', 'paidToInvoice', 'discountToInvoice', 'invoiceSettled', 'invoiceRemaining',
+        'paidToAccumulated', 'discountToAccumulated', 'accumulatedRemaining', 'newAdvance', 'collectible',
+    ];
+
+    /**
      * The rows of the period's subscriptions (those of its branch, narrowed
      * by `$status`: active, disconnected or every one), keyed by
      * subscription id.
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function rows(BillingPeriod $period, ?string $status = null, ?string $search = null): Collection
+    public function rows(BillingPeriod $period, ?string $status = null, ?string $search = null, ?array $only = null): Collection
     {
         $subscriptions = Subscription::withoutGlobalScopes()->where('branch_id', $period->branch_id)
+            ->when($only !== null, fn (Builder $query) => $query->whereKey($only))
             ->when($status === SubscriptionStatus::Active->value, fn (Builder $query) => $query->where('status', SubscriptionStatus::Active->value))
             ->when($status === SubscriptionStatus::Disconnected->value, fn (Builder $query) => $query->where('status', '!=', SubscriptionStatus::Active->value))
             ->when(filled($search), fn (Builder $query) => $query->matchingSearch((string) $search))
@@ -98,6 +109,81 @@ class PeriodStatement
             'opening' => $opening, 'invoice' => $invoice, 'accumulated' => $accumulated, 'advance' => $advance, 'net' => $net,
             'discounts' => $discounts, 'charges' => $charges, 'beforePayments' => $beforePayments,
             'payments' => $payments, 'remaining' => $beforePayments - $payments,
+            ...self::allocate($accumulated, $advance, $invoice, $charges, $discounts, $payments),
+        ];
+    }
+
+    /**
+     * How the period was settled, in cents, the one rule every page reads:
+     *
+     *   invoice target = invoice + charges
+     *   1. the advance brought forward settles the target first;
+     *   2. the period's payments (cash, transfers, clearings) settle what is left of it;
+     *   3. its discounts settle what is still left (never counted as money in);
+     *   4. what is left of the payments goes to the accumulated debt (collected),
+     *   5. what is left of the discounts too (not collected: a discount is no payment);
+     *   6. and what is left of the payments then is the new advance carried forward.
+     *
+     * Nothing is counted twice: each shekel of a payment goes to one place,
+     * and the invoice is never settled beyond its target. A reversal in the
+     * period of an earlier period's line reopens that debt (a refunded
+     * payment, a cancelled discount) or adds to the credit (a cancelled
+     * charge), so the parts always add up to the period's closing balance.
+     *
+     * @return array<string, int>
+     */
+    public static function allocate(int $accumulated, int $advance, int $invoice, int $charges, int $discounts, int $payments): array
+    {
+        $billed = $invoice + $charges;
+        $target = max($billed, 0);
+        $credit = $advance + max(-$billed, 0);
+        $debt = $accumulated + max(-$discounts, 0) + max(-$payments, 0);
+        $paid = max($payments, 0);
+        $discounted = max($discounts, 0);
+
+        $advanceUsed = min($credit, $target);
+        $paidToInvoice = min($paid, $target - $advanceUsed);
+        $discountToInvoice = min($discounted, $target - $advanceUsed - $paidToInvoice);
+        $paidToAccumulated = min($paid - $paidToInvoice, $debt);
+        $discountToAccumulated = min($discounted - $discountToInvoice, $debt - $paidToAccumulated);
+        $invoiceSettled = $advanceUsed + $paidToInvoice + $discountToInvoice;
+        $beforePayments = $billed + $accumulated - $advance - $discounts;
+
+        return [
+            'invoiceTarget' => $target,
+            'advanceUsed' => $advanceUsed,
+            'paidToInvoice' => $paidToInvoice,
+            'discountToInvoice' => $discountToInvoice,
+            'invoiceSettled' => $invoiceSettled,
+            'invoiceRemaining' => $target - $invoiceSettled,
+            'paidToAccumulated' => $paidToAccumulated,
+            'discountToAccumulated' => $discountToAccumulated,
+            'accumulatedRemaining' => $debt - $paidToAccumulated - $discountToAccumulated,
+            'newAdvance' => $paid - $paidToInvoice - $paidToAccumulated,
+            // What the subscription had to pay in money this period: what it owed before paying, never below nothing.
+            'collectible' => max($beforePayments, 0),
+        ];
+    }
+
+    /**
+     * The three collection rates of summed rows, as whole percentages never
+     * above 100 (null when there was nothing to collect):
+     *
+     *   total       = money that settled what was owed (invoice and accumulated) ÷ what had to be paid in money
+     *   invoice     = invoice settled ÷ invoice target
+     *   accumulated = collected from the accumulated debt ÷ accumulated at the period's start
+     *
+     * @param  array<string, int>  $totals
+     * @return array{totalRate: ?int, invoiceRate: ?int, accumulatedRate: ?int}
+     */
+    public static function rates(array $totals): array
+    {
+        $rate = fn (int $part, int $whole): ?int => $whole > 0 ? (int) min(100, max(0, floor($part * 100 / $whole))) : null;
+
+        return [
+            'totalRate' => $rate($totals['paidToInvoice'] + $totals['paidToAccumulated'], $totals['collectible']),
+            'invoiceRate' => $rate($totals['invoiceSettled'], $totals['invoiceTarget']),
+            'accumulatedRate' => $rate($totals['paidToAccumulated'], $totals['accumulated']),
         ];
     }
 
@@ -110,10 +196,10 @@ class PeriodStatement
      */
     public static function summarize(iterable $rows): array
     {
-        $totals = array_fill_keys([...self::TOTALS, 'owing', 'ahead', 'count'], 0);
+        $totals = array_fill_keys([...self::TOTALS, ...self::SETTLEMENT, 'owing', 'ahead', 'count'], 0);
 
         foreach ($rows as $row) {
-            foreach (self::TOTALS as $column) {
+            foreach ([...self::TOTALS, ...self::SETTLEMENT] as $column) {
                 $totals[$column] += $row[$column];
             }
             $totals['count']++;
@@ -121,19 +207,67 @@ class PeriodStatement
             $totals['ahead'] += $row['remaining'] < 0 ? 1 : 0;
         }
 
-        return $totals;
+        return [...$totals, ...self::rates($totals)];
     }
 
     /** A row (or summary) with its money columns as decimal strings, for the pages and exports. */
     public static function present(array $row): array
     {
-        foreach ([...self::TOTALS, 'opening'] as $column) {
+        foreach ([...self::TOTALS, ...self::SETTLEMENT, 'opening'] as $column) {
             if (array_key_exists($column, $row)) {
                 $row[$column] = Closing::money($row[$column]);
             }
         }
 
         return $row;
+    }
+
+    /**
+     * One subscription's period in full: its row, its three rates, and each
+     * payment of the period (cash, transfer, clearing) with the part of it
+     * that settled the invoice, the accumulated debt, or became the new
+     * advance — taken in the order they were made, so the parts add up to
+     * the row's. Null when the subscription is not in the period's branch.
+     *
+     * @return array{row: array<string, mixed>, rates: array<string, ?int>, payments: list<array<string, mixed>>}|null
+     */
+    public function detail(BillingPeriod $period, int $subscriptionId): ?array
+    {
+        $row = $this->rows($period, only: [$subscriptionId])->get($subscriptionId);
+        if ($row === null) {
+            return null;
+        }
+
+        $toInvoice = $row['paidToInvoice'];
+        $toAccumulated = $row['paidToAccumulated'];
+        $budget = max($row['payments'], 0);
+        $payments = SubscriptionTransaction::withoutGlobalScopes()->where('billing_period_id', $period->id)->where('subscription_id', $subscriptionId)
+            ->whereIn('type', [SubscriptionTransaction::TYPE_PAYMENT, SubscriptionTransaction::TYPE_CLEARING, SubscriptionTransaction::TYPE_CREDIT, SubscriptionTransaction::TYPE_BANK_AUDIT_ADJUSTMENT])
+            ->where('amount', '<', 0)->orderBy('created_at')->orderBy('id')->get()
+            ->map(function (SubscriptionTransaction $line) use (&$toInvoice, &$toAccumulated, &$budget): array {
+                $amount = -Closing::cents($line->amount);
+                $counted = min($amount, $budget);
+                $budget -= $counted;
+                $invoice = min($counted, $toInvoice);
+                $toInvoice -= $invoice;
+                $accumulated = min($counted - $invoice, $toAccumulated);
+                $toAccumulated -= $accumulated;
+
+                return [
+                    'id' => $line->id,
+                    'date' => DailySeries::localDate($line->created_at),
+                    'voucher' => $line->displayVoucherNumber(),
+                    'method' => $line->isClearing() ? 'مقاصة' : ($line->payment_method ? __($line->payment_method->label()) : null),
+                    'amount' => Closing::money($amount),
+                    'toInvoice' => Closing::money($invoice),
+                    'toAccumulated' => Closing::money($accumulated),
+                    'toAdvance' => Closing::money($counted - $invoice - $accumulated),
+                    // Taken back in the period (a refund or a cancelled payment): it settled nothing.
+                    'returned' => Closing::money($amount - $counted),
+                ];
+            })->values()->all();
+
+        return ['row' => self::present($row), 'rates' => self::rates($row), 'payments' => $payments];
     }
 
     /**

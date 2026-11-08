@@ -120,6 +120,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('/reports/remaining', [RemainingAmountsReportController::class, 'index'])->name('reports.remaining');
+    Route::get('/reports/remaining/{subscription}/payments', [RemainingAmountsReportController::class, 'payments'])->name('reports.remaining.payments');
     Route::get('/billing-periods', [BillingPeriodController::class, 'index'])->name('billing-periods.index');
     Route::post('/billing-periods', [BillingPeriodController::class, 'store'])->name('billing-periods.store');
     Route::patch('/billing-periods/{billingPeriod}', [BillingPeriodController::class, 'update'])->whereNumber('billingPeriod')->name('billing-periods.update');

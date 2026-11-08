@@ -13,7 +13,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * accumulated amount (a positive closing) or advance (a negative one)
  * starts from it.
  */
-#[Fillable(['billing_period_id', 'subscription_id', 'opening', 'invoice', 'discounts', 'charges', 'payments', 'closing'])]
+#[Fillable([
+    'billing_period_id', 'subscription_id', 'opening', 'invoice', 'discounts', 'charges', 'payments', 'closing',
+    'invoice_target', 'advance_used', 'paid_to_invoice', 'discount_to_invoice', 'invoice_settled', 'paid_to_accumulated', 'discount_to_accumulated', 'new_advance',
+])]
 class SubscriberPeriodBalance extends Model
 {
     protected function casts(): array
@@ -25,6 +28,14 @@ class SubscriberPeriodBalance extends Model
             'charges' => 'decimal:2',
             'payments' => 'decimal:2',
             'closing' => 'decimal:2',
+            'invoice_target' => 'decimal:2',
+            'advance_used' => 'decimal:2',
+            'paid_to_invoice' => 'decimal:2',
+            'discount_to_invoice' => 'decimal:2',
+            'invoice_settled' => 'decimal:2',
+            'paid_to_accumulated' => 'decimal:2',
+            'discount_to_accumulated' => 'decimal:2',
+            'new_advance' => 'decimal:2',
         ];
     }
 

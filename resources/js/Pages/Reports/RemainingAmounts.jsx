@@ -1,24 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, useHttp } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import PageHeader from '@/Components/PageHeader';
 import KpiTile from '@/Components/KpiTile';
+import StatRing from '@/Components/StatRing';
+import DialogFrame from '@/Components/DialogFrame';
+import SecondaryButton from '@/Components/SecondaryButton';
 import Pagination from '@/Components/DataTable/Pagination';
 import StatusPill from '@/Components/DataTable/StatusPill';
 import { formatMoney, formatNumber } from '@/lib/format';
-
-/** The report's money columns, in the order of the accounts formula. */
-export const MONEY_COLUMNS = [
-    ['invoice', 'الفاتورة'],
-    ['accumulated', 'المتراكم'],
-    ['advance', 'المقدم'],
-    ['net', 'صافي المتراكم'],
-    ['discounts', 'الخصومات'],
-    ['charges', 'المبالغ المحملة'],
-    ['beforePayments', 'الرصيد قبل الدفعات'],
-    ['payments', 'إجمالي الدفعات'],
-    ['remaining', 'الرصيد المتبقي'],
-];
+import { COLLECTION_INDICATORS, COLLECTION_RATES, MONEY_COLUMNS, SETTLEMENT_COLUMNS, SUBSCRIBER_COLUMNS, formatRate } from '@/lib/remainingAmounts';
 
 const PERIOD_TONES = { open: 'green', closed: 'amber', approved: 'gray', scheduled: 'blue' };
 
@@ -33,10 +24,168 @@ function Reading({ value }) {
 }
 
 /**
+ * The period's collection, from the same rows as the totals above: the
+ * four figures, the three rates, and the same for each branch in a table
+ * that exports with the report.
+ */
+function Collection({ summary, branchRows }) {
+    return (
+        <section aria-label="التحصيل في الفترة" className="rise-in mb-6 space-y-4">
+            <h3 className="text-lg font-bold text-gray-900">التحصيل في الفترة</h3>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {COLLECTION_INDICATORS.map(([key, label, hint]) => <KpiTile key={key} compact label={label} value={formatMoney(summary[key])} unit="₪" hint={hint} />)}
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+                {COLLECTION_RATES.map(([key, label, hint]) => (
+                    <div key={key} className="flex items-center gap-4 rounded-panel border border-gray-100 bg-surface p-5 shadow-card">
+                        <StatRing percent={summary[key] ?? 0} size={72} />
+                        <div className="min-w-0">
+                            <p className="font-bold text-gray-900">{label} <span className="tabular-nums" dir="ltr">{formatRate(summary[key])}</span></p>
+                            <p className="mt-1 text-xs leading-5 text-gray-500">{hint}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <div className="overflow-x-auto rounded-panel border border-gray-100 bg-surface shadow-card">
+                <table className="w-full text-sm" aria-label="إجماليات التحصيل">
+                    <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                            <th className="px-3 py-2 text-start font-semibold">الفرع</th>
+                            {COLLECTION_INDICATORS.map(([key, label]) => <th key={key} className="px-3 py-2 text-start font-semibold">{label}</th>)}
+                            {COLLECTION_RATES.map(([key, label]) => <th key={key} className="px-3 py-2 text-start font-semibold">{label}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {branchRows.length > 1 && branchRows.map((branch) => (
+                            <tr key={branch.id}>
+                                <td className="px-3 py-2 font-semibold text-gray-900">{branch.name}</td>
+                                {COLLECTION_INDICATORS.map(([key]) => <td key={key} className="px-3 py-2"><Money value={branch[key]} /></td>)}
+                                {COLLECTION_RATES.map(([key]) => <td key={key} className="px-3 py-2 tabular-nums" dir="ltr">{formatRate(branch[key])}</td>)}
+                            </tr>
+                        ))}
+                        <tr className="bg-gray-50 font-bold">
+                            <td className="px-3 py-2 text-gray-900">الإجمالي</td>
+                            {COLLECTION_INDICATORS.map(([key]) => <td key={key} className="px-3 py-2"><Money value={summary[key]} strong /></td>)}
+                            {COLLECTION_RATES.map(([key]) => <td key={key} className="px-3 py-2 tabular-nums" dir="ltr">{formatRate(summary[key])}</td>)}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    );
+}
+
+/** One subscriber's payments of the period, each split into what settled the invoice, the accumulated debt, or became advance. */
+function PaymentsDialog({ row, date, onClose }) {
+    const http = useHttp();
+    const [detail, setDetail] = useState(null);
+    const [failed, setFailed] = useState(false);
+
+    useEffect(() => {
+        let current = true;
+        http.get(`/reports/remaining/${row.subscriptionId}/payments${date ? `?date=${date}` : ''}`)
+            .then((loaded) => current && setDetail(loaded))
+            .catch(() => current && setFailed(true));
+
+        return () => {
+            current = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [row.subscriptionId, date]);
+
+    return (
+        <DialogFrame show onClose={onClose} title={`توزيع دفعات ${row.name}`} description={detail ? detail.period.label : null} icon="layers" maxWidth="4xl"
+            footer={<SecondaryButton onClick={onClose}>إغلاق</SecondaryButton>}>
+            {failed && <p className="py-6 text-center text-base text-brand-600">تعذّر تحميل تفاصيل الدفعات.</p>}
+            {!detail && !failed && <p className="py-6 text-center text-base text-gray-500">جارٍ التحميل…</p>}
+            {detail && (
+                <>
+                    <dl className="grid gap-3 text-sm sm:grid-cols-3">
+                        {[['invoiceTarget', 'مستهدف الفاتورة'], ['advanceUsed', 'المقدم المستخدم'], ['discountToInvoice', 'الخصم على الفاتورة'], ['invoiceSettled', 'تسوية الفاتورة'], ['paidToAccumulated', 'المحصّل من المتراكم'], ['newAdvance', 'المقدم الجديد']].map(([key, label]) => (
+                            <div key={key} className="rounded-control bg-gray-50 px-3 py-2"><dt className="text-gray-500">{label}</dt><dd className="font-bold"><Money value={detail.row[key]} /> ₪</dd></div>
+                        ))}
+                    </dl>
+                    {detail.payments.length === 0 ? <p className="text-base text-gray-500">لا دفعات لهذا المشترك في الفترة.</p> : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm" aria-label={`توزيع دفعات ${row.name}`}>
+                                <thead className="bg-gray-50 text-gray-600">
+                                    <tr>
+                                        {['التاريخ', 'السند', 'الوسيلة', 'المبلغ', 'للفاتورة', 'للمتراكم', 'مقدم جديد', 'مسترد'].map((label) => <th key={label} className="px-3 py-2 text-start font-semibold">{label}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {detail.payments.map((payment) => (
+                                        <tr key={payment.id}>
+                                            <td className="px-3 py-2 tabular-nums" dir="ltr">{payment.date}</td>
+                                            <td className="px-3 py-2 tabular-nums" dir="ltr">{payment.voucher ?? '—'}</td>
+                                            <td className="px-3 py-2">{payment.method ?? '—'}</td>
+                                            {['amount', 'toInvoice', 'toAccumulated', 'toAdvance', 'returned'].map((key) => <td key={key} className="px-3 py-2"><Money value={payment[key]} strong={key === 'amount'} /></td>)}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </>
+            )}
+        </DialogFrame>
+    );
+}
+
+/**
+ * Each subscriber's settlement on this page of the report, in its own table
+ * under the subscribers one (whose columns never change), opened on demand.
+ */
+function Settlement({ rows, date }) {
+    const [open, setOpen] = useState(false);
+    const [showing, setShowing] = useState(null);
+
+    return (
+        <section className="rise-in mt-6 overflow-x-auto rounded-panel border border-gray-100 bg-surface shadow-card">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                <div>
+                    <h3 className="text-lg font-bold text-gray-900">تفاصيل التسوية والتحصيل</h3>
+                    <p className="text-sm text-gray-500">لكل مشترك في هذه الصفحة: كيف سُوّيت فاتورته ومتراكمه، وما صار مقدمًا جديدًا.</p>
+                </div>
+                <SecondaryButton onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}</SecondaryButton>
+            </div>
+            {open && (
+                <table className="w-full text-sm" aria-label="تفاصيل التسوية والتحصيل">
+                    <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                            <th className="px-3 py-2 text-start font-semibold">رقم المشترك</th>
+                            <th className="px-3 py-2 text-start font-semibold">اسم المشترك</th>
+                            <th className="px-3 py-2 text-start font-semibold">الفرع</th>
+                            {SETTLEMENT_COLUMNS.map(([key, label]) => <th key={label} className="px-3 py-2 text-start font-semibold">{label}</th>)}
+                            <th className="px-3 py-2" />
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {rows.map((row) => (
+                            <tr key={`${row.periodId}-${row.subscriptionId}`}>
+                                <td className="px-3 py-2 tabular-nums" dir="ltr">{row.accountNumber}</td>
+                                <td className="px-3 py-2 font-semibold text-gray-900">{row.name}</td>
+                                <td className="px-3 py-2 text-gray-600">{row.branchName}</td>
+                                {SETTLEMENT_COLUMNS.map(([key, label, kind]) => <td key={label} className="px-3 py-2">{kind === 'rate' ? <span className="tabular-nums" dir="ltr">{formatRate(row[key])}</span> : <Money value={row[key]} strong={key === 'remaining'} />}</td>)}
+                                <td className="px-3 py-2 text-end"><button type="button" onClick={() => setShowing(row)} className="whitespace-nowrap text-sm font-semibold text-brand-600 hover:underline">توزيع الدفعات</button></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+            {showing && <PaymentsDialog row={showing} date={date} onClose={() => setShowing(null)} />}
+        </section>
+    );
+}
+
+/**
  * The remaining amounts report: for the chosen period (each branch's open
  * one by default), every subscription's reading, invoice, accumulated or
  * advance, discounts, charges, payments and what remains, with the totals
  * above and each branch's totals; a branch's row narrows the report to it.
+ * Under the totals, the period's collection (paid, invoice settled,
+ * accumulated collected, new advance and the three rates); under the
+ * subscribers, each one's settlement and the split of its payments.
  */
 export default function RemainingAmounts({ filters, branches, periodOptions, summary, branchRows, rows }) {
     const [search, setSearch] = useState(filters.search);
@@ -110,6 +259,8 @@ export default function RemainingAmounts({ filters, branches, periodOptions, sum
                 ))}
             </div>
 
+            <Collection summary={summary} branchRows={branchRows} />
+
             {branchRows.length > 1 && (
                 <section className="rise-in mb-6 overflow-x-auto rounded-panel border border-gray-100 bg-surface shadow-card">
                     <h3 className="px-5 pt-5 text-lg font-bold text-gray-900">ملخص الفروع</h3>
@@ -140,18 +291,11 @@ export default function RemainingAmounts({ filters, branches, periodOptions, sum
                 <table className="w-full text-sm" aria-label="تفاصيل المشتركين">
                     <thead className="bg-gray-50 text-gray-600">
                         <tr>
-                            <th className="px-3 py-2 text-start font-semibold">رقم المشترك</th>
-                            <th className="px-3 py-2 text-start font-semibold">اسم المشترك</th>
-                            <th className="px-3 py-2 text-start font-semibold">الفرع</th>
-                            <th className="px-3 py-2 text-start font-semibold">القراءة السابقة</th>
-                            <th className="px-3 py-2 text-start font-semibold">القراءة الحالية</th>
-                            <th className="px-3 py-2 text-start font-semibold">فرق القراءة</th>
-                            <th className="px-3 py-2 text-start font-semibold">سعر الوحدة</th>
-                            {MONEY_COLUMNS.map(([key, label]) => <th key={key} className="px-3 py-2 text-start font-semibold">{label}</th>)}
+                            {SUBSCRIBER_COLUMNS.map((label) => <th key={label} className="px-3 py-2 text-start font-semibold">{label}</th>)}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {rows.data.length === 0 && <tr><td colSpan={7 + MONEY_COLUMNS.length} className="px-3 py-12 text-center text-gray-500">لا يوجد مشتركون مطابقون في هذه الفترة.</td></tr>}
+                        {rows.data.length === 0 && <tr><td colSpan={SUBSCRIBER_COLUMNS.length} className="px-3 py-12 text-center text-gray-500">لا يوجد مشتركون مطابقون في هذه الفترة.</td></tr>}
                         {rows.data.map((row) => (
                             <tr key={`${row.periodId}-${row.subscriptionId}`}>
                                 <td className="px-3 py-2 tabular-nums" dir="ltr">{row.accountNumber}</td>
@@ -170,6 +314,8 @@ export default function RemainingAmounts({ filters, branches, periodOptions, sum
                     <Pagination meta={rows} filters={filters} baseUrl="/reports/remaining" />
                 </div>
             </section>
+
+            {rows.data.length > 0 && <Settlement key={`${filters.date}-${rows.current_page}`} rows={rows.data} date={filters.date} />}
         </AuthenticatedLayout>
     );
 }

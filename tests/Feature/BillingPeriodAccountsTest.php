@@ -331,7 +331,7 @@ class BillingPeriodAccountsTest extends TestCase
             ->where('summary.invoice', '40.00')->where('summary.accumulated', '60.00')->where('summary.payments', '30.00')->where('summary.remaining', '70.00')
             ->where('rows.data.0.remaining', '70.00'));
         $this->get(route('dashboard'))->assertOk()->assertInertia(fn ($page) => $page
-            ->where('periodAccounts.totals.remaining', '70.00')->where('periodAccounts.counts.owing', 1)->where('periodAccounts.collectionRate', 30));
+            ->where('periodAccounts.totals.remaining', '70.00')->where('periodAccounts.counts.owing', 1)->where('periodAccounts.rates.total', 30));
     }
 
     public function test_a_line_recorded_before_any_period_opens_the_first_one(): void
