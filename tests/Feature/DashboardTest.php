@@ -10,49 +10,14 @@ use App\Models\Permission;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
 use App\Models\User;
+use App\Support\BillingPeriods;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DashboardTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_the_super_admin_sees_the_whole_company_and_each_branchs_collections(): void
-    {
-        $superAdmin = User::factory()->superAdmin()->create();
-        [$north, $south] = Branch::factory()->count(2)->create();
-        $this->pay($north, 100);
-        $this->pay($south, 40);
-
-        $this->actingAs($superAdmin)->get(route('dashboard'))->assertInertia(fn ($page) => $page
-            ->where('scope.company', true)
-            ->where('scope.label', 'كل الفروع')
-            ->where('branchScope.level', 'all')
-            ->where('branchScope.name', 'جميع الفروع')
-            ->where('branchScope.branches', Branch::count())
-            ->where('sections.collections.total', 140)
-            ->where('sections.collections.byBranch.0.name', $north->name)
-            ->where('sections.collections.byBranch.0.share', 71)
-            ->where('branchOptions', fn ($options): bool => collect($options)->pluck('value')->contains($south->id))
-            ->where('latestPayments.sum', 140));
-    }
-
-    public function test_the_super_admin_can_narrow_the_figures_to_one_branch(): void
-    {
-        $superAdmin = User::factory()->superAdmin()->create();
-        [$north, $south] = Branch::factory()->count(2)->create();
-        $this->pay($north, 100);
-        $this->pay($south, 40);
-
-        $this->actingAs($superAdmin)->get(route('dashboard', ['branch' => $south->id, 'days' => 7]))->assertInertia(fn ($page) => $page
-            ->where('scope.label', $south->name)
-            ->where('branchScope.level', 'branch')
-            ->where('branchScope.name', $south->name)
-            ->where('filters.days', 7)
-            ->where('sections.collections.total', 40)
-            ->where('sections.collections.byBranch', null)
-            ->has('latestPayments.rows.data', 1));
-    }
 
     public function test_the_banner_names_the_governorate_the_super_admin_narrowed_to(): void
     {
@@ -76,10 +41,43 @@ class DashboardTest extends TestCase
             ->where('branchScope.branches', 0));
     }
 
+    /**
+     * A cash payment of `$amount` on a new active subscription of the branch.
+     *
+     * @param  array<string, mixed>  $subscription
+     */
+    public function test_the_super_admin_sees_the_whole_company_and_the_open_periods_follow_the_branch_picked_at_the_top(): void
+    {
+        $superAdmin = User::factory()->superAdmin()->create();
+        [$north, $south] = Branch::factory()->count(2)->create();
+        foreach ([$north, $south] as $branch) {
+            app(BillingPeriods::class)->create($branch, CarbonImmutable::today(config('app.business_timezone')), CarbonImmutable::today(config('app.business_timezone'))->addDays(6), $superAdmin);
+        }
+        $this->pay($north, 100);
+        $this->pay($south, 40);
+
+        $this->actingAs($superAdmin)->get(route('dashboard'))->assertInertia(fn ($page) => $page
+            ->where('scope.company', true)
+            ->where('scope.label', 'كل الفروع')
+            ->where('branchScope.level', 'all')
+            ->where('branchScope.name', 'جميع الفروع')
+            ->where('branchScope.branches', Branch::count())
+            ->where('branchOptions', fn ($options): bool => collect($options)->pluck('value')->contains($south->id))
+            ->where('periodAccounts.totals.payments', '140.00'));
+
+        $this->get(route('dashboard', ['branch' => $south->id]))->assertInertia(fn ($page) => $page
+            ->where('scope.label', $south->name)
+            ->where('branchScope.level', 'branch')
+            ->where('branchScope.name', $south->name)
+            ->where('filters.branch', (string) $south->id)
+            ->where('periodAccounts.totals.payments', '40.00'));
+    }
+
     public function test_a_branch_manager_sees_only_their_branch(): void
     {
         [$own, $other] = Branch::factory()->count(2)->create();
         $manager = User::factory()->branchAdmin()->create(['branch_id' => $own->id]);
+        app(BillingPeriods::class)->create($own, CarbonImmutable::today(config('app.business_timezone')), CarbonImmutable::today(config('app.business_timezone'))->addDays(6), $manager);
         $this->pay($own, 75);
         $this->pay($other, 500);
 
@@ -88,9 +86,27 @@ class DashboardTest extends TestCase
             ->where('scope.label', $own->name)
             ->where('branchScope', null)
             ->where('branchOptions', null)
-            ->where('sections.collections.total', 75)
-            ->where('sections.subscriptions.active', 1)
-            ->has('latestPayments.rows.data', 1));
+            ->where('periodAccounts.totals.payments', '75.00'));
+    }
+
+    public function test_the_removed_parts_are_neither_shown_nor_worked_out(): void
+    {
+        $superAdmin = User::factory()->superAdmin()->create();
+        $this->pay(Branch::factory()->create(), 30);
+
+        $this->actingAs($superAdmin)->get(route('dashboard', ['days' => 7, 'method' => 'cash']))->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Dashboard')
+            ->missing('sections.collections')
+            ->missing('sections.subscriptions')
+            ->missing('sections.meterBoxes')
+            ->missing('debts')
+            ->missing('latestPayments')
+            ->missing('periods')
+            ->missing('statement')
+            ->missing('subscriptionForm')
+            ->missing('subscriptionEdit')
+            ->missing('canCreateSubscription')
+            ->missing('filters.days'));
     }
 
     public function test_each_part_needs_the_permission_of_the_page_it_summarizes(): void
@@ -101,26 +117,11 @@ class DashboardTest extends TestCase
         $this->pay($branch, 30);
 
         $this->actingAs($clerk)->get(route('dashboard'))->assertInertia(fn ($page) => $page
-            ->has('sections.subscriptions')
-            ->missing('sections.collections')
-            ->missing('sections.readings')
-            ->where('latestPayments', null));
+            ->where('sections', [])
+            ->where('periodAccounts', null));
     }
 
-    public function test_the_latest_payments_are_searched_and_narrowed_to_cash_or_transfers(): void
-    {
-        $superAdmin = User::factory()->superAdmin()->create();
-        $branch = Branch::factory()->create();
-        $this->pay($branch, 20, ['full_name' => 'Samir Haddad']);
-        $this->pay($branch, 35, ['full_name' => 'Rana Odeh']);
-
-        $this->actingAs($superAdmin)->get(route('dashboard', ['search' => 'Rana']))->assertInertia(fn ($page) => $page
-            ->has('latestPayments.rows.data', 1)
-            ->where('latestPayments.rows.data.0.subscriber', 'Rana Odeh'));
-        $this->get(route('dashboard', ['method' => 'transfer']))->assertInertia(fn ($page) => $page->has('latestPayments.rows.data', 0));
-    }
-
-    public function test_the_reading_week_counts_approved_waiting_and_missing_readings_and_debts_follow_the_page(): void
+    public function test_the_reading_week_counts_approved_waiting_and_missing_readings(): void
     {
         $branch = Branch::factory()->create();
         $manager = User::factory()->branchAdmin()->create(['branch_id' => $branch->id]);
@@ -133,50 +134,9 @@ class DashboardTest extends TestCase
             ->where('sections.readings.total', 3)
             ->where('sections.readings.approved', 1)
             ->where('sections.readings.pending', 1)
-            ->where('sections.readings.missing', 1)
-            ->missing('debts')
-            ->loadDeferredProps(fn ($reload) => $reload->has('debts.total')));
+            ->where('sections.readings.missing', 1));
     }
 
-    public function test_a_branch_sees_what_each_employee_collected_over_the_period(): void
-    {
-        $branch = Branch::factory()->create();
-        $manager = User::factory()->branchAdmin()->create(['branch_id' => $branch->id]);
-        $this->pay($branch, 30);
-        $this->pay($branch, 90);
-
-        $this->actingAs($manager)->get(route('dashboard'))->assertInertia(fn ($page) => $page
-            ->has('sections.collections.byCollector', 2)
-            ->where('sections.collections.byCollector.0.total', 90)
-            ->where('sections.collections.byCollector.0.share', 75)
-            ->where('sections.collections.byBranch', null));
-    }
-
-    public function test_the_debts_name_the_subscribers_who_owe_the_most(): void
-    {
-        $branch = Branch::factory()->create();
-        $manager = User::factory()->branchAdmin()->create(['branch_id' => $branch->id]);
-        $small = Subscription::factory()->create(['branch_id' => $branch->id, 'full_name' => 'Small debtor']);
-        $large = Subscription::factory()->create(['branch_id' => $branch->id, 'full_name' => 'Large debtor']);
-        foreach ([[$small, '20.00'], [$large, '80.00']] as [$subscription, $amount]) {
-            SubscriptionTransaction::factory()->for($subscription)->create([
-                'type' => 'charge', 'source_key' => 'charge:'.$subscription->id, 'amount' => $amount, 'currency_amount' => $amount, 'recorded_by' => $manager->id,
-            ]);
-        }
-
-        $this->actingAs($manager)->get(route('dashboard'))->assertInertia(fn ($page) => $page
-            ->loadDeferredProps(fn ($reload) => $reload
-                ->where('debts.total', 100)
-                ->where('debts.top.0.subscriptionId', $large->id)
-                ->where('debts.top.0.balance', 80)
-                ->where('debts.top.1.subscriptionId', $small->id)));
-    }
-
-    /**
-     * A cash payment of `$amount` on a new active subscription of the branch.
-     *
-     * @param  array<string, mixed>  $subscription
-     */
     private function pay(Branch $branch, float $amount, array $subscription = []): void
     {
         $recorder = User::factory()->collector()->create(['branch_id' => $branch->id]);
@@ -250,43 +210,6 @@ class DashboardTest extends TestCase
         $response = $this->actingAs($branchAdmin)->get(route('dashboard'));
 
         $response->assertInertia(fn ($page) => $page->reloadOnly('branchForm', fn ($reload) => $reload->where('branchForm', null)));
-    }
-
-    public function test_a_subscribers_statement_opens_over_the_dashboard_with_an_edit_button_for_who_may_edit(): void
-    {
-        [$own, $other] = Branch::factory()->count(2)->create();
-        $manager = User::factory()->branchAdmin()->create(['branch_id' => $own->id]);
-        $mine = Subscription::factory()->create(['branch_id' => $own->id]);
-        $foreign = Subscription::factory()->create(['branch_id' => $other->id]);
-
-        $this->actingAs(User::factory()->superAdmin()->create())->get(route('dashboard', ['statement' => $mine->id]))
-            ->assertInertia(fn ($page) => $page->where('statement.subscription.id', $mine->id)->where('statement.canUpdate', true));
-
-        $this->actingAs($manager)->get(route('dashboard', ['statement' => $foreign->id]))
-            ->assertInertia(fn ($page) => $page->where('statement', null));
-    }
-
-    public function test_the_edit_subscriber_pop_up_loads_only_a_subscriber_the_user_may_edit(): void
-    {
-        [$own, $other] = Branch::factory()->count(2)->create();
-        $manager = User::factory()->branchAdmin()->create(['branch_id' => $own->id]);
-        $mine = Subscription::factory()->create(['branch_id' => $own->id, 'full_name' => 'Editable subscriber']);
-        $foreign = Subscription::factory()->create(['branch_id' => $other->id]);
-
-        $this->actingAs($manager)->get(route('dashboard', ['edit' => $mine->id]))->assertInertia(fn ($page) => $page
-            ->missing('subscriptionEdit')
-            ->reloadOnly(['subscriptionEdit', 'subscriptionForm'], fn ($reload) => $reload
-                ->where('subscriptionEdit.id', $mine->id)
-                ->where('subscriptionEdit.full_name', 'Editable subscriber')
-                ->has('subscriptionForm.tariffs')));
-
-        $this->actingAs($manager)->get(route('dashboard', ['edit' => $foreign->id]))->assertInertia(fn ($page) => $page
-            ->reloadOnly('subscriptionEdit', fn ($reload) => $reload->where('subscriptionEdit', null)));
-
-        $viewer = User::factory()->collector()->create(['branch_id' => $own->id]);
-        $viewer->permissions()->sync(Permission::idsFor([PermissionKey::ViewSubscriptions]));
-        $this->actingAs($viewer)->get(route('dashboard', ['edit' => $mine->id]))->assertInertia(fn ($page) => $page
-            ->reloadOnly(['subscriptionEdit', 'subscriptionForm'], fn ($reload) => $reload->where('subscriptionEdit', null)->where('subscriptionForm', null)));
     }
 
     public function test_a_save_from_a_dashboard_pop_up_returns_to_the_dashboard_and_nowhere_else(): void

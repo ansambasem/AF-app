@@ -144,18 +144,19 @@ class PageLoadingPerformanceTest extends TestCase
             ->assertDontSee('fonts.gstatic.com', false);
     }
 
-    public function test_filtering_latest_payments_does_not_recompute_reading_summaries(): void
+    public function test_refreshing_the_open_period_does_not_recompute_reading_summaries(): void
     {
         $actor = User::factory()->superAdmin()->create();
         $version = app(HandleInertiaRequests::class)->version(request());
         DB::enableQueryLog();
         DB::flushQueryLog();
 
+        // The dashboard reloads its open period every minute; the other parts stay as they were.
         $this->actingAs($actor)->getJson(route('dashboard'), [
             'X-Inertia' => 'true', 'X-Inertia-Version' => (string) $version,
             'X-Inertia-Partial-Component' => 'Dashboard',
-            'X-Inertia-Partial-Data' => 'latestPayments,filters',
-        ])->assertJsonPath('props.latestPayments.sum', 0)
+            'X-Inertia-Partial-Data' => 'periodAccounts',
+        ])->assertJsonPath('props.periodAccounts', null)
             ->assertJsonMissingPath('props.sections');
 
         $summaryQueries = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "meter_readings"'));
