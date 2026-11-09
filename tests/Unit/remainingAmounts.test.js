@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { COLLECTION_INDICATORS, COLLECTION_RATES, SUBSCRIBER_COLUMNS, formatRate } from '../../resources/js/lib/remainingAmounts.js';
+import { COLLECTION_INDICATORS, COLLECTION_RATES, SETTLEMENT_COLUMNS, SUBSCRIBER_COLUMNS, formatRate } from '../../resources/js/lib/remainingAmounts.js';
 
 test('the subscribers table keeps its sixteen columns, named and ordered as they were', () => {
     assert.deepEqual(SUBSCRIBER_COLUMNS, [
@@ -22,8 +22,14 @@ test('the subscribers table draws its headers from those columns only', () => {
 
 test('the four collection figures and three rates, and the settlement kept out of the subscribers table', () => {
     assert.deepEqual(COLLECTION_INDICATORS.map(([key, label]) => [key, label]), [
-        ['payments', 'إجمالي الدفعات'], ['invoiceSettled', 'إجمالي دفعات الفاتورة'], ['paidToAccumulated', 'إجمالي دفعات المتراكم'], ['newAdvance', 'إجمالي دفعات المقدم'],
+        ['payments', 'إجمالي الدفعات'], ['paidToInvoice', 'إجمالي دفعات الفاتورة'], ['paidToAccumulated', 'إجمالي دفعات المتراكم'], ['newAdvance', 'إجمالي دفعات المقدم'],
     ]);
     assert.deepEqual(COLLECTION_RATES.map(([key]) => key), ['totalRate', 'invoiceRate', 'accumulatedRate']);
     assert.deepEqual([formatRate(null), formatRate(0), formatRate(100)], ['—', '0%', '100%']);
+});
+
+test('the settlement details put the invoice target right after the advance used, before the new payments', () => {
+    assert.deepEqual(SETTLEMENT_COLUMNS.slice(0, 9).map(([, label]) => label), [
+        'الفاتورة الحالية', 'المبالغ المحملة', 'الخصم', 'المقدم المرحّل', 'المقدم المستخدم', 'مستهدف الفاتورة', 'الدفعات الجديدة', 'المخصص للفاتورة', 'المخصص للمتراكم',
+    ]);
 });
