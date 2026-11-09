@@ -9,7 +9,6 @@ use App\Enums\SubscriptionStatus;
 use App\Http\Concerns\FiltersDataTable;
 use App\Http\Concerns\FiltersSubscriptionList;
 use App\Http\Requests\StoreMessageBatchRequest;
-use App\Jobs\SendSubscriptionMessage;
 use App\Models\Branch;
 use App\Models\MessageBatch;
 use App\Models\MessageTemplate;
@@ -21,6 +20,7 @@ use App\Models\SubscriptionMessage;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
 use App\Support\Messaging\MessageComposer;
+use App\Support\Messaging\MessageSender;
 use App\Support\Messaging\PhoneNumber;
 use App\Support\Messaging\SmsGateway;
 use Illuminate\Http\JsonResponse;
@@ -37,7 +37,8 @@ use Inertia\Response as InertiaResponse;
  * or any news. A message is written once with `{placeholders}`, sent to
  * the picked subscriptions with each one's own details filled in, and kept
  * as a send (MessageBatch) with a message per subscription. SMS go out
- * through the SMS gateway on the queue; WhatsApp messages are sent by the
+ * through the SMS gateway as soon as the message is sent, to every
+ * recipient at once (MessageSender); WhatsApp messages are sent by the
  * staff member from their own WhatsApp, one by one, from the send's page.
  */
 class MessageController extends Controller
@@ -49,7 +50,7 @@ class MessageController extends Controller
      */
     private const SEARCH_RESULTS = 8;
 
-    public function __construct(private MessageComposer $composer) {}
+    public function __construct(private MessageComposer $composer, private MessageSender $sender) {}
 
     /**
      * Every send so far, newest first.
@@ -227,19 +228,18 @@ class MessageController extends Controller
             return $batch;
         });
 
-        if ($channel === MessageChannel::Sms) {
-            $this->dispatchPending($batch);
-        }
+        // SMS go out now, to every recipient, with no further step; WhatsApp ones are sent by hand from the send's page.
+        $result = $channel === MessageChannel::Sms ? $this->sender->sendNow($batch) : null;
 
         $actor->notify(new ActionCompleted('messages-created', __($kind->label()).' — '.$recipients->count()));
 
-        if ($channel === MessageChannel::Sms && $request->boolean('stay_on_page')) {
-            return back()->with('status', 'messages-queued');
+        if ($result !== null && $request->boolean('stay_on_page')) {
+            return back()->with('status', MessageSender::summary($result));
         }
 
         return redirect()
             ->route('messages.show', $batch)
-            ->with('status', $channel === MessageChannel::Sms ? 'messages-queued' : 'messages-ready');
+            ->with('status', $result !== null ? MessageSender::summary($result) : 'messages-ready');
     }
 
     /**
@@ -286,7 +286,7 @@ class MessageController extends Controller
     }
 
     /**
-     * Send a send's SMS that are still waiting or failed again.
+     * Send a send's SMS that are still waiting or failed again, now.
      */
     public function retry(Request $request, MessageBatch $batch): RedirectResponse
     {
@@ -296,10 +296,7 @@ class MessageController extends Controller
             return back()->withErrors(['retry' => 'رسائل واتساب تُرسل من القائمة واحدة واحدة.']);
         }
 
-        $batch->messages()->where('status', MessageStatus::Failed)->update(['status' => MessageStatus::Pending, 'error' => null]);
-        $this->dispatchPending($batch);
-
-        return back()->with('status', 'messages-retried');
+        return back()->with('status', MessageSender::summary($this->sender->sendNow($batch, includeFailed: true)));
     }
 
     /**
@@ -336,16 +333,6 @@ class MessageController extends Controller
                 ->mapWithKeys(fn (MessageKind $kind) => [$kind->value => MessageComposer::placeholdersFor($kind)]),
             'weekOptions' => MeterReading::recentWeekOptionsFor($actor),
         ];
-    }
-
-    /**
-     * Queue every message of the send that is still waiting.
-     */
-    private function dispatchPending(MessageBatch $batch): void
-    {
-        $batch->messages()
-            ->where('status', MessageStatus::Pending)
-            ->each(fn (SubscriptionMessage $message) => SendSubscriptionMessage::dispatch($message));
     }
 
     /**

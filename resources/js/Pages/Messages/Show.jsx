@@ -45,10 +45,10 @@ export default function Show({ batch, messages, canUpdate, filters, filterOption
                         titleAddon={<span className="text-base font-semibold"><ChannelLabel channel={batch.channel} label={batch.channelLabel} /></span>}
                         meta={`${DATE_TIME_FORMAT.format(new Date(batch.createdAt))} — ${batch.createdBy ?? '—'} — ${batch.branchName}`}
                         actions={
-                            canUpdate && !isWhatsApp && batch.failed > 0 && (
+                            canUpdate && !isWhatsApp && batch.failed + batch.pending > 0 && (
                                 <SecondaryButton onClick={retry}>
                                     <Icon name="repeat" className="h-4 w-4" />
-                                    إعادة إرسال ما فشل ({batch.failed})
+                                    {batch.failed > 0 ? `إعادة إرسال ما فشل (${batch.failed + batch.pending})` : `إرسال ما لم يُرسل (${batch.pending})`}
                                 </SecondaryButton>
                             )
                         }

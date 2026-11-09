@@ -15,6 +15,8 @@ use App\Models\Subscription;
 use App\Models\SubscriptionMessage;
 use App\Models\SubscriptionTransaction;
 use App\Models\User;
+use App\Support\Messaging\SmsDeliveryFailed;
+use App\Support\Messaging\SmsGateway;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -25,6 +27,41 @@ use Tests\TestCase;
 class MessageTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * A gateway that records what it sent and refuses the given numbers, as
+     * the provider would.
+     *
+     * @param  list<string>  $refused
+     * @return object{sent: list<string>}
+     */
+    private function fakeGateway(array $refused = []): object
+    {
+        $gateway = new class($refused) implements SmsGateway
+        {
+            /** @var list<string> */
+            public array $sent = [];
+
+            /** @param  list<string>  $refused */
+            public function __construct(private array $refused) {}
+
+            public function send(string $phone, string $body): void
+            {
+                if (in_array($phone, $this->refused, true)) {
+                    throw new SmsDeliveryFailed('رفضت بوابة الرسائل الإرسال (400): رقم غير صالح');
+                }
+                $this->sent[] = $phone;
+            }
+
+            public function deliversMessages(): bool
+            {
+                return true;
+            }
+        };
+        $this->app->instance(SmsGateway::class, $gateway);
+
+        return $gateway;
+    }
 
     private function weekStart(): string
     {
@@ -90,7 +127,7 @@ class MessageTest extends TestCase
                 ->where('recipients.0.variables.يوم_القراءة', 'الخميس')));
     }
 
-    public function test_three_thousand_approved_readings_are_personalized_and_queued_in_one_send(): void
+    public function test_three_thousand_approved_readings_are_personalized_and_sent_right_away_in_one_send(): void
     {
         $this->travelTo('2026-09-24 10:00:00');
         $actor = User::factory()->branchAdmin()->create();
@@ -105,7 +142,7 @@ class MessageTest extends TestCase
             'tariff_id' => $sample->tariff_id, 'circuit_breaker_id' => $sample->circuit_breaker_id,
             'registered_by' => $actor->id, 'phone' => '0599000001',
         ]);
-        Queue::fake([SendSubscriptionMessage::class]);
+        $gateway = $this->fakeGateway();
 
         $this->actingAs($actor)->postJson(route('messages.store'), [
             'kind' => 'weekly_reading', 'channel' => 'sms', 'approved_only' => true,
@@ -118,7 +155,8 @@ class MessageTest extends TestCase
             'subscription_id' => $subscriptions->last()->id,
             'body' => $subscriptions->last()->displayName().': 100 → 125، الفرق 25، سعر الكيلو 1.75، الخميس 24/09/2026',
         ]);
-        Queue::assertPushed(SendSubscriptionMessage::class, 3000);
+        $this->assertCount(3000, $gateway->sent);
+        $this->assertSame(3000, SubscriptionMessage::query()->where('status', MessageStatus::Sent)->count());
     }
 
     public function test_the_balance_reminder_preview_lists_only_subscriptions_owing_more_than_the_minimum(): void
@@ -138,12 +176,13 @@ class MessageTest extends TestCase
                 ->where('recipients.0.variables.الرصيد', '120.50')));
     }
 
-    public function test_sending_an_sms_fills_in_each_subscriptions_details_and_queues_one_message_each(): void
+    public function test_sending_an_sms_sends_it_at_once_to_every_recipient_with_their_own_details(): void
     {
         $branchAdmin = User::factory()->branchAdmin()->create();
         $first = Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id, 'full_name' => 'Ali Hasan', 'phone' => '0599000001']);
         $second = Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id, 'full_name' => 'Sara Omar', 'phone' => '0599000002']);
-        Queue::fake([SendSubscriptionMessage::class]);
+        $gateway = $this->fakeGateway();
+        Queue::fake();
 
         $response = $this->actingAs($branchAdmin)->post(route('messages.store'), [
             'kind' => MessageKind::Custom->value,
@@ -153,15 +192,81 @@ class MessageTest extends TestCase
         ]);
 
         $batch = MessageBatch::sole();
-        $response->assertRedirect(route('messages.show', $batch))->assertSessionHas('status', 'messages-queued');
+        $response->assertRedirect(route('messages.show', $batch))->assertSessionHas('status', 'أُرسلت الرسائل كلها: 2 من 2.');
         $this->assertSame($branchAdmin->branch_id, $batch->branch_id);
         $this->assertDatabaseHas('subscription_messages', [
             'subscription_id' => $first->id,
             'phone' => '0599000001',
             'body' => 'مرحبا Ali Hasan، اشتراكك '.$first->fresh()->account_number.'.',
-            'status' => MessageStatus::Pending->value,
+            'status' => MessageStatus::Sent->value,
         ]);
-        Queue::assertPushed(SendSubscriptionMessage::class, 2);
+        $this->assertEqualsCanonicalizing(['0599000001', '0599000002'], $gateway->sent);
+        // Nothing is left for a queue worker or a second step.
+        Queue::assertNothingPushed();
+        $this->assertSame(0, SubscriptionMessage::query()->where('status', MessageStatus::Pending)->count());
+    }
+
+    public function test_one_recipient_failing_does_not_stop_the_others_and_the_result_says_how_many(): void
+    {
+        $branchAdmin = User::factory()->branchAdmin()->create();
+        $phones = ['0599000001', '0599000002', '0599000003'];
+        $subscriptions = collect($phones)->map(fn (string $phone) => Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id, 'phone' => $phone]))->values();
+        $gateway = $this->fakeGateway(refused: ['0599000002']);
+
+        $response = $this->actingAs($branchAdmin)->post(route('messages.store'), [
+            'kind' => MessageKind::Custom->value, 'channel' => MessageChannel::Sms->value, 'body' => 'تنبيه',
+            'subscription_ids' => $subscriptions->pluck('id')->all(),
+        ]);
+
+        $response->assertSessionHas('status', 'أُرسلت 2 رسالة وفشلت 1 من 3؛ تجد سبب كل فشل في صفحة الإرسال، ويمكنك إعادة إرسال ما فشل.');
+        $this->assertEqualsCanonicalizing(['0599000001', '0599000003'], $gateway->sent);
+        $failed = SubscriptionMessage::query()->where('status', MessageStatus::Failed)->sole();
+        $this->assertSame([$subscriptions[1]->id, 'رفضت بوابة الرسائل الإرسال (400): رقم غير صالح'], [$failed->subscription_id, $failed->error]);
+
+        $this->get(route('messages.show', MessageBatch::sole()))->assertInertia(fn ($page) => $page
+            ->where('batch.sent', 2)->where('batch.failed', 1)->where('batch.pending', 0));
+    }
+
+    public function test_an_unexpected_error_on_one_message_is_recorded_and_the_rest_still_go_out(): void
+    {
+        $branchAdmin = User::factory()->branchAdmin()->create();
+        $subscriptions = Subscription::factory()->count(2)->sequence(['phone' => '0599000001'], ['phone' => '0599000002'])->create(['branch_id' => $branchAdmin->branch_id]);
+        $sent = [];
+        $this->app->instance(SmsGateway::class, new class($sent) implements SmsGateway
+        {
+            public function __construct(private array &$sent) {}
+
+            public function send(string $phone, string $body): void
+            {
+                if ($phone === '0599000001') {
+                    throw new \RuntimeException('boom');
+                }
+                $this->sent[] = $phone;
+            }
+
+            public function deliversMessages(): bool
+            {
+                return true;
+            }
+        });
+
+        $this->actingAs($branchAdmin)->post(route('messages.store'), [
+            'kind' => MessageKind::Custom->value, 'channel' => MessageChannel::Sms->value, 'body' => 'تنبيه',
+            'subscription_ids' => $subscriptions->modelKeys(),
+        ])->assertSessionHas('status', 'أُرسلت 1 رسالة وفشلت 1 من 2؛ تجد سبب كل فشل في صفحة الإرسال، ويمكنك إعادة إرسال ما فشل.');
+
+        $this->assertSame(['0599000002'], $sent);
+        $this->assertSame('تعذّر الإرسال لخطأ غير متوقع.', SubscriptionMessage::query()->where('status', MessageStatus::Failed)->sole()->error);
+    }
+
+    public function test_without_a_gateway_the_result_says_the_messages_did_not_reach_anyone(): void
+    {
+        $branchAdmin = User::factory()->branchAdmin()->create();
+        $subscription = Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id, 'phone' => '0599000001']);
+
+        $this->actingAs($branchAdmin)->post(route('messages.store'), [
+            'kind' => MessageKind::Custom->value, 'channel' => MessageChannel::Sms->value, 'body' => 'تنبيه', 'subscription_ids' => [$subscription->id],
+        ])->assertSessionHas('status', 'لم تُضبط بوابة الرسائل بعد، فسُجّلت 1 رسالة دون أن تصل للمشتركين. اضبطها من إعدادات الرسائل.');
     }
 
     public function test_subscriptions_without_a_phone_are_left_out_of_a_send(): void
@@ -276,7 +381,7 @@ class MessageTest extends TestCase
     {
         $branchAdmin = User::factory()->branchAdmin()->create();
         $subscription = Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id, 'phone' => '0599000001']);
-        Queue::fake([SendSubscriptionMessage::class]);
+        $gateway = $this->fakeGateway();
 
         $this->actingAs($branchAdmin)
             ->from(route('subscriptions.index'))
@@ -289,10 +394,10 @@ class MessageTest extends TestCase
                 'stay_on_page' => true,
             ])
             ->assertRedirect(route('subscriptions.index'))
-            ->assertSessionHas('status', 'messages-queued');
+            ->assertSessionHas('status', 'أُرسلت الرسائل كلها: 1 من 1.');
 
-        $this->assertDatabaseHas('subscription_messages', ['subscription_id' => $subscription->id]);
-        Queue::assertPushed(SendSubscriptionMessage::class, 1);
+        $this->assertDatabaseHas('subscription_messages', ['subscription_id' => $subscription->id, 'status' => MessageStatus::Sent->value]);
+        $this->assertSame(['0599000001'], $gateway->sent);
     }
 
     public function test_a_whatsapp_send_from_the_quick_message_window_opens_its_page(): void
@@ -401,20 +506,21 @@ class MessageTest extends TestCase
         $this->assertStringContainsString('503', $message->error);
     }
 
-    public function test_retrying_a_send_queues_its_failed_messages_again(): void
+    public function test_retrying_a_send_sends_what_failed_or_waits_now_and_never_repeats_a_sent_message(): void
     {
         $branchAdmin = User::factory()->branchAdmin()->create();
         $batch = MessageBatch::factory()->create(['branch_id' => $branchAdmin->branch_id]);
         $subscription = Subscription::factory()->create(['branch_id' => $branchAdmin->branch_id]);
-        $failed = SubscriptionMessage::factory()->failed()->for($batch, 'batch')->for($subscription)->create();
-        SubscriptionMessage::factory()->for($batch, 'batch')->for($subscription)->create(['status' => MessageStatus::Sent]);
-        Queue::fake([SendSubscriptionMessage::class]);
+        $failed = SubscriptionMessage::factory()->failed()->for($batch, 'batch')->for($subscription)->create(['phone' => '0599000001']);
+        $waiting = SubscriptionMessage::factory()->for($batch, 'batch')->for($subscription)->create(['phone' => '0599000002']);
+        SubscriptionMessage::factory()->for($batch, 'batch')->for($subscription)->create(['status' => MessageStatus::Sent, 'phone' => '0599000003']);
+        $gateway = $this->fakeGateway();
 
-        $this->actingAs($branchAdmin)->post(route('messages.retry', $batch))->assertSessionHas('status', 'messages-retried');
+        $this->actingAs($branchAdmin)->post(route('messages.retry', $batch))->assertSessionHas('status', 'أُرسلت الرسائل كلها: 2 من 2.');
 
-        $this->assertSame(MessageStatus::Pending, $failed->fresh()->status);
-        Queue::assertPushed(SendSubscriptionMessage::class, 1);
-        Queue::assertPushed(SendSubscriptionMessage::class, fn (SendSubscriptionMessage $job) => $job->message->is($failed));
+        $this->assertSame(MessageStatus::Sent, $failed->fresh()->status);
+        $this->assertSame(MessageStatus::Sent, $waiting->fresh()->status);
+        $this->assertSame(['0599000001', '0599000002'], $gateway->sent);
     }
 
     public function test_opening_a_whatsapp_message_marks_it_sent_by_the_staff_member(): void
