@@ -90,8 +90,13 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                      // The keyboard must not change what is typed: no autocorrect,
+                      // suggestions or capitals in the username or the password.
                       TextField(
                           controller: username,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          textCapitalization: TextCapitalization.none,
                           autofillHints: const [AutofillHints.username],
                           textInputAction: TextInputAction.next,
                           style: AppIdentity.body(16),
@@ -100,6 +105,9 @@ class _LoginPageState extends State<LoginPage> {
                       TextField(
                           controller: password,
                           obscureText: !showPassword,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          textCapitalization: TextCapitalization.none,
                           autofillHints: const [AutofillHints.password],
                           onSubmitted: (_) => submit(),
                           style: AppIdentity.body(16),

@@ -14,7 +14,7 @@ const apiBaseUrl = String.fromEnvironment('API_BASE_URL',
 /// This app's build number, the number after "+" in pubspec.yaml's version
 /// (raise both together). Every request sends it as X-App-Build, so the
 /// server can tell an app older than MOBILE_APP_MIN_BUILD to update (426).
-const appBuildNumber = 8;
+const appBuildNumber = 9;
 
 class ApiException implements Exception {
   const ApiException(this.message, this.statusCode, {this.errors = const {}});

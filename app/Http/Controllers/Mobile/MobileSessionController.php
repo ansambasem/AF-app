@@ -11,6 +11,7 @@ use App\Models\MessageBatch;
 use App\Models\MeterReading;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Support\LoginCredentials;
 use App\Support\UserDeviceAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,9 +38,9 @@ class MobileSessionController extends Controller
             ])], 429);
         }
 
-        $user = User::query()->where('username', $validated['username'])->first();
+        $user = $this->signingIn($validated['username'], $validated['password']);
 
-        if (! $user || ! $user->is_active || ! Hash::check($validated['password'], $user->password)) {
+        if (! $user) {
             RateLimiter::hit($rateLimitKey);
 
             return response()->json(['message' => trans('auth.failed')], 422);
@@ -53,6 +54,25 @@ class MobileSessionController extends Controller
             'user' => $this->userData($user),
             'token' => app(UserDeviceAccess::class)->issueMobile($user, $request->bearerToken(), $request->boolean('remember')),
         ]);
+    }
+
+    /**
+     * The active account these credentials sign in to: as typed, or as a
+     * computer keyboard would have typed them (a phone's Arabic digits,
+     * an invisible direction mark; see LoginCredentials), each checked
+     * against the stored password as it is. Null when none matches.
+     */
+    private function signingIn(string $username, string $password): ?User
+    {
+        foreach (LoginCredentials::variants($username, $password) as $credentials) {
+            $user = User::query()->where('username', $credentials['username'])->first();
+
+            if ($user && $user->is_active && Hash::check($credentials['password'], $user->password)) {
+                return $user;
+            }
+        }
+
+        return null;
     }
 
     public function show(Request $request): JsonResponse

@@ -1,5 +1,5 @@
 name: power_collect
-version: 1.0.7+8
+version: 1.0.8+9
 publish_to: none
 description: PowerCollect field app for meter readings and payment collection.
 
