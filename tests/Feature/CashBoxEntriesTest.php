@@ -41,14 +41,29 @@ class CashBoxEntriesTest extends TestCase
         return CashBoxPayment::query()->where('subscription_transaction_id', $payment->id)->sole();
     }
 
-    public function test_collector_sees_every_entry_as_the_statement_shows_it_with_its_box_and_can_narrow_to_a_type_of_box(): void
+    public function test_collector_sees_every_entry_of_the_branchs_open_boxes_and_can_narrow_to_a_type_of_box_or_a_collector(): void
     {
         [$branch, , $collector] = $this->start();
         $cash = $this->entry($branch, $collector, '100');
         $transfer = $this->entry($branch, $collector, '250', 'bank_transfer');
-        $this->entry($branch, User::factory()->collector()->for($branch)->create(), '999');
+        $colleague = User::factory()->collector()->for($branch)->create(['name' => 'رامي']);
+        $theirs = $this->entry($branch, $colleague, '999');
+        // Another branch's boxes never show.
+        [$otherBranch, , $otherCollector] = $this->start();
+        $this->entry($otherBranch, $otherCollector, '5000');
 
         $this->actingAs($collector)->get(route('payments.summary'))->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Payments/Summary')
+            ->where('entries.total', 3)
+            ->where('counts', ['all' => 3, 'cash' => 2, 'bank_transfer' => 1, 'clearing' => 0])
+            ->where('people', [['id' => $colleague->id, 'name' => 'رامي'], ['id' => $collector->id, 'name' => 'سامي']]));
+
+        $this->get(route('payments.summary', ['filter' => ['user' => $colleague->id]]))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('entries.total', 1)
+            ->where('entries.data.0.id', $theirs->id)
+            ->where('filters.filter.user', (string) $colleague->id));
+
+        $this->get(route('payments.summary', ['filter' => ['user' => $collector->id]]))->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Payments/Summary')
             ->where('entries.total', 2)
             ->where('counts', ['all' => 2, 'cash' => 1, 'bank_transfer' => 1, 'clearing' => 0])

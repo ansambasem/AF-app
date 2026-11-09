@@ -168,27 +168,38 @@ class PaymentsPageTest extends TestCase
                 && collect($groups)->firstWhere('key', 'balance')['options'][0]['value'] === 'owing'));
     }
 
-    public function test_the_day_shows_only_the_users_own_live_payments(): void
+    public function test_the_day_shows_every_live_payment_of_the_branch_from_every_user(): void
     {
         $subscription = Subscription::factory()->create(['branch_id' => $this->branch->id]);
+        $neighbour = Subscription::factory()->create(['branch_id' => $this->branch->id]);
         $cash = SubscriptionTransaction::recordPayment($subscription, $this->collector, ['amount' => '100', 'currency' => 'ILS', 'payment_method' => 'cash']);
         SubscriptionTransaction::recordPayment($subscription, $this->collector, [
             'amount' => '250.50', 'currency' => 'ILS', 'payment_method' => 'bank_transfer', 'bank_name' => 'بنك فلسطين', 'sender_name' => 'Payer', 'reference_number' => 'TR-1',
         ]);
-        SubscriptionTransaction::recordPayment($subscription, $this->userAllowedTo(PermissionKey::RecordCollections), ['amount' => '999', 'currency' => 'ILS', 'payment_method' => 'cash']);
+        $colleague = $this->userAllowedTo(PermissionKey::RecordCollections);
+        $theirs = SubscriptionTransaction::recordPayment($neighbour, $colleague, ['amount' => '999', 'currency' => 'ILS', 'payment_method' => 'cash']);
         $cancelled = SubscriptionTransaction::recordPayment($subscription, $this->collector, ['amount' => '40', 'currency' => 'ILS', 'payment_method' => 'cash']);
         $cancelled->update(['cancelled_at' => now()]);
+        // Another branch's collections never show.
+        $elsewhere = Subscription::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+        SubscriptionTransaction::recordPayment($elsewhere, User::factory()->collector()->create(['branch_id' => $elsewhere->branch_id]), ['amount' => '5000', 'currency' => 'ILS', 'payment_method' => 'cash']);
 
         $this->actingAs($this->collector)->get(route('payments.summary'))
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('today.count', 2)
-                ->where('today.total', '350.50')
-                ->where('today.cash', '100.00')
+                ->where('today.count', 3)
+                ->where('today.total', '1349.50')
+                ->where('today.cash', '1099.00')
                 ->where('today.transfers', '250.50')
-                ->has('today.payments', 2)
-                ->where('today.payments.1.id', $cash->id)
-                ->where('today.payments.1.amount', '100')
-                ->where('today.payments.0.bankName', 'بنك فلسطين'));
+                ->has('today.payments', 3)
+                ->where('today.payments.0.id', $theirs->id)
+                ->where('today.payments.0.collectorName', $colleague->name)
+                ->where('today.payments.2.id', $cash->id)
+                ->where('today.payments.2.amount', '100')
+                ->where('today.payments.1.bankName', 'بنك فلسطين')
+                ->where('today.collectors', [
+                    ['id' => $colleague->id, 'name' => $colleague->name, 'isYou' => false, 'count' => 1, 'total' => '999.00'],
+                    ['id' => $this->collector->id, 'name' => $this->collector->name, 'isYou' => true, 'count' => 2, 'total' => '350.50'],
+                ]));
     }
 
     public function test_someone_who_may_only_record_payments_can_print_their_receipt(): void

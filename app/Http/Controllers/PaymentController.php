@@ -53,8 +53,8 @@ class PaymentController extends Controller
     /** The most subscriptions the split form's search lists; a longer list asks the user to narrow the search. */
     private const RESULT_LIMIT = 12;
 
-    /** The payments listed under the day's totals. */
-    private const RECENT_PAYMENTS = 8;
+    /** The payments listed under the day's totals: the branch's latest. */
+    private const RECENT_PAYMENTS = 20;
 
     /**
      * The quick payments page: the subscribers of the user's branch in a table
@@ -109,11 +109,13 @@ class PaymentController extends Controller
     }
 
     /**
-     * The collector's summary: what they collected today and their latest
-     * payments, what waits on them (a handover to confirm, audit notes,
-     * debts), and the boxes open now with every entry in them, filtered by
-     * `?filter[type]=` to one type of box and searched as the branch's
-     * entries are. The entries of a closed box are looked over inside it.
+     * The collection summary of the user's branch: what every user collected
+     * there today (the totals, each user's share, and the latest payments),
+     * and every entry in the branch's open boxes, filtered by
+     * `?filter[type]=` to one type of box and `?filter[user]=` to one
+     * collector and searched as the branch's entries are. What waits on the
+     * user (a handover to confirm, audit notes, debts) and their own open
+     * boxes stay theirs. Only the user's own branch is ever shown.
      */
     public function summary(Request $request): InertiaResponse
     {
@@ -121,12 +123,19 @@ class PaymentController extends Controller
 
         $actor = $request->user();
         $cashBox = $this->ownCashBoxes($actor);
+        $people = $this->branchCollectors($actor);
+        $person = $people->firstWhere('id', $request->integer('filter.user'));
+        $entries = $this->branchOpenEntries($actor)
+            ->when($person, fn (Builder $query) => $query->whereHas('box', fn (Builder $box) => $box->where('user_id', $person['id'])));
+        $list = $this->entryList($request, $entries, fn (CashBox $box): string => route('payments.cash-boxes.show', $box));
+        $list['filters']['filter']['user'] = $person ? (string) $person['id'] : '';
 
         return Inertia::render('Payments/Summary', [
             'today' => $this->todaysPayments($actor),
             'cashBox' => $cashBox,
             'current' => $cashBox['current'],
-            ...$this->entryList($request, $this->ownOpenEntries($actor), fn (CashBox $box): string => route('payments.cash-boxes.show', $box)),
+            'people' => $people->values()->all(),
+            ...$list,
             'needsAction' => $cashBox['needsAction'],
             ...$this->collectionCounts($actor),
             'collectionUrls' => $this->collectionUrls(),
@@ -134,13 +143,31 @@ class PaymentController extends Controller
     }
 
     /**
-     * The entries of the actor's own open boxes in their branch.
+     * The entries of every open box in the actor's branch, whoever holds it
+     * (none without a branch).
      *
      * @return Builder<CashBoxPayment>
      */
-    private function ownOpenEntries(User $actor): Builder
+    private function branchOpenEntries(User $actor): Builder
     {
-        return CashBoxPayment::query()->whereHas('box', fn (Builder $box) => $box->where('branch_id', $actor->workBranchId())->where('user_id', $actor->id)->whereIn('status', ['open', 'pending']));
+        return CashBoxPayment::query()->whereHas('box', fn (Builder $box) => $box->where('branch_id', $actor->workBranchId())->whereIn('status', ['open', 'pending']));
+    }
+
+    /**
+     * The users holding an open box in the actor's branch, to narrow its
+     * entries to one of them.
+     *
+     * @return Collection<int, array{id: int, name: string}>
+     */
+    private function branchCollectors(User $actor): Collection
+    {
+        if ($actor->workBranchId() === null) {
+            return collect();
+        }
+
+        return User::query()->whereIn('id', CashBox::query()->where('branch_id', $actor->workBranchId())->whereIn('status', ['open', 'pending'])->select('user_id'))
+            ->orderBy('name')->get(['id', 'name'])
+            ->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name]);
     }
 
     /**
@@ -359,24 +386,27 @@ class PaymentController extends Controller
     }
 
     /**
-     * What the user has collected in the current business day: the totals
-     * (cancelled payments left out), and their latest payments.
+     * What was collected in the user's branch in the current business day,
+     * by every user and from every subscription: the totals (cancelled
+     * payments left out), each user's share, and the latest payments.
+     * Nothing for a user without a branch.
      *
-     * @return array{count: int, total: string, cash: string, transfers: string, payments: array<int, array<string, mixed>>}
+     * @return array{count: int, total: string, cash: string, transfers: string, collectors: array<int, array<string, mixed>>, payments: array<int, array<string, mixed>>}
      */
     private function todaysPayments(User $actor): array
     {
-        $periods = ClosingPeriods::for($actor->workBranchId());
+        $branchId = $actor->workBranchId();
+        $periods = ClosingPeriods::for($branchId);
         $day = $periods->dayOf(now());
         [$from, $until] = $periods->utcRange($day, $day);
 
-        $payments = SubscriptionTransaction::query()
+        $payments = $branchId === null ? collect() : SubscriptionTransaction::query()
             ->where('type', SubscriptionTransaction::TYPE_PAYMENT)
             ->whereNull('cancelled_at')
-            ->where('recorded_by', $actor->id)
+            ->whereHas('subscription', fn (Builder $subscription) => $subscription->withoutGlobalScopes()->where('branch_id', $branchId))
             ->where('created_at', '>=', $from)
             ->where('created_at', '<', $until)
-            ->with('subscription')
+            ->with(['subscription', 'recordedBy:id,name'])
             ->latest('id')
             ->get();
 
@@ -388,8 +418,16 @@ class PaymentController extends Controller
             'total' => $sumOf($payments),
             'cash' => $sumOf($cash),
             'transfers' => $sumOf($payments->reject(fn (SubscriptionTransaction $payment): bool => $payment->payment_method === PaymentMethod::Cash)),
+            'collectors' => $payments->groupBy('recorded_by')->map(fn (Collection $lines): array => [
+                'id' => $lines->first()->recorded_by,
+                'name' => $lines->first()->recordedBy?->name,
+                'isYou' => $lines->first()->recorded_by === $actor->id,
+                'count' => $lines->count(),
+                'total' => $sumOf($lines),
+            ])->sortByDesc(fn (array $collector): float => (float) $collector['total'])->values()->all(),
             'payments' => $payments->take(self::RECENT_PAYMENTS)->map(fn (SubscriptionTransaction $payment): array => [
                 'id' => $payment->id,
+                'collectorName' => $payment->recordedBy?->name,
                 'subscriptionName' => $payment->subscription->displayName(),
                 'amount' => SubscriptionTransaction::formatAmount(ltrim($payment->amount, '-')),
                 'methodLabel' => $payment->payment_method ? __($payment->payment_method->label()) : null,

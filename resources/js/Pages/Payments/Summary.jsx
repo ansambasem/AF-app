@@ -21,7 +21,7 @@ import OpenEntriesTable from './OpenEntriesTable';
 import PageHeader from '@/Components/PageHeader';
 import InfoTip from '@/Components/InfoTip';
 
-/** What the user collected today, in one wide card at the top of the page: the total, and how much in cash and by transfer. */
+/** What the branch collected today, from every user, in one wide card at the top of the page: the total, how much in cash and by transfer, and each user's share. */
 function TodaysSummary({ today }) {
     const parts = [
         { icon: 'banknotes', label: 'نقدًا', value: today.cash },
@@ -29,8 +29,8 @@ function TodaysSummary({ today }) {
     ];
 
     return (
-        <section aria-label="ما حصّلته اليوم" className="mb-6">
-            <KpiTile hero label="ما حصّلته اليوم" value={formatMoney(today.total)} unit="₪" hint={`${today.count.toLocaleString('en')} ${today.count === 1 ? 'دفعة' : 'دفعات'}`}>
+        <section aria-label="ما حُصّل اليوم في الفرع" className="mb-6">
+            <KpiTile hero label="ما حُصّل اليوم في الفرع" value={formatMoney(today.total)} unit="₪" hint={`${today.count.toLocaleString('en')} ${today.count === 1 ? 'دفعة' : 'دفعات'}`}>
                 <dl className="mt-5 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2">
                     {parts.map((part) => (
                         <div key={part.label} className="flex items-center gap-3">
@@ -45,17 +45,26 @@ function TodaysSummary({ today }) {
                         </div>
                     ))}
                 </dl>
+                {today.collectors.length > 0 && (
+                    <ul aria-label="ما حصّله كل مستخدم اليوم" className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4 text-xs">
+                        {today.collectors.map((collector) => (
+                            <li key={collector.id} className="rounded-full bg-white/10 px-3 py-1.5 text-white/80">
+                                {collector.name}{collector.isYou && ' (أنت)'} · <bdi dir="ltr" className="font-display font-bold text-white">{formatMoney(collector.total)} ₪</bdi> · {collector.count.toLocaleString('en')} {collector.count === 1 ? 'دفعة' : 'دفعات'}
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </KpiTile>
         </section>
     );
 }
 
-/** The user's latest payments today, each with its receipt. */
+/** The branch's latest payments today, by every user, each with who took it and its receipt. */
 function TodaysPayments({ today }) {
     return (
         <section aria-labelledby="todays-payments" className="mt-8 space-y-4">
             <h3 id="todays-payments" className="text-lg font-bold text-gray-900">
-                آخر دفعاتك اليوم
+                آخر دفعات الفرع اليوم
             </h3>
 
             {today.payments.length > 0 ? (
@@ -63,6 +72,7 @@ function TodaysPayments({ today }) {
                     {today.payments.map((payment) => (
                         <li key={payment.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5 text-sm">
                             <span className="min-w-0 flex-1 basis-48 font-semibold text-gray-900">{payment.subscriptionName}</span>
+                            {payment.collectorName && <span className="text-gray-500">حصّلها {payment.collectorName}</span>}
                             <span className="text-gray-500">
                                 {payment.methodLabel}
                                 {payment.bankName && ` · ${payment.bankName}`}
@@ -89,20 +99,21 @@ function TodaysPayments({ today }) {
                     ))}
                 </ul>
             ) : (
-                <p className="rounded-panel border border-dashed border-gray-200 bg-surface px-5 py-8 text-center text-sm text-gray-500">لم تسجّل أي دفعة اليوم بعد.</p>
+                <p className="rounded-panel border border-dashed border-gray-200 bg-surface px-5 py-8 text-center text-sm text-gray-500">لم تُسجَّل أي دفعة في الفرع اليوم بعد.</p>
             )}
         </section>
     );
 }
 
 /**
- * The collector's summary: what they collected today, what waits on them
- * (entries the branch sent back, a handover to confirm, audit notes,
- * debts), the boxes open now, every entry in them in one table, searched
- * and narrowed to one type of box (a box's card picks its type), and their
+ * The branch's collection summary: what every user collected in it today,
+ * what waits on this user (entries the branch sent back, a handover to
+ * confirm, audit notes, debts), their own open boxes, every entry in the
+ * branch's open boxes in one table, searched and narrowed to one type of
+ * box (a box's card picks its type) or one collector, and the branch's
  * latest payments today with receipts.
  */
-export default function Summary({ today, cashBox, current, entries, filters, counts, needsAction, pendingCount, collectionUrls }) {
+export default function Summary({ today, cashBox, current, entries, filters, counts, people, needsAction, pendingCount, collectionUrls }) {
     const [selected, setSelected] = useState(null);
     const [saved, setSaved] = useState(null);
     const table = useDataTable(collectionUrls.summary, filters);
@@ -144,10 +155,10 @@ export default function Summary({ today, cashBox, current, entries, filters, cou
 
             <section id="open-entries" aria-labelledby="open-entries-title" className="scroll-mt-24 space-y-4">
                 <div className="flex items-center gap-1">
-                    <h3 id="open-entries-title" className="text-lg font-bold text-gray-900">حركاتي المفتوحة</h3>
-                    <InfoTip label="عن حركاتي المفتوحة">كل ما سجّلته في صناديقك المفتوحة؛ حركات الصناديق المغلقة تجدها داخل كل صندوق في صفحة الصناديق المالية.</InfoTip>
+                    <h3 id="open-entries-title" className="text-lg font-bold text-gray-900">حركات الفرع المفتوحة</h3>
+                    <InfoTip label="عن حركات الفرع المفتوحة">كل ما سجّله موظفو الفرع في صناديقهم المفتوحة؛ حركات الصناديق المغلقة تجدها داخل كل صندوق في صفحة الصناديق المالية.</InfoTip>
                 </div>
-                <OpenEntriesTable table={table} entries={entries} filters={filters} counts={counts} url={collectionUrls.summary} label="حركاتي المفتوحة" />
+                <OpenEntriesTable table={table} entries={entries} filters={filters} counts={counts} people={people.length > 1 ? people : null} url={collectionUrls.summary} label="حركات الفرع المفتوحة" />
             </section>
         </div> : <p className="rounded-panel border border-dashed border-gray-200 bg-surface p-6 text-sm leading-7 text-gray-500">{cashBox.branchName ? 'تُفتح الصناديق تلقائيًا عند تسجيل أول دفعة أو مقاصة في فرعك.' : 'حسابك غير مرتبط بفرع، لذلك لا يوجد سجل صناديق شخصي.'}</p>}
         <TodaysPayments today={today} />
