@@ -205,7 +205,7 @@ trait PresentsCashBoxes
         }
 
         return $box->receivedBy?->name ?? match ($box->close_reason) {
-            CashBox::CLOSE_REASON_PERIOD_END => 'النظام · إغلاق تلقائي',
+            CashBox::CLOSE_REASON_PERIOD_END => 'النظام · مع انتهاء الفترة',
             'cutoff' => 'تلقائي عند القطع الأسبوعي',
             'departure' => 'تلقائي عند مغادرة المحصّل',
             'late_sync' => 'تلقائي لدفعة متأخرة',

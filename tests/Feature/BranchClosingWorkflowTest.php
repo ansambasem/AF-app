@@ -368,7 +368,7 @@ class BranchClosingWorkflowTest extends TestCase
 
         $this->actingAs($auditor)->get(route('payments.cash-boxes', ['branch_id' => $branch->id, 'week' => '2026-10-10']))
             ->assertInertia(fn ($page) => $page->has('boxes', 1)->where('boxes.0.id', $box->id)
-                ->where('boxes.0.closedBy', 'النظام · إغلاق تلقائي')->where('boxes.0.canCompleteAudit', true));
+                ->where('boxes.0.closedBy', 'النظام · مع انتهاء الفترة')->where('boxes.0.canCompleteAudit', true));
         $this->get(route('payments.cash-boxes', ['branch_id' => $branch->id, 'week' => '2026-10-17']))
             ->assertInertia(fn ($page) => $page->has('boxes', 0));
         $this->get(route('payments.cash-boxes', ['branch_id' => $branch->id, 'week' => '2026-10-17', 'box' => $box->id]))

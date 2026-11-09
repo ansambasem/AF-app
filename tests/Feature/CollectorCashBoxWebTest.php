@@ -150,7 +150,7 @@ class CollectorCashBoxWebTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('cashBox.boxes.0.status', 'received')
                 ->where('cashBox.boxes.0.stage', 'completed')
-                ->where('cashBox.boxes.0.closedBy', 'النظام · إغلاق تلقائي')
+                ->where('cashBox.boxes.0.closedBy', 'النظام · مع انتهاء الفترة')
                 ->where('cashBox.boxes.0.expectedCounts', null)
                 ->has('cashBox.needsAction', 0));
         $this->post(route('payments.cash-boxes.actions', ['action' => 'collector-count', 'record' => $box->id]), ['branch_id' => $branch->id, 'counts' => $this->counts()])->assertForbidden();

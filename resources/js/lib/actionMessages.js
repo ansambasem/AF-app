@@ -30,7 +30,7 @@ export const ACTION_MESSAGES = {
     'billing-period-created': 'تم إنشاء الفترة. تُفتح في تاريخ بدايتها بعد إغلاق الفترة المفتوحة.',
     'billing-period-updated': 'تم تعديل تاريخي الفترة.',
     'billing-period-approved': 'تم اعتماد الفترة وإقفالها نهائيًا.',
-    'billing-period-closed': 'أُغلقت الفترة؛ لا تُسجَّل فيها دفعات جديدة.',
+    'billing-period-closed': 'أُغلقت الفترة وصناديقها المفتوحة؛ لا تُسجَّل فيها دفعات جديدة.',
     'split-payment-recorded': 'تم تسجيل الدفعة المقسّمة على المشتركين بنجاح.',
     'charge-recorded': 'تم تسجيل التحميل بنجاح.',
     'discount-recorded': 'تم تسجيل الخصم بنجاح.',

@@ -184,7 +184,7 @@ class BranchBoxes
             'payments' => array_map(fn (array $entry): array => $this->presentEntry($entry, $ledgers), $row['payments'] ?? []),
             'closed_at' => $box->isEditable() ? null : $box->closed_at,
             'closedAt' => $box->isEditable() ? null : ($box->received_at ?? $box->closed_at),
-            'closedBy' => $box->close_reason === CashBox::CLOSE_REASON_PERIOD_END ? 'النظام · إغلاق تلقائي' : $box->receivedBy?->name,
+            'closedBy' => $box->close_reason === CashBox::CLOSE_REASON_PERIOD_END ? 'النظام · مع انتهاء الفترة' : $box->receivedBy?->name,
             'sentBy' => $box->sentBy?->name,
         ];
     }
