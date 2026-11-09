@@ -160,6 +160,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/subscriptions/statement-print', [SubscriptionStatementController::class, 'preview'])->name('subscriptions.statement.print');
     Route::get('/subscriptions/{subscription}/statement', [SubscriptionStatementController::class, 'show'])->name('subscriptions.statement');
     Route::get('/subscriptions/{subscription}/payments/reference-status', [SubscriptionPaymentController::class, 'referenceStatus'])->name('subscriptions.payments.reference-status');
+    Route::get('/subscriptions/{subscription}/payments/voucher-status', [SubscriptionPaymentController::class, 'voucherStatus'])->name('subscriptions.payments.voucher-status');
     Route::post('/subscriptions/{subscription}/payments', [SubscriptionPaymentController::class, 'store'])->name('subscriptions.payments.store');
     Route::get('/subscriptions/{subscription}/payments/{transaction}/receipt', [SubscriptionPaymentController::class, 'receipt'])->scopeBindings()->name('subscriptions.payments.receipt');
     Route::post('/subscriptions/{subscription}/charges', [SubscriptionChargeController::class, 'store'])->name('subscriptions.charges.store');

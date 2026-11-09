@@ -14,6 +14,7 @@ use App\Support\BillingPeriods;
 use App\Support\BranchClosingWorkflow;
 use App\Support\BranchDomainContext;
 use App\Support\BranchDomainScope;
+use App\Support\DailySeries;
 use Closure;
 use Database\Factories\SubscriptionTransactionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -308,12 +310,15 @@ class SubscriptionTransaction extends Model
      * at `exchange_rate` (always 1 for shekels), with the next voucher
      * number (cash only). A transfer keeps its bank, sender and reference; cash keeps
      * its cash box and paper voucher. A reference already on another payment
-     * is refused unless the collector confirmed the duplicate.
+     * is refused unless the collector confirmed the duplicate; a paper voucher
+     * number already on another cash payment is always refused (see
+     * cashVoucherConflict()), except by the correction of the payment holding
+     * it (`replaces_id`).
      *
      * A payment that is part of a split transfer (`split_payment_id`) may share the reference
      * with the split's other parts, which is not a duplicate.
      *
-     * @param  array{amount: float|string, currency: string, exchange_rate?: float|string|null, payment_method: string, bank_name?: ?string, sender_bank_name?: ?string, sender_name?: ?string, reference_number?: ?string, manual_voucher_number?: ?string, cash_box?: ?string, notes?: ?string, mobile_operation_id?: ?string, confirm_duplicate_reference?: bool, split_payment_id?: ?int}  $payment
+     * @param  array{amount: float|string, currency: string, exchange_rate?: float|string|null, payment_method: string, bank_name?: ?string, sender_bank_name?: ?string, sender_name?: ?string, reference_number?: ?string, manual_voucher_number?: ?string, cash_box?: ?string, notes?: ?string, mobile_operation_id?: ?string, confirm_duplicate_reference?: bool, split_payment_id?: ?int, replaces_id?: ?int}  $payment
      */
     public static function recordPayment(Subscription $subscription, User $collector, array $payment): self
     {
@@ -323,8 +328,9 @@ class SubscriptionTransaction extends Model
         $inShekels = round((float) $payment['amount'] * $exchangeRate, 2);
         $referenceNumber = $method === PaymentMethod::Cash ? null : trim((string) ($payment['reference_number'] ?? ''));
         $activeReference = self::normalizeReference($referenceNumber);
+        $manualVoucher = $method === PaymentMethod::Cash ? self::normalizeVoucher($payment['manual_voucher_number'] ?? null) : null;
 
-        return app(BranchClosingWorkflow::class)->locked($subscription->branch_id, function () use ($subscription, $collector, $payment, $currency, $method, $exchangeRate, $inShekels, $referenceNumber, $activeReference): self {
+        return app(BranchClosingWorkflow::class)->locked($subscription->branch_id, function () use ($subscription, $collector, $payment, $currency, $method, $exchangeRate, $inShekels, $referenceNumber, $activeReference, $manualVoucher): self {
             $lateToken = $payment['late_payment_token'] ?? null;
             $lateFingerprint = $lateToken ? hash('sha256', json_encode([
                 'amount' => number_format((float) $payment['amount'], 2, '.', ''),
@@ -345,11 +351,12 @@ class SubscriptionTransaction extends Model
             if (! ($payment['confirm_duplicate_reference'] ?? false)) {
                 self::ensureReferenceIsAvailable($activeReference, $payment['split_payment_id'] ?? null);
             }
+            self::ensureVoucherIsAvailable($manualVoucher, $subscription, $payment['replaces_id'] ?? null);
 
             // Only cash payments get a voucher number; a transfer is identified by its bank reference.
             $voucherNumber = $method === PaymentMethod::Cash ? self::claimNextVoucherNumber() : null;
 
-            return $subscription->transactions()->create([
+            return self::refusingTakenVoucher($manualVoucher, fn (): self => $subscription->transactions()->create([
                 'recorded_by' => $collector->id,
                 'type' => self::TYPE_PAYMENT,
                 'source_key' => 'payment:'.($voucherNumber ?? Str::ulid()),
@@ -367,14 +374,14 @@ class SubscriptionTransaction extends Model
                 'active_reference' => $activeReference,
                 'split_payment_id' => $payment['split_payment_id'] ?? null,
                 'voucher_number' => $voucherNumber,
-                'manual_voucher_number' => $method === PaymentMethod::Cash ? ($payment['manual_voucher_number'] ?? null) : null,
+                'manual_voucher_number' => $manualVoucher,
                 'cash_box' => $method === PaymentMethod::Cash ? ($payment['cash_box'] ?? null) : null,
                 'notes' => $payment['notes'] ?? null,
                 'paid_on' => $lateToken ? $payment['paid_on'] : null,
                 'late_reason' => $lateToken ? $payment['late_reason'] : null,
                 'late_payment_token' => $lateToken,
                 'late_payment_fingerprint' => $lateFingerprint,
-            ]);
+            ]));
         });
     }
 
@@ -736,6 +743,96 @@ class SubscriptionTransaction extends Model
                 $conflict->displayVoucherNumber() ? ' — السند '.$conflict->displayVoucherNumber() : '',
                 $conflict->subscription->displayName(),
             ),
+        ]);
+    }
+
+    /**
+     * A paper voucher number as it is kept and compared: trimmed, with
+     * Arabic-Indic digits written as 0-9; null when empty.
+     */
+    public static function normalizeVoucher(mixed $voucher): ?string
+    {
+        $normalized = trim(strtr((string) $voucher, [
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+        ]));
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * The cash payment already holding this paper voucher number, in any
+     * branch, standing or cancelled: a voucher is used once, for good. Left
+     * out are `$ignoreTransactionId` (the payment being corrected, whose
+     * replacement keeps its voucher) and every payment a correction already
+     * replaced, so a payment corrected again keeps its voucher too.
+     */
+    public static function cashVoucherConflict(mixed $voucher, ?int $ignoreTransactionId = null): ?self
+    {
+        $normalized = self::normalizeVoucher($voucher);
+
+        if ($normalized === null) {
+            return null;
+        }
+
+        return self::withoutGlobalScope(BranchDomainScope::class)
+            ->where('type', self::TYPE_PAYMENT)
+            ->where('payment_method', PaymentMethod::Cash->value)
+            ->where(fn (Builder $query): Builder => $query->where('manual_voucher_number', $normalized)->orWhere('cash_voucher_key', $normalized))
+            ->when($ignoreTransactionId, fn (Builder $query): Builder => $query->whereKeyNot($ignoreTransactionId))
+            ->whereNotExists(fn ($corrections) => $corrections->selectRaw('1')->from('subscription_transactions as corrections')
+                ->whereColumn('corrections.corrects_id', 'subscription_transactions.id'))
+            ->with(['subscription' => fn (BelongsTo $query) => $query->withoutGlobalScope(BranchDomainScope::class)])
+            ->oldest('id')
+            ->first();
+    }
+
+    /**
+     * Refuse a paper voucher number another cash payment holds, saying which
+     * one when it is the same branch's.
+     *
+     * @throws ValidationException
+     */
+    private static function ensureVoucherIsAvailable(?string $voucher, Subscription $subscription, ?int $replacesId = null): void
+    {
+        $conflict = self::cashVoucherConflict($voucher, $replacesId);
+
+        if ($conflict !== null) {
+            throw self::voucherTakenException((string) $voucher, $conflict, $subscription->branch_id);
+        }
+    }
+
+    /**
+     * Save the payment with `$create`, turning the database's refusal of a
+     * voucher another standing payment took at the same moment (the unique
+     * index on cash_voucher_key) into the same message.
+     *
+     * @param  Closure(): self  $create
+     */
+    private static function refusingTakenVoucher(?string $voucher, Closure $create): self
+    {
+        try {
+            return $create();
+        } catch (UniqueConstraintViolationException $exception) {
+            if ($voucher === null || ! str_contains($exception->getMessage(), 'cash_voucher')) {
+                throw $exception;
+            }
+
+            throw self::voucherTakenException($voucher);
+        }
+    }
+
+    /** Why a voucher number cannot be used again, naming the payment holding it when it is in `$branchId`. */
+    public static function voucherTakenException(string $voucher, ?self $conflict = null, ?int $branchId = null): ValidationException
+    {
+        $holder = match (true) {
+            $conflict === null => '',
+            $conflict->subscription?->branch_id === $branchId => sprintf(' للمشترك %s بتاريخ %s%s', $conflict->subscription->displayName(), DailySeries::localDate($conflict->created_at), $conflict->isCancelled() ? ' (دفعة ملغاة)' : ''),
+            default => ' في فرع آخر',
+        };
+
+        return ValidationException::withMessages([
+            'manual_voucher_number' => sprintf('رقم السند %s مستخدم من قبل على دفعة نقدية أخرى%s. لكل دفعة نقدية سند واحد ولا يتكرر رقمه؛ تأكد من رقم السند.', $voucher, $holder),
         ]);
     }
 
@@ -1313,6 +1410,11 @@ class SubscriptionTransaction extends Model
             }
 
             $updates['active_reference'] = $reference;
+        }
+
+        $voucher = $this->isPayment() && $this->payment_method === PaymentMethod::Cash ? self::normalizeVoucher($this->manual_voucher_number) : null;
+        if ($voucher !== null && self::query()->withoutGlobalScope(BranchDomainScope::class)->where('cash_voucher_key', $voucher)->whereKeyNot($this->id)->exists()) {
+            throw ValidationException::withMessages([$errorKey => 'لا يمكن إعادة الدفعة الأصلية: رقم سندها '.$voucher.' مسجَّل الآن على دفعة نقدية أخرى.']);
         }
 
         // A weekly reading's line gets back the key its reading bills it by, which cancelling it freed.

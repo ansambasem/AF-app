@@ -19,6 +19,28 @@ use Inertia\Response as InertiaResponse;
 
 class SubscriptionPaymentController extends Controller
 {
+    /**
+     * Whether a paper voucher number is still free for a cash payment, as
+     * the payment form checks it while it is typed: a number another cash
+     * payment holds is refused on saving too (recordPayment()).
+     */
+    public function voucherStatus(Request $request, Subscription $subscription): JsonResponse
+    {
+        $this->authorize('recordPayment', $subscription);
+
+        $validated = $request->validate([
+            'manual_voucher_number' => ['required', 'string', 'max:50'],
+            'ignore_transaction_id' => ['nullable', 'integer'],
+        ]);
+        $voucher = (string) SubscriptionTransaction::normalizeVoucher($validated['manual_voucher_number']);
+        $conflict = SubscriptionTransaction::cashVoucherConflict($voucher, isset($validated['ignore_transaction_id']) ? (int) $validated['ignore_transaction_id'] : null);
+
+        return response()->json([
+            'available' => $conflict === null,
+            'message' => $conflict ? SubscriptionTransaction::voucherTakenException($voucher, $conflict, $subscription->branch_id)->errors()['manual_voucher_number'][0] : null,
+        ]);
+    }
+
     /** Check a transfer reference while the collector is still filling the form. */
     public function referenceStatus(Request $request, Subscription $subscription): JsonResponse
     {
