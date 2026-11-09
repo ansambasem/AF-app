@@ -339,7 +339,7 @@ export function statementCsv(entries) {
         [
             '#', 'تاريخ الحركة', 'رقم السند', 'البيان', 'التفاصيل', 'نوع الحركة', 'عليه / له', 'المبلغ', 'العملة', 'سعر الصرف',
             'طريقة الدفع', 'البنك المرسل', 'البنك المستلم', 'الرقم المرجعي', 'رقم الصندوق', 'الرصيد (شيكل)', 'حالة الرصيد',
-            'الحالة', 'اسم المستخدم', 'تاريخ الدفع الفعلي', 'سبب تأخر التسجيل', 'تاريخ وصول الحوالة إلى البنك',
+            'الحالة', 'أدخلها المستخدم', 'تاريخ الدفع الفعلي', 'سبب تأخر التسجيل', 'تاريخ وصول الحوالة إلى البنك',
         ],
         ...entries.map((entry) => {
             const balance = describeBalance(entry.balance);
@@ -348,7 +348,7 @@ export function statementCsv(entries) {
                 entry.lineNumber, formatDate(entry.date), entry.voucherNumber ?? '', entry.description, entry.details ?? '', entry.typeLabel,
                 entry.isCredit ? 'له' : 'عليه', Number(entry.amount), entry.currencyLabel, entry.exchangeRate ?? '',
                 entry.paymentMethodLabel ?? '', entry.senderBankName ?? '', entry.bankName ?? '', entry.referenceNumber ?? '', entry.cashBox ?? '',
-                Number(entry.balance), balance.label, entryState(entry), entry.recordedByName ?? '', formatDate(entry.paidOn), entry.lateReason ?? '', formatDate(entry.bankReceivedOn),
+                Number(entry.balance), balance.label, entryState(entry), entry.recordedByName ?? 'غير محدد', formatDate(entry.paidOn), entry.lateReason ?? '', formatDate(entry.bankReceivedOn),
             ];
         }),
     ];

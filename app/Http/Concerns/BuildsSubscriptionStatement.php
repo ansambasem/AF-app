@@ -60,7 +60,8 @@ trait BuildsSubscriptionStatement
 
         $transactions = $subscription->transactions()
             ->with([
-                'recordedBy',
+                // Who entered each line, whichever branch they work in now: never the person reading the statement.
+                'recordedBy' => fn ($query) => $query->withoutGlobalScopes(),
                 'meterReading',
                 'cancelledBy',
                 'reverses.closingLine.closing',

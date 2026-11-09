@@ -34,6 +34,18 @@ class SubscriptionStatementTest extends TestCase
         $this->subscription = Subscription::factory()->create(['branch_id' => $this->branch->id, 'full_name' => 'Ahmad']);
     }
 
+    public function test_each_line_names_the_user_who_entered_it_not_the_one_reading_the_statement(): void
+    {
+        $collector = User::factory()->collector()->create(['branch_id' => $this->branch->id, 'name' => 'رامي المحصّل']);
+        $elsewhere = User::factory()->collector()->create(['branch_id' => Branch::factory()->create()->id, 'name' => 'موظف فرع آخر']);
+        SubscriptionTransaction::recordPayment($this->subscription, $collector, ['amount' => '20', 'currency' => 'ILS', 'payment_method' => 'cash']);
+        SubscriptionTransaction::factory()->for($this->subscription)->create(['amount' => '15.00', 'recorded_by' => $elsewhere->id]);
+        SubscriptionTransaction::recordCharge($this->subscription, $this->branchAdmin, ChargeType::Penalty, '5', 'رسم');
+
+        $this->actingAs($this->branchAdmin)->get(route('subscriptions.statement', $this->subscription))->assertOk()
+            ->assertInertia(fn ($page) => $page->where('entries', fn ($entries): bool => collect($entries)->pluck('recordedByName')->all() === ['رامي المحصّل', 'موظف فرع آخر', 'Mohammed']));
+    }
+
     public function test_the_statement_lists_charges_and_payments_oldest_first_with_the_balance_after_each(): void
     {
         SubscriptionTransaction::factory()->for($this->subscription)->create(['amount' => '50.00', 'recorded_by' => $this->branchAdmin->id]);

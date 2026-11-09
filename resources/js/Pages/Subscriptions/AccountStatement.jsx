@@ -43,8 +43,11 @@ export const STATEMENT_COLUMNS = [
     'طريقة الدفع',
     'سعر الصرف',
     'الرصيد (شيكل)',
-    'اسم المستخدم',
+    'أدخلها المستخدم',
 ];
+
+/** Who entered a line, when the line does not say (never the person reading the statement). */
+export const UNKNOWN_RECORDER = 'غير محدد';
 
 const COLUMN_WIDTHS = [52, 72, 88, 180, 116, 150, 220, 130, 76, 104, 116, 88, 148, 136];
 
@@ -556,8 +559,8 @@ function StatementRow({
                     <Balance value={entry.balance} colored={false} unit="" paperWord={false} className="font-bold text-gray-900" />
                 )}
             </td>
-            <td data-label="اسم المستخدم" className="text-gray-700">
-                {entry.recordedByName ?? <Dash />}
+            <td data-label="أدخلها المستخدم" className="text-gray-700">
+                {entry.recordedByName ?? UNKNOWN_RECORDER}
             </td>
             {hasLineMenus && (
                 <td className="statement-screen-only text-center !align-middle">
