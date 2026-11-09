@@ -4,7 +4,6 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import AddButton from '@/Components/AddButton';
 import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
-import DataTableFilterMenu from '@/Components/DataTable/DataTableFilterMenu';
 import AreaChip from '@/Components/DataTable/AreaChip';
 import MeterBoxCell from '@/Components/DataTable/MeterBoxCell';
 import SortableTh from '@/Components/DataTable/SortableTh';
@@ -25,8 +24,7 @@ import { hasLatestWeekReading, readingOptionFor, weekOptionsFor } from '@/lib/re
 import { openQuickMessage } from '@/lib/quickMessage';
 import BulkActionBar from './BulkActionBar';
 import BulkActionsMenu from './BulkActionsMenu';
-import BalanceFilter from './BalanceFilter';
-import { BALANCE_FILTER_KEYS, balanceFilterLabel, subscriptionFilterKey } from '@/lib/subscriptionBalance';
+import { subscriptionFilterKey } from '@/lib/subscriptionBalance';
 import PhoneQuickEdit from './PhoneQuickEdit';
 import Balance from '@/Components/Balance';
 import SegmentedTabs from '@/Components/SegmentedTabs';
@@ -108,7 +106,7 @@ export default function Index({
     bulkActions,
     statusOptions,
 }) {
-    const { can, errors = {} } = usePage().props;
+    const { can } = usePage().props;
     const [modalSubscription, setModalSubscription] = useState(null);
     const [viewingSubscriptionId, setViewingSubscriptionId] = useState(null);
     // Looked up from the current page props (not kept as a copy) so the
@@ -122,7 +120,7 @@ export default function Index({
     const [messageSubscription, setMessageSubscription] = useState(null);
     const [archiveSubscription, setArchiveSubscription] = useState(null);
     const historySubscription = subscriptions.data.find((subscription) => subscription.id === historySubscriptionId) ?? null;
-    const { search, setSearch, sort, setPage, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/subscriptions', filters, {}, {
+    const { search, setSearch, sort, setPage, setPerPage, filterValues, setFilter } = useDataTable('/subscriptions', filters, {}, {
         only: ['subscriptions', 'filters', 'filterOptions', 'branchScope', 'can', 'canCreate', 'canViewArchived', 'showArchived', 'archiveToday', 'canRecordReadings', 'bulkActions', 'canEditMinimumCharge', 'canEditKilowattPrice', 'readingWeekOptions'],
     });
     const rowClick = useRowClick();
@@ -140,11 +138,8 @@ export default function Index({
     const serverFilterKey = subscriptionFilterKey(filters.filter);
     const filtersKey = JSON.stringify([search.trim(), localFilterKey, filters.search, serverFilterKey]);
     const filtersPending = search.trim() !== (filters.search ?? '') || localFilterKey !== serverFilterKey;
-    const balanceLabel = balanceFilterLabel(filters.filter);
-    const standardFilterValues = Object.fromEntries(Object.entries(filterValues).filter(([key]) => key !== 'archived' && !BALANCE_FILTER_KEYS.includes(key)));
-    // Whoever sees every branch picks the branch in the banner above the table, not among the other filters; clearing those keeps it.
-    const branchFilter = splitBranchFilter(branchScope, filterOptions, standardFilterValues);
-    const keptOnClear = [...(showArchived ? ['archived'] : []), ...branchFilter.kept];
+    // Whoever sees every branch picks the branch in the banner above the table; the list has no other filter menu, only its search.
+    const branchFilter = splitBranchFilter(branchScope, filterOptions, filterValues);
     const canSelect = !showArchived && (bulkActions.minimumCharge || bulkActions.status || bulkActions.message || bulkActions.meterBox);
 
     // A new search or filter is a new list: start the choice over.
@@ -371,26 +366,7 @@ export default function Index({
                 perPage={filters.per_page}
                 onPerPageChange={setPerPage}
                 total={subscriptions.total}
-                filterMenu={
-                    <DataTableFilterMenu
-                        tableKey="subscriptions"
-                        groups={branchFilter.groups}
-                        values={branchFilter.values}
-                        onChange={setFilter}
-                        onChangeMany={setFilters}
-                        onClear={() => keptOnClear.length ? setFilters(Object.fromEntries(Object.keys(filterValues).filter((key) => !keptOnClear.includes(key)).map((key) => [key, '']))) : clearFilters()}
-                    >
-                        <BalanceFilter values={filterValues} onChange={setFilters} errors={errors} />
-                    </DataTableFilterMenu>
-                }
             />
-
-            {balanceLabel && (
-                <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-x border-gray-100 bg-brand-500/5 px-5 py-3 text-sm text-gray-700">
-                    <span><b className="font-display text-gray-900">{subscriptions.total.toLocaleString('en')}</b> اشتراكًا · {balanceLabel}{filtersPending && ' · جارٍ تحديث النتائج…'}</span>
-                    {canSelect && subscriptions.total > 0 && !allMatching && <button type="button" disabled={filtersPending} onClick={() => { setSelectedIds(new Set()); setAllMatching(true); }} className="rounded-control border border-brand-500/20 bg-surface px-3 py-2 font-semibold text-brand-600 transition hover:bg-brand-500/10 disabled:opacity-40">تحديد جميع النتائج ({subscriptions.total.toLocaleString('en')})</button>}
-                </div>
-            )}
 
             {canSelect && !allMatching && pageIds.length > 0 && pageSelectedCount === pageIds.length && subscriptions.total > pageIds.length && (
                 <div role="status" className="flex flex-wrap items-center justify-center gap-2 border-x border-gray-100 bg-brand-500/5 px-4 py-2.5 text-sm text-gray-700">

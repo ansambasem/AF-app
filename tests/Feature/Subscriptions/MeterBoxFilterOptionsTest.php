@@ -44,7 +44,8 @@ class MeterBoxFilterOptionsTest extends TestCase
     public static function pages(): array
     {
         return [
-            'subscriptions' => ['subscriptions.index', 'filterOptions'],
+            // The subscriptions list has no filter menu any more; the other lists keep theirs.
+            'payments' => ['payments.index', 'filterOptions'],
             'meter readings' => ['meter-readings.index', 'filterOptions'],
         ];
     }
@@ -95,7 +96,7 @@ class MeterBoxFilterOptionsTest extends TestCase
         MeterBox::factory()->create(['branch_id' => $otherBranch->id, 'name' => 'hospital', 'name_suffix' => '1', 'box_number' => 'h-1']);
         $user = User::factory()->dataEntry()->create(['branch_id' => $this->branch->id]);
 
-        $this->actingAs($user)->get(route('subscriptions.index', ['filter' => ['meter_box_name' => 'hospital']]))
+        $this->actingAs($user)->get(route('meter-readings.index', ['filter' => ['meter_box_name' => 'hospital']]))
             ->assertInertia(fn ($page) => $page->where('filterOptions', function ($groups): bool {
                 $groups = collect($groups);
 
@@ -107,7 +108,7 @@ class MeterBoxFilterOptionsTest extends TestCase
     public function test_a_selected_branch_is_not_repeated_in_each_box_number_label(): void
     {
         $this->actingAs($this->superAdmin())
-            ->get(route('subscriptions.index', ['filter' => ['branch_id' => $this->branch->id, 'meter_box_name' => 'club']]))
+            ->get(route('payments.index', ['filter' => ['branch_id' => $this->branch->id, 'meter_box_name' => 'club']]))
             ->assertInertia(fn ($page) => $page->where('filterOptions', function ($groups): bool {
                 $numbers = collect(collect($groups)->firstWhere('key', 'meter_box_id')['options']);
 
@@ -119,7 +120,7 @@ class MeterBoxFilterOptionsTest extends TestCase
     public function test_box_numbers_keep_their_branch_context_while_no_branch_is_selected(): void
     {
         $this->actingAs($this->superAdmin())
-            ->get(route('subscriptions.index', ['filter' => ['meter_box_name' => 'club']]))
+            ->get(route('payments.index', ['filter' => ['meter_box_name' => 'club']]))
             ->assertInertia(fn ($page) => $page->where('filterOptions', function ($groups): bool {
                 $numbers = collect(collect($groups)->firstWhere('key', 'meter_box_id')['options']);
 
@@ -139,7 +140,7 @@ class MeterBoxFilterOptionsTest extends TestCase
                 'box_number' => 'extra-'.$extra.'-'.$sequence->index,
             ])->create();
 
-            $sizes[] = strlen(json_encode($this->actingAs($this->superAdmin())->get(route('subscriptions.index'))->viewData('page')['props']['filterOptions']));
+            $sizes[] = strlen(json_encode($this->actingAs($this->superAdmin())->get(route('payments.index'))->viewData('page')['props']['filterOptions']));
         }
 
         $this->assertSame($sizes[0], $sizes[1]);

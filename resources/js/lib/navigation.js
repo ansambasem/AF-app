@@ -62,8 +62,9 @@ function seesOwnBoxesOnly(can) {
 }
 
 export const NAVIGATION_GROUPS = [
-    { id: 'daily', label: 'المشتركون', shortLabel: 'المشتركون', icon: 'users', description: 'المشتركون والطبلونات والقراءات والرسائل', hrefs: ['/subscriptions', '/meter-boxes', '/meter-readings', '/reading-cycles', '/disconnection-lists', '/messages'] },
-    { id: 'finance', label: 'المالية والتحصيل', shortLabel: 'المالية', icon: 'wallet', description: 'الدفعات والصناديق والإغلاق', hrefs: ['/payments', '/payments/summary', '/payments/cash-boxes', '/billing-periods', '/ledger', '/receivables'] },
+    // The disconnection lists are not among the subscribers' pages: they sit with the debts they follow from.
+    { id: 'daily', label: 'المشتركون', shortLabel: 'المشتركون', icon: 'users', description: 'المشتركون والطبلونات والقراءات والرسائل', hrefs: ['/subscriptions', '/meter-boxes', '/meter-readings', '/reading-cycles', '/messages'] },
+    { id: 'finance', label: 'المالية والتحصيل', shortLabel: 'المالية', icon: 'wallet', description: 'الدفعات والصناديق والإغلاق', hrefs: ['/payments', '/payments/summary', '/payments/cash-boxes', '/billing-periods', '/ledger', '/receivables', '/disconnection-lists'] },
     { id: 'reports', label: 'التقارير والرقابة', shortLabel: 'التقارير', icon: 'trend', description: 'التقارير والأداء والتدقيق', hrefs: ['/reports', '/reports/remaining', '/company-forms', '/branch-performance', '/transaction-audit'] },
     { id: 'infrastructure', label: 'الفروع والشبكة', shortLabel: 'الشبكة', icon: 'bolt', description: 'الفروع والبنية الكهربائية', hrefs: ['/branches', '/governorates', '/circuit-breakers'] },
     { id: 'administration', label: 'الإدارة والإعدادات', shortLabel: 'الإدارة', icon: 'cog', description: 'المستخدمون والصلاحيات والإعدادات', hrefs: ['/users', '/settings/permissions', '/tariffs', '/settings/payments', '/settings/print-templates', '/settings/sms', '/settings/mobile-app'], featured: ['/users', '/settings/permissions'] },
