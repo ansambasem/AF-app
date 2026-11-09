@@ -322,13 +322,14 @@ class BranchDomainsTest extends TestCase
         $this->assertSame('.company.test', config('session.domain'));
     }
 
-    public function test_branch_settings_default_to_the_domain_branch_and_cannot_change_company_defaults(): void
+    public function test_a_branch_domain_opens_no_payment_or_reading_schedule_settings_and_cannot_change_company_defaults(): void
     {
         $company = ClosingSetting::company()->week_starts_on;
-        $this->actingAs($this->admin)->get('https://north.company.test/settings/payments')->assertInertia(fn ($page) => $page->where('boxPeriod.branch.id', $this->north->id)->where('canManagePaymentCatalog', false));
-        $this->get('https://north.company.test/settings/reading-schedule')->assertInertia(fn ($page) => $page->where('branch.id', $this->north->id));
-        $this->put('https://north.company.test/settings/payments', ['week_starts_on' => ($company + 1) % 7])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('closing_settings', ['branch_id' => $this->north->id, 'week_starts_on' => ($company + 1) % 7]);
+        // The box week's weekday and the reading schedule are no longer set anywhere; the shared catalog stays the company's.
+        $this->actingAs($this->admin)->get('https://north.company.test/settings/payments')->assertForbidden();
+        $this->get('https://north.company.test/settings/reading-schedule')->assertNotFound();
+        $this->put('https://north.company.test/settings/payments', ['week_starts_on' => ($company + 1) % 7])->assertStatus(405);
+        $this->assertDatabaseMissing('closing_settings', ['branch_id' => $this->north->id, 'week_starts_on' => ($company + 1) % 7]);
         $this->assertDatabaseHas('closing_settings', ['branch_id' => null, 'week_starts_on' => $company]);
         $this->post('https://north.company.test/settings/banks', ['name' => 'Shared Bank'])->assertForbidden();
     }

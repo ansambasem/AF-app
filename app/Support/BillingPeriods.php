@@ -18,11 +18,15 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * The branches' billing periods: the one open now, the one a date or a
- * reading week belongs to, creating a period ahead, and approving a closed
- * one. A period scheduled ahead opens by itself on its first day, which
- * closes the one before it, whether that happens on the scheduler's minute
- * or on the first request of the day (shared hosting may run no scheduler).
- * Read once per request or job (it is registered as scoped).
+ * reading week belongs to, creating a period ahead, closing the open one,
+ * and approving a closed one. A period stays open, however long, until
+ * someone allowed to closes it by hand; nothing closes it by itself. A
+ * period scheduled ahead opens on its first day once no other is open (on
+ * the scheduler's minute or the first request of the day, as shared hosting
+ * may run no scheduler), or as soon as the open one is closed if its first
+ * day has come. Payments are taken only while a period is open
+ * (paymentLockReason()). Read once per request or job (it is registered as
+ * scoped).
  */
 class BillingPeriods
 {
@@ -98,8 +102,9 @@ class BillingPeriods
     }
 
     /**
-     * Open the branch's period scheduled for today or earlier, closing the
-     * one open before it at the same moment, and prepare its reading cycle.
+     * Open the branch's period scheduled for today or earlier, and prepare
+     * its reading cycle, when no period of the branch is open: an open
+     * period is never closed here, only by hand (close()).
      */
     public function refresh(int $branchId): void
     {
@@ -108,29 +113,72 @@ class BillingPeriods
         }
         $this->refreshed[$branchId] = true;
         $today = DailySeries::today()->toDateString();
-        if (! $this->of($branchId)->contains(fn (BillingPeriod $period): bool => $period->opened_at === null && $period->starts_on->toDateString() <= $today)) {
+        $periods = $this->of($branchId);
+        if ($periods->contains(fn (BillingPeriod $period): bool => $period->isOpen())
+            || ! $periods->contains(fn (BillingPeriod $period): bool => $period->opened_at === null && $period->starts_on->toDateString() <= $today)) {
             return;
         }
 
         DB::transaction(function () use ($branchId, $today): void {
             Branch::withoutGlobalScopes()->whereKey($branchId)->lockForUpdate()->firstOrFail();
+            if (BillingPeriod::withoutGlobalScopes()->where('branch_id', $branchId)->whereNotNull('opened_at')->whereNull('closed_at')->exists()) {
+                return;
+            }
             $due = BillingPeriod::withoutGlobalScopes()->where('branch_id', $branchId)->whereNull('opened_at')
-                ->whereDate('starts_on', '<=', $today)->orderBy('starts_on')->get();
+                ->whereDate('starts_on', '<=', $today)->orderBy('starts_on')->first();
 
-            foreach ($due as $period) {
-                $moment = now();
-                BillingPeriod::withoutGlobalScopes()->where('branch_id', $branchId)->whereNotNull('opened_at')->whereNull('closed_at')->update(['closed_at' => $moment]);
-                $period->update(['opened_at' => $moment]);
-                $this->prepareReadingCycle($period);
+            if ($due !== null) {
+                $due->update(['opened_at' => now()]);
+                $this->prepareReadingCycle($due);
             }
         });
         unset($this->loaded[$branchId]);
     }
 
     /**
+     * Close the branch's open period by hand: from now on nothing new is
+     * recorded in it and payments wait for the next period to open (the one
+     * set up ahead opens at once if its first day has come). Only its
+     * branch's manager may (BranchClosingAccess::manage(), checked by the
+     * caller). Its lines and figures stay as they are.
+     */
+    public function close(BillingPeriod $period, User $actor): BillingPeriod
+    {
+        DB::transaction(function () use ($period): void {
+            Branch::withoutGlobalScopes()->whereKey($period->branch_id)->lockForUpdate()->firstOrFail();
+            $current = BillingPeriod::withoutGlobalScopes()->lockForUpdate()->findOrFail($period->id);
+            if (! $current->isOpen()) {
+                throw ValidationException::withMessages(['period' => 'تُغلق الفترة المفتوحة فقط؛ هذه الفترة '.$current->statusLabel().'.']);
+            }
+            $current->update(['closed_at' => now()]);
+        });
+        unset($this->loaded[$period->branch_id], $this->refreshed[$period->branch_id]);
+        $this->refresh($period->branch_id);
+
+        return $period->refresh();
+    }
+
+    /**
+     * Why a payment (or clearing) cannot be taken in the branch now: it has
+     * billing periods and none is open. Null when it can: a period is open,
+     * however long ago it began, or the branch keeps no periods. Whether a
+     * period is open is all that decides it, never a date or a weekday.
+     */
+    public function paymentLockReason(?int $branchId): ?string
+    {
+        // A branch whose first period has not begun yet takes payments as before it had periods.
+        if ($branchId === null || ! $this->of($branchId)->contains(fn (BillingPeriod $period): bool => $period->opened_at !== null) || $this->open($branchId) !== null) {
+            return null;
+        }
+
+        return 'لا توجد فترة مفتوحة في الفرع الآن؛ تُسجَّل الدفعات في الفترة المفتوحة فقط. يفتح مدير الفرع الفترة التالية من صفحة فترات الفوترة.';
+    }
+
+    /**
      * Set up the branch's next period, from `$startsOn` to `$endsOn`. It
      * starts after the latest period ends (periods never overlap) and only
-     * one may wait ahead; starting today or earlier, it opens now.
+     * one may wait ahead; starting today or earlier, it opens now unless
+     * another is still open (then it opens once that one is closed).
      */
     public function create(Branch $branch, CarbonImmutable $startsOn, CarbonImmutable $endsOn, User $actor, ?string $notes = null): BillingPeriod
     {
@@ -200,7 +248,7 @@ class BillingPeriods
             if (! $current->isClosed()) {
                 throw ValidationException::withMessages(['period' => $current->isApproved()
                     ? 'اعتُمدت هذه الفترة من قبل.'
-                    : 'تُعتمد الفترة بعد إغلاقها، أي بعد أن تبدأ الفترة التي تليها.']);
+                    : 'تُعتمد الفترة بعد إغلاقها.']);
             }
 
             $now = now();

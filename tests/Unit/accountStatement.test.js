@@ -181,6 +181,19 @@ test('the statement exports each shown line with its side, its state and the bal
     assert.ok(lines[2].endsWith('"-24","له","تصحيح","Mohammed","25/08/2026","نسيان إدخال الوصل","26/08/2026"'));
 });
 
+test('the statement names who entered each line, and says so when a line does not tell', () => {
+    const csv = statementCsv([
+        { lineNumber: 1, date: '2026-08-20 09:15', description: 'دفعة', typeLabel: 'دفعة', isCredit: true, amount: '10.00', currencyLabel: 'شيكل', balance: '-10.00', recordedByName: 'رامي' },
+        { lineNumber: 2, date: '2026-08-21 09:15', description: 'رصيد سابق', typeLabel: 'رصيد', isCredit: false, amount: '5.00', currencyLabel: 'شيكل', balance: '-5.00', recordedByName: null },
+    ]);
+    const [header, first, second] = csv.replace('\uFEFF', '').split('\r\n');
+
+    assert.ok(header.includes('"أدخلها المستخدم"'));
+    assert.ok(!header.includes('"اسم المستخدم"'));
+    assert.ok(first.includes('"رامي"'));
+    assert.ok(second.includes('"غير محدد"'));
+});
+
 /** A weekly reading of 60 with a standing discount of 30, corrected to 60 again, then a payment cancelled outright. */
 const ledger = [
     { id: 1, lineNumber: 1, type: 'meter_reading', meterReadingId: 9, amount: '60.00', balance: '60.00', cancellation: { wasCorrected: true, correctionId: 5 } },

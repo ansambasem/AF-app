@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Icon from '@/Components/Icon';
 import KpiTile from '@/Components/KpiTile';
 import PrimaryButton from '@/Components/PrimaryButton';
-import { useDataTable } from '@/hooks/useDataTable';
+import SearchableSelect from '@/Components/SearchableSelect';
 import { formatMoney } from '@/lib/format';
 import {
     boxTypes,
@@ -17,124 +17,120 @@ import {
     boxAction,
     actionLabel,
 } from './CollectorCashBox';
-import OpenEntriesTable from './OpenEntriesTable';
 import PageHeader from '@/Components/PageHeader';
 import InfoTip from '@/Components/InfoTip';
 
-/** What the branch collected today, from every user, in one wide card at the top of the page: the total, how much in cash and by transfer, and each user's share. */
-function TodaysSummary({ today }) {
-    const parts = [
-        { icon: 'banknotes', label: 'نقدًا', value: today.cash },
-        { icon: 'bank', label: 'تحويلات بنكية', value: today.transfers },
-    ];
+const PARTS = [
+    { key: 'cash', icon: 'banknotes', label: 'نقدًا' },
+    { key: 'transfers', icon: 'bank', label: 'تحويلات بنكية' },
+    { key: 'clearings', icon: 'layers', label: 'مقاصة' },
+];
+
+/** The choices the summary follows: the branch (Super Admin), the period, and the user (for whoever may see the staff's). */
+function SummaryFilters({ summary }) {
+    const { filters, options } = summary;
+
+    function apply(changes) {
+        const query = Object.fromEntries(Object.entries({ ...filters, ...changes }).filter(([, value]) => value !== '' && value !== null && value !== undefined));
+        router.get('/payments/summary', query, { preserveScroll: true, preserveState: true, replace: true });
+    }
 
     return (
-        <section aria-label="ما حُصّل اليوم في الفرع" className="mb-6">
-            <KpiTile hero label="ما حُصّل اليوم في الفرع" value={formatMoney(today.total)} unit="₪" hint={`${today.count.toLocaleString('en')} ${today.count === 1 ? 'دفعة' : 'دفعات'}`}>
-                <dl className="mt-5 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2">
-                    {parts.map((part) => (
-                        <div key={part.label} className="flex items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-end gap-4 rounded-panel border border-gray-100 bg-surface p-4 shadow-card">
+            {options.branches.length > 0 && (
+                <label className="grid w-full gap-1.5 text-sm font-semibold text-gray-700 sm:w-60">
+                    الفرع
+                    <SearchableSelect clearable={false} value={filters.branch_id} options={options.branches} onChange={(value) => apply({ branch_id: value, user: '', period: '' })} />
+                </label>
+            )}
+            <label className="grid w-full gap-1.5 text-sm font-semibold text-gray-700 sm:w-72">
+                الفترة
+                <SearchableSelect clearable={false} searchable={options.periods.length > 8} value={filters.period} options={options.periods} onChange={(value) => apply({ period: value })} />
+            </label>
+            {summary.seesStaff ? (
+                <label className="grid w-full gap-1.5 text-sm font-semibold text-gray-700 sm:w-64">
+                    المستخدم
+                    <SearchableSelect clearable={false} value={filters.user} options={[{ value: '', label: 'جميع المستخدمين' }, ...options.users]} onChange={(value) => apply({ user: value })} searchPlaceholder="ابحث عن موظف..." />
+                </label>
+            ) : (
+                <p className="flex w-full items-center gap-2 text-sm text-gray-500">
+                    <Icon name="lock" className="h-4 w-4 text-gray-400" />
+                    ملخص تحصيلك أنت فقط
+                </p>
+            )}
+        </div>
+    );
+}
+
+/** The chosen collection in one wide card: the total, how many, and how it was paid. */
+function CollectionTotal({ summary }) {
+    const who = summary.user ? (summary.user.isYou ? 'ما حصّلته' : `ما حصّله ${summary.user.name}`) : 'تحصيل جميع المستخدمين';
+
+    return (
+        <section aria-label="ملخص التحصيل" className="mb-6">
+            <KpiTile hero label={`${who} · ${summary.period.label}`} value={formatMoney(summary.total)} unit="₪" hint={`${summary.count.toLocaleString('en')} ${summary.count === 1 ? 'عملية' : 'عمليات'}${summary.branch ? ` · ${summary.branch.name}` : ''}`}>
+                <dl className="mt-5 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-3">
+                    {PARTS.map((part) => (
+                        <div key={part.key} className="flex items-center gap-3">
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white/80">
                                 <Icon name={part.icon} className="h-[18px] w-[18px]" />
                             </span>
                             <dt className="text-sm text-white/70">{part.label}</dt>
                             <dd className="ms-auto flex items-baseline gap-1.5 sm:ms-0">
-                                <span className="font-display text-2xl font-bold">{formatMoney(part.value)}</span>
+                                <span className="font-display text-2xl font-bold">{formatMoney(summary[part.key])}</span>
                                 <span className="text-xs text-white/60">₪</span>
                             </dd>
                         </div>
                     ))}
                 </dl>
-                {today.collectors.length > 0 && (
-                    <ul aria-label="ما حصّله كل مستخدم اليوم" className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4 text-xs">
-                        {today.collectors.map((collector) => (
-                            <li key={collector.id} className="rounded-full bg-white/10 px-3 py-1.5 text-white/80">
-                                {collector.name}{collector.isYou && ' (أنت)'} · <bdi dir="ltr" className="font-display font-bold text-white">{formatMoney(collector.total)} ₪</bdi> · {collector.count.toLocaleString('en')} {collector.count === 1 ? 'دفعة' : 'دفعات'}
-                            </li>
-                        ))}
-                    </ul>
-                )}
             </KpiTile>
         </section>
     );
 }
 
-/** The branch's latest payments today, by every user, each with who took it and its receipt. */
-function TodaysPayments({ today }) {
+/** Each user's share of the collection, when every user is shown. */
+function CollectionByUser({ rows }) {
     return (
-        <section aria-labelledby="todays-payments" className="mt-8 space-y-4">
-            <h3 id="todays-payments" className="text-lg font-bold text-gray-900">
-                آخر دفعات الفرع اليوم
-            </h3>
-
-            {today.payments.length > 0 ? (
-                <ul className="divide-y divide-gray-100 overflow-hidden rounded-panel border border-gray-100 bg-surface shadow-card">
-                    {today.payments.map((payment) => (
-                        <li key={payment.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5 text-sm">
-                            <span className="min-w-0 flex-1 basis-48 font-semibold text-gray-900">{payment.subscriptionName}</span>
-                            {payment.collectorName && <span className="text-gray-500">حصّلها {payment.collectorName}</span>}
-                            <span className="text-gray-500">
-                                {payment.methodLabel}
-                                {payment.bankName && ` · ${payment.bankName}`}
-                            </span>
-                            {payment.voucherNumber && (
-                                <span dir="ltr" className="font-display text-xs text-gray-500">
-                                    #{payment.voucherNumber}
-                                </span>
-                            )}
-                            <span dir="ltr" className="font-display text-xs text-gray-500">
-                                {payment.time}
-                            </span>
-                            <b className="font-display text-base text-emerald-700 dark:text-emerald-400">{formatMoney(payment.amount)} ₪</b>
-                            <a
-                                href={payment.receiptUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="tone-print inline-flex items-center gap-1.5 rounded-control border px-3 py-1.5 text-xs font-semibold transition"
-                            >
-                                <Icon name="printer" className="h-4 w-4" />
-                                السند
-                            </a>
-                        </li>
+        <section className="mb-8 overflow-x-auto rounded-panel border border-gray-100 bg-surface shadow-card">
+            <h3 className="px-5 pt-5 text-lg font-bold text-gray-900">التحصيل حسب المستخدم</h3>
+            <table className="mt-3 w-full text-sm" aria-label="التحصيل حسب المستخدم">
+                <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                        {['المستخدم', 'العمليات', 'نقدًا', 'تحويلات بنكية', 'مقاصة', 'الإجمالي'].map((label) => <th key={label} className="px-4 py-2 text-start font-semibold">{label}</th>)}
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                    {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">لا تحصيل في هذه الفترة.</td></tr>}
+                    {rows.map((row) => (
+                        <tr key={row.id}>
+                            <td className="px-4 py-2 font-semibold text-gray-900">{row.name}{row.isYou && <span className="text-gray-500"> (أنت)</span>}</td>
+                            <td className="px-4 py-2 tabular-nums">{row.count.toLocaleString('en')}</td>
+                            {['cash', 'transfers', 'clearings', 'total'].map((key) => <td key={key} className={`px-4 py-2 tabular-nums ${key === 'total' ? 'font-bold' : ''}`} dir="ltr">{formatMoney(row[key])}</td>)}
+                        </tr>
                     ))}
-                </ul>
-            ) : (
-                <p className="rounded-panel border border-dashed border-gray-200 bg-surface px-5 py-8 text-center text-sm text-gray-500">لم تُسجَّل أي دفعة في الفرع اليوم بعد.</p>
-            )}
+                </tbody>
+            </table>
         </section>
     );
 }
 
 /**
- * The branch's collection summary: what every user collected in it today,
- * what waits on this user (entries the branch sent back, a handover to
- * confirm, audit notes, debts), their own open boxes, every entry in the
- * branch's open boxes in one table, searched and narrowed to one type of
- * box (a box's card picks its type) or one collector, and the branch's
- * latest payments today with receipts.
+ * The collection summary: the total collected in the chosen period —
+ * the user's own, or for whoever may look over the branch's collections
+ * every user's or one picked user's — with how it was paid, then what
+ * waits on the user (a handover to confirm, audit notes, debts) and
+ * their own open boxes.
  */
-export default function Summary({ today, cashBox, current, entries, filters, counts, people, needsAction, pendingCount, collectionUrls }) {
+export default function Summary({ summary, cashBox, current, needsAction, pendingCount }) {
     const [selected, setSelected] = useState(null);
     const [saved, setSaved] = useState(null);
-    const table = useDataTable(collectionUrls.summary, filters);
-    const shownType = table.filterValues.type ?? '';
 
-    /** Shows only the entries of one type of box in the table below, or every entry again when that type is already shown. */
-    function showBoxType(type) {
-        if (shownType === type) {
-            table.setFilter('type', '');
-            return;
-        }
-
-        table.setFilter('type', type);
-        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-        document.getElementById('open-entries')?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
-    }
-
-    return <AuthenticatedLayout badges={{ '/payments/summary': pendingCount }} header={<PageHeader eyebrow={cashBox.branchName ?? 'حسابك الحالي'} title="ملخص التحصيل" />}>
+    return <AuthenticatedLayout badges={{ '/payments/summary': pendingCount }} header={<PageHeader eyebrow={summary.branch?.name ?? cashBox.branchName ?? 'حسابك الحالي'} title="ملخص التحصيل" />}>
         <Head title="ملخص التحصيل" />
         {saved && <p role="status" className="mb-4 rounded-control bg-emerald-500/10 p-4 text-sm text-emerald-700">{saved}</p>}
-        <TodaysSummary today={today} />
+        <SummaryFilters summary={summary} />
+        <CollectionTotal summary={summary} />
+        {summary.byUser && <CollectionByUser rows={summary.byUser} />}
         {cashBox.started ? <div className="space-y-8">
             {needsAction.length > 0 && <section className="space-y-3 rounded-panel border border-amber-500/25 bg-amber-500/5 p-5">
                 <h3 className="font-bold text-gray-900">تحتاج إجراء منك</h3>
@@ -146,22 +142,13 @@ export default function Summary({ today, cashBox, current, entries, filters, cou
             <section aria-labelledby="open-boxes" className="space-y-4">
                 <div className="flex items-center gap-1">
                     <h3 id="open-boxes" className="text-lg font-bold text-gray-900">صناديقي المفتوحة</h3>
-                    <InfoTip label="عن صناديقي المفتوحة">لكل نوع صندوق خاص به؛ يراجعه الفرع ويؤكد إغلاقه، أو يُغلق عند القطع الأسبوعي.</InfoTip>
+                    <InfoTip label="عن صناديقي المفتوحة">لكل نوع صندوق خاص به؛ يراجعه الفرع ويؤكد إغلاقه. حركات كل صندوق تجدها داخله.</InfoTip>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-3">
-                    {Object.keys(boxTypes).map((type) => <BoxCard key={type} type={type} box={current[type]} selected={shownType === type && Boolean(current[type])} onSelect={() => showBoxType(type)} />)}
+                    {Object.keys(boxTypes).map((type) => <BoxCard key={type} type={type} box={current[type]} />)}
                 </div>
             </section>
-
-            <section id="open-entries" aria-labelledby="open-entries-title" className="scroll-mt-24 space-y-4">
-                <div className="flex items-center gap-1">
-                    <h3 id="open-entries-title" className="text-lg font-bold text-gray-900">حركات الفرع المفتوحة</h3>
-                    <InfoTip label="عن حركات الفرع المفتوحة">كل ما سجّله موظفو الفرع في صناديقهم المفتوحة؛ حركات الصناديق المغلقة تجدها داخل كل صندوق في صفحة الصناديق المالية.</InfoTip>
-                </div>
-                <OpenEntriesTable table={table} entries={entries} filters={filters} counts={counts} people={people.length > 1 ? people : null} url={collectionUrls.summary} label="حركات الفرع المفتوحة" />
-            </section>
-        </div> : <p className="rounded-panel border border-dashed border-gray-200 bg-surface p-6 text-sm leading-7 text-gray-500">{cashBox.branchName ? 'تُفتح الصناديق تلقائيًا عند تسجيل أول دفعة أو مقاصة في فرعك.' : 'حسابك غير مرتبط بفرع، لذلك لا يوجد سجل صناديق شخصي.'}</p>}
-        <TodaysPayments today={today} />
+        </div> : null}
         {selected && <CashBoxAction key={`${selected.box.id}-${selected.action}`} {...selected} onClose={() => setSelected(null)} onSuccess={() => setSaved('تم تأكيد التسليم.')} />}
     </AuthenticatedLayout>;
 }

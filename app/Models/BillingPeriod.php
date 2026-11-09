@@ -12,9 +12,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One billing period of a branch, from its first to its last day as the
- * branch's manager set them. It opens by itself on its first day, closing
- * the period before it; a closed period is changed by the manager only,
- * until they approve it, after which it never changes. Every account line
+ * branch's manager set them. It opens on its first day once no other
+ * period of the branch is open, and stays open, however long, until the
+ * manager closes it by hand; a closed period is changed by the manager
+ * only, until they approve it, after which it never changes. Payments are
+ * taken only while a period is open. Every account line
  * and reading recorded while it is open belongs to it (a weekly reading's
  * lines to their reading's period).
  */

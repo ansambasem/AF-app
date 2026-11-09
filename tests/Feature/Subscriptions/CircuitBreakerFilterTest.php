@@ -45,9 +45,9 @@ class CircuitBreakerFilterTest extends TestCase
         $this->assertSame([$this->withoutBreaker->id], $listed('none'));
     }
 
-    public function test_the_filter_offers_every_breaker_by_size_and_none(): void
+    public function test_the_reading_sheet_filter_offers_every_breaker_by_size_and_none(): void
     {
-        $this->actingAs($this->branchAdmin)->get(route('subscriptions.index'))
+        $this->actingAs($this->branchAdmin)->get(route('meter-readings.index'))
             ->assertInertia(fn ($page) => $page->where(
                 'filterOptions',
                 fn ($groups) => collect($groups)->firstWhere('key', 'circuit_breaker_id')['options'] === [

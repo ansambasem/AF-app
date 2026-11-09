@@ -62,15 +62,12 @@ class SubAreaAndMinimumChargeFilterTest extends TestCase
         $this->assertSame([$this->inSchools->id], $this->listed(['minimum_charge' => '20']));
     }
 
-    public function test_the_filter_menu_offers_both_filters(): void
+    public function test_the_subscriptions_list_offers_no_filter_menu_only_its_search(): void
     {
+        // The links and bulk choices that carry filters still narrow the list; the page just has no menu to pick them.
         $this->actingAs($this->branchAdmin)->get(route('subscriptions.index'))
-            ->assertInertia(fn ($page) => $page->where('filterOptions', function ($groups): bool {
-                $groups = collect($groups);
-
-                return $groups->firstWhere('key', 'sub_area_id')['label'] === 'منطقة 2'
-                    && collect($groups->firstWhere('key', 'sub_area_id')['options'])->pluck('label')->all() === ['الحاج', 'المدارس']
-                    && collect($groups->firstWhere('key', 'minimum_charge')['options'])->pluck('label')->all() === ['20 شيكل', '35.50 شيكل'];
-            }));
+            ->assertInertia(fn ($page) => $page->where('filterOptions', []));
+        $this->get(route('subscriptions.index', ['search' => 'zzz-no-match']))
+            ->assertInertia(fn ($page) => $page->where('subscriptions.total', 0)->where('filters.search', 'zzz-no-match'));
     }
 }

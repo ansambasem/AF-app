@@ -160,16 +160,13 @@ class RecurringReadingDistributionTest extends TestCase
         $this->assertDatabaseCount('reading_cycles', 1);
     }
 
-    public function test_lead_time_is_saved_validated_and_shown_on_the_distribution(): void
+    public function test_a_saved_lead_time_is_shown_on_the_distribution(): void
     {
         [$branch, $admin, $reader, $box, $cycle] = $this->work();
-        $settings = ['branch_id' => $branch->id, 'reading_day' => 4, 'open_days' => [4], 'mode' => 'automatic', 'assignment_lead_days' => 2];
+        // The lead time is kept as it was saved; the reading schedule page that set it is gone.
+        (ReadingEntrySetting::ownFor($branch) ?? ReadingEntrySetting::startFor($branch))->fill(['assignment_lead_days' => 2])->save();
 
-        $this->actingAs($admin)->put(route('settings.reading-schedule.update'), $settings)->assertSessionHasNoErrors();
-
-        $this->assertSame(2, ReadingEntrySetting::ownFor($branch)->assignment_lead_days);
-        $this->put(route('settings.reading-schedule.update'), [...$settings, 'assignment_lead_days' => 7])->assertSessionHasErrors('assignment_lead_days');
-        $this->get(route('reading-cycles.show', $cycle))->assertInertia(fn ($page) => $page->where('cycle.availableOn', '2026-10-20'));
+        $this->actingAs($admin)->get(route('reading-cycles.show', $cycle))->assertInertia(fn ($page) => $page->where('cycle.availableOn', '2026-10-20'));
     }
 
     public function test_paper_distributions_repeat_and_produce_printable_sheets_without_a_phone(): void

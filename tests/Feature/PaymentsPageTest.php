@@ -10,6 +10,8 @@ use App\Models\Permission;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
 use App\Models\User;
+use App\Support\BillingPeriods;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
@@ -168,38 +170,119 @@ class PaymentsPageTest extends TestCase
                 && collect($groups)->firstWhere('key', 'balance')['options'][0]['value'] === 'owing'));
     }
 
-    public function test_the_day_shows_every_live_payment_of_the_branch_from_every_user(): void
+    public function test_a_collector_sees_only_what_they_collected_whatever_they_ask_for(): void
     {
         $subscription = Subscription::factory()->create(['branch_id' => $this->branch->id]);
-        $neighbour = Subscription::factory()->create(['branch_id' => $this->branch->id]);
-        $cash = SubscriptionTransaction::recordPayment($subscription, $this->collector, ['amount' => '100', 'currency' => 'ILS', 'payment_method' => 'cash']);
+        $colleague = $this->userAllowedTo(PermissionKey::RecordCollections);
+        $this->cash($subscription, $this->collector, '100');
         SubscriptionTransaction::recordPayment($subscription, $this->collector, [
             'amount' => '250.50', 'currency' => 'ILS', 'payment_method' => 'bank_transfer', 'bank_name' => 'بنك فلسطين', 'sender_name' => 'Payer', 'reference_number' => 'TR-1',
         ]);
-        $colleague = $this->userAllowedTo(PermissionKey::RecordCollections);
-        $theirs = SubscriptionTransaction::recordPayment($neighbour, $colleague, ['amount' => '999', 'currency' => 'ILS', 'payment_method' => 'cash']);
-        $cancelled = SubscriptionTransaction::recordPayment($subscription, $this->collector, ['amount' => '40', 'currency' => 'ILS', 'payment_method' => 'cash']);
-        $cancelled->update(['cancelled_at' => now()]);
-        // Another branch's collections never show.
-        $elsewhere = Subscription::factory()->create(['branch_id' => Branch::factory()->create()->id]);
-        SubscriptionTransaction::recordPayment($elsewhere, User::factory()->collector()->create(['branch_id' => $elsewhere->branch_id]), ['amount' => '5000', 'currency' => 'ILS', 'payment_method' => 'cash']);
+        $this->cash($subscription, $colleague, '999');
+        $this->cash($subscription, $this->collector, '40')->update(['cancelled_at' => now()]);
+        $other = Branch::factory()->create();
 
-        $this->actingAs($this->collector)->get(route('payments.summary'))
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('today.count', 3)
-                ->where('today.total', '1349.50')
-                ->where('today.cash', '1099.00')
-                ->where('today.transfers', '250.50')
-                ->has('today.payments', 3)
-                ->where('today.payments.0.id', $theirs->id)
-                ->where('today.payments.0.collectorName', $colleague->name)
-                ->where('today.payments.2.id', $cash->id)
-                ->where('today.payments.2.amount', '100')
-                ->where('today.payments.1.bankName', 'بنك فلسطين')
-                ->where('today.collectors', [
-                    ['id' => $colleague->id, 'name' => $colleague->name, 'isYou' => false, 'count' => 1, 'total' => '999.00'],
-                    ['id' => $this->collector->id, 'name' => $this->collector->name, 'isYou' => true, 'count' => 2, 'total' => '350.50'],
-                ]));
+        foreach ([[], ['user' => $colleague->id], ['branch_id' => $other->id]] as $asked) {
+            $this->actingAs($this->collector)->get(route('payments.summary', $asked))->assertOk()
+                ->assertInertia(fn (AssertableInertia $page) => $page
+                    ->where('summary.seesStaff', false)
+                    ->where('summary.user.id', $this->collector->id)
+                    ->where('summary.branch.id', $this->branch->id)
+                    ->where('summary.count', 2)
+                    ->where('summary.total', '350.50')
+                    ->where('summary.cash', '100.00')
+                    ->where('summary.transfers', '250.50')
+                    ->where('summary.byUser', null)
+                    ->where('summary.options.users', [])
+                    ->where('summary.options.branches', [])
+                    ->missing('today')
+                    ->missing('entries'));
+        }
+    }
+
+    public function test_whoever_looks_over_the_branch_sees_every_user_and_picks_one(): void
+    {
+        $manager = User::factory()->branchAdmin()->create(['branch_id' => $this->branch->id, 'name' => 'مدير الفرع']);
+        $subscription = Subscription::factory()->create(['branch_id' => $this->branch->id]);
+        $this->cash($subscription, $this->collector, '100');
+        $this->cash($subscription, $manager, '30');
+        SubscriptionTransaction::recordClearing($subscription, $manager, '20', 'خدمة');
+        $elsewhere = Subscription::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+        $this->cash($elsewhere, User::factory()->collector()->create(['branch_id' => $elsewhere->branch_id]), '5000');
+
+        $this->actingAs($manager)->get(route('payments.summary'))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.seesStaff', true)
+            ->where('summary.user', null)
+            ->where('summary.total', '150.00')
+            ->where('summary.cash', '130.00')
+            ->where('summary.clearings', '20.00')
+            ->where('summary.byUser', fn ($rows): bool => collect($rows)->map(fn ($row) => [$row['name'], $row['total'], $row['isYou']])->all() === [
+                [$this->collector->name, '100.00', false],
+                ['مدير الفرع', '50.00', true],
+            ])
+            ->where('summary.options.users', fn ($users): bool => collect($users)->pluck('value')->contains((string) $this->collector->id)));
+
+        $this->get(route('payments.summary', ['user' => $this->collector->id]))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.user.id', $this->collector->id)
+            ->where('summary.total', '100.00')
+            ->where('summary.byUser', null)
+            ->where('summary.filters.user', (string) $this->collector->id));
+
+        // Someone of another branch is no choice here: every user is shown instead.
+        $this->get(route('payments.summary', ['user' => $elsewhere->transactions()->value('recorded_by')]))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.user', null)
+            ->where('summary.total', '150.00'));
+    }
+
+    public function test_the_summary_covers_the_open_period_by_default_and_today_or_an_earlier_period_on_request(): void
+    {
+        $manager = User::factory()->branchAdmin()->create(['branch_id' => $this->branch->id]);
+        $periods = app(BillingPeriods::class);
+        $first = $periods->create($this->branch, CarbonImmutable::today(config('app.business_timezone'))->subDays(10), CarbonImmutable::today(config('app.business_timezone'))->subDays(4), $manager);
+        $subscription = Subscription::factory()->create(['branch_id' => $this->branch->id]);
+        $this->travel(-5)->days();
+        $this->cash($subscription, $this->collector, '60');
+        $this->travelBack();
+        $periods->close($first, $manager);
+        $periods->forget();
+        $second = $periods->create($this->branch, CarbonImmutable::today(config('app.business_timezone'))->subDays(3), CarbonImmutable::today(config('app.business_timezone'))->addDays(3), $manager);
+        $this->travel(-1)->days();
+        $this->cash($subscription, $this->collector, '15');
+        $this->travelBack();
+        $this->cash($subscription, $this->collector, '10');
+
+        $this->actingAs($this->collector)->get(route('payments.summary'))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.period.key', (string) $second->id)
+            ->where('summary.total', '25.00')
+            ->where('summary.options.periods', fn ($options): bool => collect($options)->pluck('value')->all() === ['today', (string) $second->id, (string) $first->id]));
+        $this->get(route('payments.summary', ['period' => 'today']))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.period.key', 'today')->where('summary.total', '10.00'));
+        $this->get(route('payments.summary', ['period' => $first->id]))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.period.key', (string) $first->id)->where('summary.total', '60.00'));
+    }
+
+    public function test_the_super_admin_picks_the_branch_and_sees_every_users_collection_there(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+        $other = Branch::factory()->create();
+        $this->cash(Subscription::factory()->create(['branch_id' => $this->branch->id]), $this->collector, '70');
+        $this->cash(Subscription::factory()->create(['branch_id' => $other->id]), User::factory()->collector()->create(['branch_id' => $other->id]), '20');
+
+        $this->actingAs($admin)->get(route('payments.summary', ['branch_id' => $other->id]))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.branch.id', $other->id)
+            ->where('summary.seesStaff', true)
+            ->where('summary.total', '20.00')
+            // Every branch stays to pick from, though picking one narrows the Super Admin's view to it.
+            ->where('summary.options.branches', fn ($branches): bool => collect($branches)->pluck('value')->contains((string) $this->branch->id)));
+        $this->get(route('payments.summary', ['branch_id' => $this->branch->id]))->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.total', '70.00'));
+    }
+
+    private function cash(Subscription $subscription, User $collector, string $amount): SubscriptionTransaction
+    {
+        app(BillingPeriods::class)->forget();
+
+        return SubscriptionTransaction::recordPayment($subscription, $collector, ['amount' => $amount, 'currency' => 'ILS', 'payment_method' => 'cash']);
     }
 
     public function test_someone_who_may_only_record_payments_can_print_their_receipt(): void

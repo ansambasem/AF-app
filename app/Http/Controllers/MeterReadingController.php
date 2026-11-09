@@ -24,6 +24,7 @@ use App\Models\Tariff;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
 use App\Notifications\ReadingNeedsReapproval;
+use App\Support\BillingPeriods;
 use App\Support\BranchDomainContext;
 use App\Support\BranchScope;
 use App\Support\PrintSelection;
@@ -346,16 +347,18 @@ class MeterReadingController extends Controller
     private function entryWindow(User $actor): array
     {
         $setting = ReadingEntrySetting::forBranch($actor->workBranchId());
+        // A branch working by billing periods enters readings while its period is open, with no days or hours.
+        $byPeriod = $actor->workBranchId() !== null && app(BillingPeriods::class)->of($actor->workBranchId())->contains(fn ($period): bool => $period->opened_at !== null);
 
         return [
-            'isOpen' => $setting->isOpen(),
+            'isOpen' => ReadingEntrySetting::entryOpenFor($actor->workBranchId()),
             'appliesToActor' => ! $actor->isSuperAdmin() && $actor->hasPermission(PermissionKey::RecordMeterReadings),
-            'openDays' => $setting->mode === ReadingEntryMode::Automatic
+            'openDays' => ! $byPeriod && $setting->mode === ReadingEntryMode::Automatic
                 ? array_map('intval', $setting->open_days)
                 : [],
             'opensAt' => substr($setting->opens_at, 0, 5),
             'closesAt' => substr($setting->closes_at, 0, 5),
-            'nextOpensOn' => $setting->nextOpening()?->toDateString(),
+            'nextOpensOn' => $byPeriod ? null : $setting->nextOpening()?->toDateString(),
         ];
     }
 

@@ -15,13 +15,10 @@ use App\Http\Requests\UpdateSubscriptionRequest;
 use App\Models\Branch;
 use App\Models\CircuitBreaker;
 use App\Models\MessageBatch;
-use App\Models\MeterBox;
 use App\Models\MeterReading;
-use App\Models\SubArea;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
 use App\Models\Tariff;
-use App\Models\TariffSegment;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
 use App\Support\BranchScope;
@@ -86,7 +83,7 @@ class SubscriptionController extends Controller
             ],
             'statusOptions' => SubscriptionStatus::options(),
             'filters' => $this->dataTableState($request, 'display_name'),
-            'filterOptions' => fn () => $this->filterOptions($actor, $request),
+            'filterOptions' => fn () => $this->filterOptions($actor),
             // Whoever sees every branch's subscribers reads, large above the table, which branch the list holds.
             'branchScope' => fn () => BranchScope::shownTo($actor) ? BranchScope::forFilter($actor, $request->input('filter.branch_id')) : null,
             // New reading forms offer only the latest week of each branch.
@@ -428,35 +425,14 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * The Filter menu's dropdown groups for the index page. The branch
-     * filter only makes sense for a Super Admin — everyone else's list is
-     * already scoped to their own single branch.
+     * The list's only filter choice: the branch, for whoever sees every
+     * branch, picked in the banner above the table. The list has no other
+     * filter menu, only its search; everyone else sees their own branch.
      *
      * @return array<int, array{key: string, label: string, options: array<int, array{value: string, label: string}>}>
      */
-    private function filterOptions(User $actor, Request $request): array
+    private function filterOptions(User $actor): array
     {
-        $groups = [
-            $this->filterGroup('status', 'الحالة', SubscriptionStatus::options()),
-            $this->filterGroup('tariff_id', 'نوع الاشتراك', $this->modelOptions(
-                Tariff::orderBy('category')->get(),
-                fn (Tariff $tariff) => __($tariff->category->label()),
-            )),
-            $this->filterGroup('tariff_segment_id', 'تصنيف الزبائن', $this->modelOptions(TariffSegment::orderBy('name')->get(), 'name')),
-            $this->subAreaFilterGroup(SubArea::query()->visibleTo($actor)->orderBy('name')->get()),
-            ...$this->meterBoxFilterGroupsFor(
-                $actor,
-                $request,
-                $actor->canViewAllSubscriberAccounts() ? fn (MeterBox $box) => $box->branch->name : null,
-            ),
-            $this->circuitBreakerFilterGroup(),
-            $this->minimumChargeFilterGroup($actor),
-        ];
-
-        if ($actor->canViewAllSubscriberAccounts()) {
-            $groups[] = $this->branchFilterGroup($actor);
-        }
-
-        return $groups;
+        return $actor->canViewAllSubscriberAccounts() ? [$this->branchFilterGroup($actor)] : [];
     }
 }

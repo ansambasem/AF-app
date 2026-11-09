@@ -174,11 +174,12 @@ class MeterReadingPolicy
 
     /**
      * The Super Admin may record new readings at any time; everyone else
-     * only while their branch's reading entry window is open.
+     * only while their branch's reading entry is open (its billing period,
+     * or its saved schedule for a branch without periods).
      */
     private function entryIsOpenFor(User $user): bool
     {
-        return $user->isSuperAdmin() || ReadingEntrySetting::forBranch($user->workBranchId())->isOpen();
+        return $user->isSuperAdmin() || ReadingEntrySetting::entryOpenFor($user->workBranchId());
     }
 
     /**

@@ -39,12 +39,17 @@ class BillingPeriodAccountsTest extends TestCase
         $this->actingAs($this->manager);
     }
 
-    /** Open the period from `$start` to `$end`, closing the one before it. */
+    /** Close the open period by hand, then set up the one from `$start` to `$end` (opening it when its first day has come). */
     private function openPeriod(string $start, string $end): BillingPeriod
     {
-        app(BillingPeriods::class)->forget();
+        $periods = app(BillingPeriods::class);
+        $periods->forget();
+        // A period stays open until it is closed by hand: the branch's manager closes the open one first.
+        if ($open = $periods->open($this->branch->id)) {
+            $periods->close($open, $this->manager);
+        }
 
-        return app(BillingPeriods::class)->create($this->branch, CarbonImmutable::parse($start), CarbonImmutable::parse($end), $this->manager);
+        return $periods->create($this->branch, CarbonImmutable::parse($start), CarbonImmutable::parse($end), $this->manager);
     }
 
     private function subscription(): Subscription
@@ -175,18 +180,90 @@ class BillingPeriodAccountsTest extends TestCase
         $this->assertSame(10000, (int) round($subscription->balance() * 100));
     }
 
-    public function test_a_period_scheduled_ahead_opens_on_its_first_day_and_closes_the_one_before(): void
+    public function test_an_open_period_stays_open_past_its_last_day_until_it_is_closed_by_hand(): void
     {
-        $first = $this->openPeriod('2026-10-08', '2026-10-14');
-        $next = $this->openPeriod('2026-10-15', '2026-10-21');
-        $this->assertSame(BillingPeriod::STATUS_SCHEDULED, $next->status());
-        $this->assertTrue($first->fresh()->isOpen());
+        $periods = app(BillingPeriods::class);
+        $subscription = $this->subscription();
+        $first = $periods->create($this->branch, CarbonImmutable::parse('2026-10-08'), CarbonImmutable::parse('2026-10-14'), $this->manager);
+        $next = $periods->create($this->branch, CarbonImmutable::parse('2026-10-15'), CarbonImmutable::parse('2026-10-21'), $this->manager);
 
-        $this->travelTo(CarbonImmutable::parse('2026-10-15 00:30', config('app.business_timezone')));
-        app(BillingPeriods::class)->forget();
-        $this->assertSame($next->id, app(BillingPeriods::class)->open($this->branch->id)?->id);
+        // Weeks after its last day, and past the next one's first day, nothing has closed it.
+        $this->travelTo(CarbonImmutable::parse('2026-11-30 23:00', config('app.business_timezone')));
+        $this->artisan('billing-periods:open')->assertSuccessful();
+        $periods->forget();
+        $this->assertSame($first->id, $periods->open($this->branch->id)?->id);
+        $this->assertSame(BillingPeriod::STATUS_SCHEDULED, $next->fresh()->status());
+        $this->pay($subscription, '25');
+        $this->assertSame($first->id, $subscription->transactions()->where('type', 'payment')->sole()->billing_period_id);
+
+        // Closed by its manager, it takes no more payments; the next one, its first day come, opens at once.
+        $this->post(route('billing-periods.close', $first))->assertSessionHasNoErrors()->assertSessionHas('status', 'billing-period-closed');
+        $periods->forget();
         $this->assertTrue($first->fresh()->isClosed());
+        $this->assertSame($next->id, $periods->open($this->branch->id)?->id);
+        $this->pay($subscription, '10');
+        $this->assertSame([$first->id, $next->id], $subscription->transactions()->where('type', 'payment')->orderBy('id')->pluck('billing_period_id')->all());
         $this->assertSame('2026-10-15', MeterReading::latestEndedWeekStart($this->branch->id)->toDateString());
+    }
+
+    public function test_no_payment_is_taken_while_no_period_is_open_and_the_closed_ones_stay_as_they_were(): void
+    {
+        $periods = app(BillingPeriods::class);
+        $subscription = $this->subscription();
+        $period = $this->openPeriod('2026-10-08', '2026-10-14');
+        $this->pay($subscription, '40');
+        $before = $this->row($period, $subscription);
+
+        $periods->close($period, $this->manager);
+        $periods->forget();
+        $this->actingAs($this->manager)->post(route('subscriptions.payments.store', $subscription), ['amount' => '10', 'currency' => 'ILS', 'payment_method' => 'cash'])
+            ->assertSessionHasErrors(['period' => 'لا توجد فترة مفتوحة في الفرع الآن؛ تُسجَّل الدفعات في الفترة المفتوحة فقط. يفتح مدير الفرع الفترة التالية من صفحة فترات الفوترة.']);
+        try {
+            SubscriptionTransaction::recordClearing($subscription, $this->manager, '5', 'خدمة');
+            $this->fail('A clearing was taken with no period open.');
+        } catch (ValidationException) {
+        }
+        $this->assertSame(1, $subscription->transactions()->whereIn('type', ['payment', 'clearing'])->count());
+        $this->assertSame($before, $this->row($period, $subscription));
+
+        // A period set up ahead opens on its first day, and payments are taken again.
+        $next = $periods->create($this->branch, CarbonImmutable::parse('2026-10-20'), CarbonImmutable::parse('2026-10-26'), $this->manager);
+        $this->assertSame(BillingPeriod::STATUS_SCHEDULED, $next->status());
+        $this->travelTo(CarbonImmutable::parse('2026-10-20 08:00', config('app.business_timezone')));
+        $periods->forget();
+        $this->pay($subscription, '10');
+        $this->assertSame($next->id, $subscription->transactions()->where('type', 'payment')->latest('id')->first()->billing_period_id);
+    }
+
+    public function test_readings_are_entered_while_the_period_is_open_on_any_day_and_not_once_it_is_closed(): void
+    {
+        // A Friday: before the branch has periods, its saved schedule (Thursdays) keeps entry shut.
+        $this->travelTo(CarbonImmutable::parse('2026-10-16 10:00', config('app.business_timezone')));
+        $reader = User::factory()->dataEntry()->for($this->branch)->create();
+        $this->assertFalse($reader->can('create', MeterReading::class));
+
+        // With a period open, the period is what lets readings in, not a weekday.
+        $period = $this->openPeriod('2026-10-16', '2026-10-31');
+        app(BillingPeriods::class)->forget();
+        $this->assertTrue($reader->can('create', MeterReading::class));
+
+        app(BillingPeriods::class)->close($period, $this->manager);
+        app(BillingPeriods::class)->forget();
+        $this->assertFalse($reader->can('create', MeterReading::class));
+    }
+
+    public function test_only_the_branch_manager_closes_a_period_and_only_an_open_one(): void
+    {
+        $period = $this->openPeriod('2026-10-08', '2026-10-14');
+        $collector = User::factory()->collector()->for($this->branch)->create();
+        $otherManager = User::factory()->branchAdmin()->for(Branch::factory())->create();
+
+        $this->actingAs($collector)->post(route('billing-periods.close', $period))->assertForbidden();
+        $this->actingAs($otherManager)->post(route('billing-periods.close', $period))->assertForbidden();
+        $this->assertTrue($period->fresh()->isOpen());
+
+        $this->actingAs($this->manager)->post(route('billing-periods.close', $period))->assertSessionHasNoErrors();
+        $this->post(route('billing-periods.close', $period))->assertSessionHasErrors('period');
     }
 
     public function test_periods_never_overlap_and_only_one_waits_ahead(): void
@@ -301,7 +378,7 @@ class BillingPeriodAccountsTest extends TestCase
         $this->assertSame(4200, $this->row($period, $subscription)['invoice']);
     }
 
-    public function test_the_period_pages_create_and_approve_periods_for_the_branch_manager_only(): void
+    public function test_the_period_pages_create_close_and_approve_periods_for_the_branch_manager_only(): void
     {
         $collector = User::factory()->collector()->for($this->branch)->create();
         $this->actingAs($collector)->post(route('billing-periods.store'), ['branch_id' => $this->branch->id, 'starts_on' => '2026-10-08', 'ends_on' => '2026-10-14'])->assertForbidden();
@@ -310,6 +387,11 @@ class BillingPeriodAccountsTest extends TestCase
         $this->post(route('billing-periods.store'), ['branch_id' => $this->branch->id, 'starts_on' => '2026-10-01', 'ends_on' => '2026-10-07'])->assertSessionHasNoErrors();
         $this->post(route('billing-periods.store'), ['branch_id' => $this->branch->id, 'starts_on' => '2026-10-08', 'ends_on' => '2026-10-14'])->assertSessionHasNoErrors();
         $closed = BillingPeriod::query()->whereDate('starts_on', '2026-10-01')->sole();
+        // The second waits while the first is open, and opens once the manager closes the first.
+        $this->assertTrue($closed->fresh()->isOpen());
+        $this->post(route('billing-periods.approve', $closed))->assertSessionHasErrors('period');
+        $this->post(route('billing-periods.close', $closed))->assertSessionHasNoErrors();
+        $this->assertTrue(BillingPeriod::query()->whereDate('starts_on', '2026-10-08')->sole()->isOpen());
 
         $this->actingAs($collector)->post(route('billing-periods.approve', $closed))->assertForbidden();
         $this->actingAs($this->manager)->post(route('billing-periods.approve', $closed))->assertSessionHasNoErrors();

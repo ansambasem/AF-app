@@ -69,7 +69,7 @@ class OpenBoxInactivePaymentsTest extends TestCase
             ->has('entries', 3)->where('entries.0.id', $removed->id)->where('entries.1.id', $active->id));
 
         $this->actingAs($collector)->get(route('payments.summary'))->assertInertia(fn ($page) => $page
-            ->where('entries.total', 1)->where('entries.data.0.id', $active->boxEntry->id)
+            ->missing('entries')
             ->where('current.'.$type.'.paymentCount', 1)->where('current.'.$type.'.totals.ILS', '25.00'));
         $this->get(route('payments.cash-boxes.show', $box))->assertInertia(fn ($page) => $page
             ->where('box.paymentCount', 1)->where('box.totals.ILS', '25.00')

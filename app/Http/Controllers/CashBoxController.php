@@ -81,8 +81,8 @@ class CashBoxController extends Controller
 
     /**
      * The open entries tab of the financial boxes page, for those who close
-     * the branch's boxes. A collector's open entries are on their summary,
-     * where they are sent with their search and filters.
+     * the branch's boxes. A collector is sent to their collection summary,
+     * whose box cards open each of their boxes with its entries.
      */
     public function entries(Request $request): InertiaResponse|RedirectResponse
     {
@@ -95,8 +95,7 @@ class CashBoxController extends Controller
 
     /**
      * The entries page that was: its tab on the financial boxes page for
-     * those who close the branch's boxes, else the collector's summary,
-     * with the search and filters asked for.
+     * those who close the branch's boxes, else the collector's summary.
      */
     public function movedEntries(Request $request): RedirectResponse
     {

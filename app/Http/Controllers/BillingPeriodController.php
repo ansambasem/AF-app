@@ -19,8 +19,9 @@ use Inertia\Response as InertiaResponse;
 
 /**
  * A branch's billing periods: the manager sets up the next one ahead (its
- * first and last day), it opens on its first day closing the one before,
- * and the manager approves each closed one for good.
+ * first and last day), closes the open one by hand when its collection is
+ * done (nothing closes it by itself; the next one then opens on its first
+ * day), and approves each closed one for good.
  */
 class BillingPeriodController extends Controller
 {
@@ -88,6 +89,16 @@ class BillingPeriodController extends Controller
         $this->periods->reschedule($billingPeriod, CarbonImmutable::parse($data['starts_on']), CarbonImmutable::parse($data['ends_on']));
 
         return redirect()->route('billing-periods.index', ['branch_id' => $billingPeriod->branch_id])->with('status', 'billing-period-updated');
+    }
+
+    /** Close the open period by hand: payments stop going into it. Its branch's manager only. */
+    public function close(Request $request, BillingPeriod $billingPeriod): RedirectResponse
+    {
+        $branch = $this->managedBranch($request->user(), $billingPeriod->branch_id);
+        $this->periods->close($billingPeriod, $request->user());
+        $request->user()->notify(new ActionCompleted('billing-period-closed', $branch->name.' — '.$billingPeriod->label()));
+
+        return redirect()->route('billing-periods.index', ['branch_id' => $branch->id])->with('status', 'billing-period-closed');
     }
 
     public function approve(Request $request, BillingPeriod $billingPeriod): RedirectResponse

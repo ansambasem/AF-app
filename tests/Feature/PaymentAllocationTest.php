@@ -45,9 +45,14 @@ class PaymentAllocationTest extends TestCase
 
     private function openPeriod(string $start, string $end): BillingPeriod
     {
-        app(BillingPeriods::class)->forget();
+        $periods = app(BillingPeriods::class);
+        $periods->forget();
+        // A period stays open until it is closed by hand: the branch's manager closes the open one first.
+        if ($open = $periods->open($this->branch->id)) {
+            $periods->close($open, $this->manager);
+        }
 
-        return app(BillingPeriods::class)->create($this->branch, CarbonImmutable::parse($start), CarbonImmutable::parse($end), $this->manager);
+        return $periods->create($this->branch, CarbonImmutable::parse($start), CarbonImmutable::parse($end), $this->manager);
     }
 
     private function subscription(array $attributes = []): Subscription

@@ -233,7 +233,7 @@ class SubscriptionAuthorizationTest extends TestCase
         MeterBox::factory()->create(['branch_id' => $branch->id, 'name' => null, 'name_suffix' => null, 'box_number' => '111333']);
         MeterBox::factory()->create(['branch_id' => $branch->id, 'name' => 'camp', 'name_suffix' => '1', 'box_number' => '1234']);
 
-        $this->actingAs(User::factory()->superAdmin()->create())->get(route('subscriptions.index'))
+        $this->actingAs(User::factory()->superAdmin()->create())->get(route('payments.index'))
             ->assertInertia(function ($page): void {
                 $names = collect(collect($page->toArray()['props']['filterOptions'])->firstWhere('key', 'meter_box_name')['options']);
                 $this->assertSame(['camp'], $names->pluck('label')->all());
@@ -251,10 +251,13 @@ class SubscriptionAuthorizationTest extends TestCase
             Subscription::factory()->create(['branch_id' => $branch->id, 'meter_box_id' => $box->id, 'full_name' => $name]);
         }
 
+        // The list still narrows by a box carried in its link; the box choices are offered on the lists that keep a filter menu.
         $this->actingAs($superAdmin)->get(route('subscriptions.index', ['filter' => ['meter_box_name' => 'camp']]))
             ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('subscriptions.data', 2));
+        $this->get(route('payments.index', ['filter' => ['meter_box_name' => 'camp']]))
+            ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('subscriptions.data', 2)
                 ->where('filterOptions', function ($groups) use ($branch, $campOne, $campTwo): bool {
                     $groups = collect($groups);
                     $numbers = $groups->firstWhere('key', 'meter_box_id');

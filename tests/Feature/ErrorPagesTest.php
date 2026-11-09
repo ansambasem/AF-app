@@ -60,7 +60,7 @@ class ErrorPagesTest extends TestCase
 
         foreach (['/payments', '/payments/summary', '/payments/cash-boxes', '/ledger', '/receivables', '/transaction-audit', '/branch-performance', '/reports', '/company-forms',
             '/subscriptions', '/meter-readings', '/reading-cycles', '/disconnection-lists', '/messages', '/users', '/settings/payments', '/branches', '/tariffs',
-            '/circuit-breakers', '/meter-boxes', '/governorates', '/settings/permissions', '/settings/reading-schedule', '/settings/print-templates', '/settings/sms'] as $path) {
+            '/circuit-breakers', '/meter-boxes', '/governorates', '/settings/permissions', '/settings/print-templates', '/settings/sms'] as $path) {
             $this->get($path)->assertForbidden()
                 ->assertInertia(fn (AssertableInertia $page) => $page->component('Error')->where('status', 403)->where('blank', true)->has('auth.user'));
         }

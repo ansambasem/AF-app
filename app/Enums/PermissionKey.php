@@ -334,7 +334,6 @@ enum PermissionKey: string
                     'record_cash' => self::RecordCashPayments,
                     'record_transfer' => self::RecordTransferPayments,
                     'close_boxes' => self::CloseCashBoxes,
-                    'manage_box_periods' => self::ManageBoxPeriods,
                     'manage_branch_closings' => self::ManageBranchClosings,
                     'charge' => self::AddCharges,
                     'discount' => self::AddDiscounts,
@@ -381,7 +380,7 @@ enum PermissionKey: string
             ],
             'users' => [
                 'label' => 'Users',
-                'actions' => ['view' => self::ViewUsers, 'create' => self::CreateUsers, 'update' => self::UpdateUsers, 'delete' => self::DeleteUsers, 'manage_permissions' => self::ManagePermissions, 'manage_passwords' => self::ManageUserPasswords, 'manage_branch_schedules' => self::ManageBranchSchedules],
+                'actions' => ['view' => self::ViewUsers, 'create' => self::CreateUsers, 'update' => self::UpdateUsers, 'delete' => self::DeleteUsers, 'manage_permissions' => self::ManagePermissions, 'manage_passwords' => self::ManageUserPasswords],
             ],
             'user_types' => [
                 'label' => 'User Types',
