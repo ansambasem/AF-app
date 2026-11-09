@@ -49,11 +49,11 @@ class RecentActivityTest extends TestCase
         $superAdmin = User::factory()->superAdmin()->create();
 
         $this->actingAs($superAdmin)
-            ->put(route('settings.reading-schedule.update'), ['reading_day' => 4, 'open_days' => [4], 'mode' => 'automatic'])
+            ->put(route('password.update'), ['current_password' => 'password', 'password' => 'New-password-123', 'password_confirmation' => 'New-password-123'])
             ->assertSessionHasNoErrors();
 
         $this->assertSame(
-            ['action' => 'reading-schedule-updated', 'subject' => null],
+            ['action' => 'password-updated', 'subject' => null],
             $superAdmin->notifications()->sole()->data,
         );
     }

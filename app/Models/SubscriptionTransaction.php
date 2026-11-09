@@ -290,6 +290,11 @@ class SubscriptionTransaction extends Model
         if ($reason = $periods->lockReason($periods->find($this->billing_period_id), auth()->user())) {
             throw ValidationException::withMessages(['action' => $reason]);
         }
+
+        // A new payment or clearing is taken only while the branch has a period open, whatever the date.
+        if (in_array($this->type, [self::TYPE_PAYMENT, self::TYPE_CLEARING], true) && ($reason = $periods->paymentLockReason($this->branch_id))) {
+            throw ValidationException::withMessages(['period' => $reason]);
+        }
     }
 
     /** Why `$actor` may not change this line for its billing period, or null when they may. */

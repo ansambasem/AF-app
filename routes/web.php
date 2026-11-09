@@ -43,7 +43,6 @@ use App\Http\Controllers\ProfileDeviceController;
 use App\Http\Controllers\ReadingAssignmentController;
 use App\Http\Controllers\ReadingCycleController;
 use App\Http\Controllers\ReadingPrintController;
-use App\Http\Controllers\ReadingScheduleController;
 use App\Http\Controllers\ReadingSubmissionController;
 use App\Http\Controllers\ReadNotificationController;
 use App\Http\Controllers\ReceivableController;
@@ -124,6 +123,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/billing-periods', [BillingPeriodController::class, 'index'])->name('billing-periods.index');
     Route::post('/billing-periods', [BillingPeriodController::class, 'store'])->name('billing-periods.store');
     Route::patch('/billing-periods/{billingPeriod}', [BillingPeriodController::class, 'update'])->whereNumber('billingPeriod')->name('billing-periods.update');
+    Route::post('/billing-periods/{billingPeriod}/close', [BillingPeriodController::class, 'close'])->whereNumber('billingPeriod')->name('billing-periods.close');
     Route::post('/billing-periods/{billingPeriod}/approve', [BillingPeriodController::class, 'approve'])->whereNumber('billingPeriod')->name('billing-periods.approve');
     Route::get('/company-forms', [CompanyFormTemplateController::class, 'index'])->name('company-forms.index');
     Route::get('/company-forms/create', [CompanyFormTemplateController::class, 'create'])->name('company-forms.create');
@@ -204,7 +204,6 @@ Route::middleware('auth')->group(function () {
     Route::put('/excel-templates/{excel_template}', [ExcelTemplateController::class, 'update'])->name('excel-templates.update');
     Route::delete('/excel-templates/{excel_template}', [ExcelTemplateController::class, 'destroy'])->name('excel-templates.destroy');
     Route::get('/settings/payments', [PaymentSettingController::class, 'index'])->name('settings.payments.index');
-    Route::put('/settings/payments', [PaymentSettingController::class, 'update'])->name('settings.payments.update');
     Route::redirect('/settings/currencies', '/settings/payments')->name('settings.currencies.index');
     Route::put('/settings/currencies/{currencyRate}', [CurrencyRateController::class, 'update'])->name('settings.currencies.update');
     Route::redirect('/settings/banks', '/settings/payments')->name('settings.banks.index');
@@ -213,8 +212,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/sms', [SmsSettingController::class, 'edit'])->name('settings.sms.edit');
     Route::put('/settings/sms', [SmsSettingController::class, 'update'])->name('settings.sms.update');
     Route::post('/settings/sms/test', [SmsSettingController::class, 'test'])->middleware('throttle:6,1')->name('settings.sms.test');
-    Route::get('/settings/reading-schedule', [ReadingScheduleController::class, 'edit'])->name('settings.reading-schedule.edit');
-    Route::put('/settings/reading-schedule', [ReadingScheduleController::class, 'update'])->name('settings.reading-schedule.update');
 
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
     Route::get('/messages/create', [MessageController::class, 'create'])->name('messages.create');

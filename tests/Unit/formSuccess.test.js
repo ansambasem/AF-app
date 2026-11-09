@@ -119,19 +119,3 @@ test('saving a currency rate makes the saved rate the reset value without a succ
     assert.equal(form.data.rate, '3.5');
 });
 
-test('saving the box week start updates the reset value without a success callback error', () => {
-    renderToStaticMarkup(createElement(Payments, {
-        boxPeriod: { week_starts_on: 6, branch: { id: 1, name: 'مخيم 2' }, canSelectBranch: false, updateUrl: '/settings/box-period' },
-        canManagePaymentCatalog: false,
-    }));
-    const form = state.forms[0];
-    form.setData('week_starts_on', 0);
-    state.renderedForms[0].onSubmit({ preventDefault() {} });
-
-    state.requests[0].options.onSuccess();
-
-    assert.equal(form.isDirty, false);
-    form.setData('week_starts_on', 1);
-    form.resetAndClearErrors();
-    assert.equal(form.data.week_starts_on, 0);
-});

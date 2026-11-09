@@ -33,8 +33,6 @@ class BranchViewTest extends TestCase
         $this->get(route('meter-boxes.index'))->assertInertia(fn ($page) => $page
             ->where('branchView.current.id', $second->id)
             ->where('meterBoxes.data', fn ($rows): bool => collect($rows)->pluck('id')->all() === [$secondBox->id]));
-        $this->get(route('settings.reading-schedule.edit'))->assertInertia(fn ($page) => $page
-            ->where('branch.id', $second->id));
         $this->get(route('dashboard'))->assertInertia(fn ($page) => $page
             ->where('branchScope.name', $second->name));
         $this->get(route('subscriptions.statement', $firstSubscription))->assertNotFound();

@@ -239,16 +239,6 @@ step('each person gets the permissions of their work', async () => {
     ]);
 });
 
-step('readings are opened for entry today, whatever day the run is on', async () => {
-    const page = people.owner;
-    await page.goto('/settings/reading-schedule');
-    await page.getByRole('group', { name: 'طريقة الفتح' }).getByRole('button', { name: 'مفتوح الآن' }).click();
-    await page.getByRole('button', { name: 'حفظ', exact: true }).click();
-    await confirmIfAsked(page);
-    await page.getByText('لديك تغييرات غير محفوظة').waitFor({ state: 'hidden' });
-    await snap(page, 'reading-schedule');
-});
-
 step('the branch manager registers subscribers on the tablons, one an old record without an ID or mobile', async () => {
     people.manager = await signIn(staff.manager.username);
     const page = people.manager;

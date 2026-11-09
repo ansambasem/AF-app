@@ -10,7 +10,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('billing-periods:open')]
-#[Description('Open each branch’s billing period on its first day, closing the one before it')]
+#[Description('Open each branch’s billing period on its first day once no other period of the branch is open')]
 class OpenBillingPeriods extends Command
 {
     /**

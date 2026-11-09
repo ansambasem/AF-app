@@ -13,7 +13,7 @@ import { formatNumber } from '@/lib/format';
 
 const STATUS_TONES = { scheduled: 'blue', open: 'green', closed: 'amber', approved: 'gray' };
 
-/** The next period's form: its first and last day, set ahead; it opens by itself on its first day. */
+/** The next period's form: its first and last day, set ahead; it opens on its first day once the open period is closed. */
 function NewPeriodForm({ branch, suggestion }) {
     const form = useForm({ branch_id: branch.id, starts_on: suggestion.startsOn, ends_on: suggestion.endsOn, notes: '' });
 
@@ -25,7 +25,7 @@ function NewPeriodForm({ branch, suggestion }) {
     return (
         <form onSubmit={submit} className="rise-in rounded-panel border border-gray-100 bg-surface p-6 shadow-card">
             <h3 className="text-lg font-bold text-gray-900">فترة جديدة</h3>
-            <p className="mt-1 text-sm text-gray-500">تُفتح الفترة تلقائيًا في تاريخ بدايتها، وتُغلق الفترة السابقة معها. بعد الإغلاق لا يعدّلها إلا مدير الفرع حتى يعتمدها.</p>
+            <p className="mt-1 text-sm text-gray-500">تُفتح الفترة في تاريخ بدايتها إذا لم تكن هناك فترة مفتوحة، أو فور إغلاق الفترة المفتوحة. لا تُغلق أي فترة تلقائيًا.</p>
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
                 <div>
                     <InputLabel htmlFor="starts_on" value="تاريخ البداية" />
@@ -73,12 +73,18 @@ function RescheduleForm({ period, onDone }) {
 /**
  * A branch's billing periods: newest first, each with its days, its state
  * (scheduled, open, closed awaiting approval, approved), and what it holds;
- * the manager sets up the next one and approves each closed one.
+ * the manager sets up the next one, closes the open one by hand (payments
+ * are taken only while a period is open) and approves each closed one.
  */
 export default function Index({ branches, branch, periods, suggestion, canManage }) {
     const [editing, setEditing] = useState(null);
     const [approving, setApproving] = useState(null);
+    const [closing, setClosing] = useState(null);
     const waiting = periods.some((period) => period.status === 'scheduled');
+
+    function close() {
+        router.post(`/billing-periods/${closing.id}/close`, {}, { preserveScroll: true, onFinish: () => setClosing(null) });
+    }
 
     function approve() {
         router.post(`/billing-periods/${approving.id}/approve`, {}, { preserveScroll: true, onFinish: () => setApproving(null) });
@@ -90,7 +96,7 @@ export default function Index({ branches, branch, periods, suggestion, canManage
                 <PageHeader
                     eyebrow={branch.name}
                     title="فترات الفوترة"
-                    info="الفترة تحدّد أسبوع القراءات والفواتير والدفعات. كل ما يُسجَّل أثناء فتحها يُحسب فيها، وعند فتح الفترة التالية تُغلق، ثم يعتمدها مدير الفرع لتُقفل نهائيًا ويُحفظ رصيد كل مشترك فيها."
+                    info="الفترة تحدّد القراءات والفواتير والدفعات. تبقى مفتوحة مهما طالت حتى يغلقها مدير الفرع يدويًا، وكل ما يُسجَّل أثناء فتحها يُحسب فيها. لا تُسجَّل الدفعات إلا في فترة مفتوحة. بعد الإغلاق يعتمدها مدير الفرع لتُقفل نهائيًا ويُحفظ رصيد كل مشترك فيها."
                     actions={branches.length > 1 && (
                         <select aria-label="الفرع" value={branch.id} onChange={(event) => router.get('/billing-periods', { branch_id: event.target.value })}
                             className="rounded-control border-gray-300 bg-surface text-sm text-gray-900">
@@ -137,6 +143,7 @@ export default function Index({ branches, branch, periods, suggestion, canManage
                                     <td className="px-4 py-3 text-gray-600">{period.approvedAt ? `${period.approvedAt}${period.approvedBy ? ` · ${period.approvedBy}` : ''}` : '—'}</td>
                                     <td className="px-4 py-3 text-end">
                                         {canManage && period.status === 'scheduled' && editing !== period.id && <SecondaryButton onClick={() => setEditing(period.id)}>تعديل التاريخين</SecondaryButton>}
+                                        {canManage && period.status === 'open' && <SecondaryButton onClick={() => setClosing(period)}>إغلاق الفترة</SecondaryButton>}
                                         {canManage && period.status === 'closed' && <PrimaryButton type="button" onClick={() => setApproving(period)}>اعتماد وإقفال</PrimaryButton>}
                                     </td>
                                 </tr>
@@ -145,6 +152,15 @@ export default function Index({ branches, branch, periods, suggestion, canManage
                     </table>
                 </section>
             </div>
+
+            <ConfirmDialog
+                show={closing !== null}
+                onCancel={() => setClosing(null)}
+                onConfirm={close}
+                title="إغلاق الفترة؟"
+                message={closing && `ستُغلق الفترة ${closing.label} ولن تُسجَّل فيها دفعات جديدة. تبقى حركاتها كما هي، ويستطيع مدير الفرع تعديلها حتى يعتمدها. تُسجَّل الدفعات بعدها في الفترة التالية عند فتحها.`}
+                confirmLabel="إغلاق الفترة"
+            />
 
             <ConfirmDialog
                 show={approving !== null}

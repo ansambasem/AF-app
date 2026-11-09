@@ -56,12 +56,11 @@ test('a level is held only when exactly the permissions up to it are', () => {
     assert.equal(levelOf(subscriptions.ladder, [2]), null);
 });
 
-test('editing the box period is an independent switch in the boxes group', () => {
-    const payments = sectionModel({ key: 'collections', label: 'الدفعات', actions: [entry('view', 1), entry('record', 2), entry('manage_box_periods', 3)] });
+test('closing boxes stays alone in the boxes group, with no box period setting beside it', () => {
+    const payments = sectionModel({ key: 'collections', label: 'الدفعات', actions: [entry('view', 1), entry('record', 2), entry('close_boxes', 3)] });
     const boxes = sectionExtras(payments).find((group) => group.title === 'الصناديق');
 
-    assert.deepEqual(boxes.items.map((item) => [item.id, item.label, item.risk, item.needs]), [[3, 'تعديل بداية فترات الصناديق', 'sensitive', 0]]);
-    assert.deepEqual(withSectionLevel(payments, [], 2), [1, 2]);
+    assert.deepEqual(boxes.items.map((item) => item.id), [3]);
 });
 
 test('cross-branch financial auditing is an independent sensitive action that is never granted by the payment ladder', () => {

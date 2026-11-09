@@ -7,7 +7,6 @@ use App\Enums\PermissionKey;
 use App\Models\Bank;
 use App\Models\Branch;
 use App\Models\CircuitBreaker;
-use App\Models\ClosingSetting;
 use App\Models\CompanyFormTemplate;
 use App\Models\CurrencyRate;
 use App\Models\DisconnectionList;
@@ -18,7 +17,6 @@ use App\Models\MeterReading;
 use App\Models\Permission;
 use App\Models\PrintTemplate;
 use App\Models\ReadingCycle;
-use App\Models\ReadingEntrySetting;
 use App\Models\SmsSetting;
 use App\Models\SubArea;
 use App\Models\Subscription;
@@ -121,13 +119,12 @@ class HandleInertiaRequests extends Middleware
                 'viewReadingCycles' => $user->can('viewAny', ReadingCycle::class),
                 'viewGovernorates' => $user->can('viewAny', Governorate::class) || $user->can('viewAny', SubArea::class),
                 'manageSettings' => $user->can('manage', Permission::class),
-                'manageReadingSchedule' => $user->can('manageAny', ReadingEntrySetting::class),
                 'managePrintTemplates' => $user->can('viewAny', PrintTemplate::class),
                 // Without it a printout uses the company's saved templates as they are.
                 'customizePrintouts' => $user->hasAnyPermission(PermissionKey::CustomizePrintouts, PermissionKey::ManagePrintTemplates),
                 'viewCompanyForms' => $user->can('viewAny', CompanyFormTemplate::class),
                 'manageSmsSettings' => $user->can('manage', SmsSetting::class),
-                'managePaymentSettings' => $user->can('manage', CurrencyRate::class) || $user->can('manageAny', ClosingSetting::class),
+                'managePaymentSettings' => BranchDomainContext::id() === null && $user->can('manage', CurrencyRate::class) && $user->can('manage', Bank::class),
             ] : null,
             // A list opened for printing gets the company's print templates for it.
             'printTemplates' => fn () => $user && $request->boolean('print') ? $this->printTemplates($request) : null,

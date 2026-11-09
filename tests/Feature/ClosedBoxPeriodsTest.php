@@ -9,58 +9,11 @@ use App\Models\ClosingSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
-use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class ClosedBoxPeriodsTest extends TestCase
 {
     use RefreshDatabase;
-
-    #[TestWith([0])]
-    #[TestWith([1])]
-    #[TestWith([2])]
-    #[TestWith([3])]
-    #[TestWith([4])]
-    #[TestWith([5])]
-    #[TestWith([6])]
-    public function test_company_admin_can_choose_any_week_start_day(int $day): void
-    {
-        $admin = User::factory()->superAdmin()->create();
-        $box = CashBox::factory()->create(['status' => 'received', 'closed_at' => now()->subMonth(), 'sent_at' => now()->subWeek()]);
-        $original = $box->fresh()->getAttributes();
-
-        $this->actingAs($admin)->put(route('settings.payments.update'), ['week_starts_on' => $day, 'cutoff_time' => '18:00'])
-            ->assertRedirect(route('settings.payments.index'))->assertSessionHasNoErrors();
-
-        $this->assertDatabaseHas('closing_settings', ['branch_id' => null, 'week_starts_on' => $day, 'cutoff_time' => '00:00', 'updated_by' => $admin->id]);
-        $this->assertSame($original, $box->fresh()->getAttributes());
-        $this->get(route('settings.payments.index'))->assertInertia(fn (AssertableInertia $page) => $page->where('boxPeriod.week_starts_on', $day));
-    }
-
-    #[TestWith([-1])]
-    #[TestWith([7])]
-    #[TestWith([1.5])]
-    #[TestWith(['Monday'])]
-    #[TestWith([null])]
-    public function test_invalid_start_days_do_not_change_the_setting(mixed $day): void
-    {
-        ClosingSetting::company()->update(['week_starts_on' => 6]);
-
-        $this->actingAs(User::factory()->superAdmin()->create())->put(route('settings.payments.update'), ['week_starts_on' => $day])
-            ->assertSessionHasErrors('week_starts_on');
-
-        $this->assertDatabaseHas('closing_settings', ['branch_id' => null, 'week_starts_on' => 6]);
-    }
-
-    public function test_only_company_admins_and_authorized_branch_admins_can_access_period_settings(): void
-    {
-        ClosingSetting::company();
-        $this->put(route('settings.payments.update'), ['week_starts_on' => 1])->assertRedirect(route('login'));
-        $this->actingAs(User::factory()->branchAdmin()->create())->put(route('settings.payments.update'), ['week_starts_on' => 1])->assertForbidden();
-        $this->actingAs(User::factory()->financialAuditor()->create())->put(route('settings.payments.update'), ['week_starts_on' => 1])->assertForbidden();
-
-        $this->assertDatabaseHas('closing_settings', ['branch_id' => null, 'week_starts_on' => 6]);
-    }
 
     private function closedBox(Branch $branch, string $closedAt, array $attributes = []): CashBox
     {

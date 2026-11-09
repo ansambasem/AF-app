@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ReadingEntryMode;
 use App\Models\Concerns\OverridableByBranch;
+use App\Support\BillingPeriods;
 use Carbon\CarbonInterface;
 use Database\Factories\ReadingEntrySettingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -76,6 +77,22 @@ class ReadingEntrySetting extends Model
         $own->branch_id = $branch->id;
 
         return $own;
+    }
+
+    /**
+     * Whether the branch's readings may be entered now: while its billing
+     * period is open, for a branch that works by billing periods (its
+     * schedule is no longer set anywhere, so it never holds the entry shut);
+     * otherwise by its saved schedule, as before.
+     */
+    public static function entryOpenFor(?int $branchId): bool
+    {
+        $periods = app(BillingPeriods::class);
+        if ($branchId !== null && $periods->of($branchId)->contains(fn (BillingPeriod $period): bool => $period->opened_at !== null)) {
+            return $periods->open($branchId) !== null;
+        }
+
+        return self::forBranch($branchId)->isOpen();
     }
 
     /**
