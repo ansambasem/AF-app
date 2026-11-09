@@ -81,7 +81,8 @@ class SubscriptionTransactionController extends Controller
             CorrectionReason::from($request->validated('correction_reason')),
             $request->validated('correction_notes'),
             fn (Subscription $subscription): SubscriptionTransaction => match (true) {
-                $transaction->isPayment() => SubscriptionTransaction::recordPayment($subscription, $actor, $details),
+                // The corrected payment's replacement may keep its paper voucher.
+                $transaction->isPayment() => SubscriptionTransaction::recordPayment($subscription, $actor, [...$details, 'replaces_id' => $transaction->id]),
                 $transaction->isDiscount() => SubscriptionTransaction::recordDiscount($subscription, $actor, DiscountMethod::from($details['method']), $details['value'], $details['notes'] ?? null),
                 $transaction->isClearing() => SubscriptionTransaction::recordClearing($subscription, $actor, $details['amount'], $details['notes'], $details['manual_voucher_number'] ?? null),
                 default => SubscriptionTransaction::recordCharge($subscription, $actor, ChargeType::from($details['type']), $details['amount'], $details['notes'] ?? null),

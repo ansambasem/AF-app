@@ -98,6 +98,8 @@ export default function PaymentModal({
     const [receipt, setReceipt] = useState(null);
     const [referenceStatus, setReferenceStatus] = useState(null);
     const referenceCheck = useHttp();
+    const [voucherTaken, setVoucherTaken] = useState(null);
+    const voucherCheck = useHttp();
 
     const throughBank = data.payment_method === 'bank_transfer';
     const selectedCurrency = currencies.find((currency) => currency.code === data.currency);
@@ -149,6 +151,36 @@ export default function PaymentModal({
             referenceCheck.cancel();
         };
     }, [show, throughBank, data.reference_number, data.amount, data.currency, data.sender_name, correcting?.id, subscription.id]);
+
+    // A paper voucher number is used once: say so while it is typed, before saving refuses it.
+    useEffect(() => {
+        const voucher = (data.manual_voucher_number ?? '').trim();
+
+        if (!show || throughBank || voucher === '') {
+            voucherCheck.cancel();
+            setVoucherTaken(null);
+
+            return undefined;
+        }
+
+        const timer = setTimeout(() => {
+            const query = new URLSearchParams({ manual_voucher_number: voucher });
+
+            if (correcting?.id) {
+                query.set('ignore_transaction_id', correcting.id);
+            }
+
+            voucherCheck
+                .get(`/subscriptions/${subscription.id}/payments/voucher-status?${query}`)
+                .then((status) => setVoucherTaken(status && !status.available ? status.message : null))
+                .catch(() => setVoucherTaken(null));
+        }, 400);
+
+        return () => {
+            clearTimeout(timer);
+            voucherCheck.cancel();
+        };
+    }, [show, throughBank, data.manual_voucher_number, correcting?.id, subscription.id]);
 
     function close() {
         setDiscarding(false);
@@ -480,10 +512,11 @@ export default function PaymentModal({
                                                     autoComplete="off"
                                                     placeholder="مثال: 00412"
                                                     value={data.manual_voucher_number}
+                                                    aria-invalid={Boolean(errors.manual_voucher_number ?? voucherTaken) || undefined}
                                                     onChange={(e) => setData('manual_voucher_number', e.target.value)}
                                                     className={`${inputClass} text-end font-display placeholder:font-sans placeholder:font-normal`}
                                                 />
-                                                <InputError message={errors.manual_voucher_number} className="mt-2" />
+                                                <InputError message={errors.manual_voucher_number ?? voucherTaken} className="mt-2" />
                                             </div>
                                         </div>
                                     )}
@@ -557,6 +590,7 @@ export default function PaymentModal({
                                     inShekels === null ||
                                     form.processing ||
                                     (Boolean(referenceStatus?.conflict) && !data.confirm_duplicate_reference) ||
+                                    (!throughBank && Boolean(voucherTaken)) ||
                                     (overpayment === 'confirm' && !data.confirm_overpayment)
                                 }
                                 className={`ms-auto h-12 min-w-0 flex-1 rounded-[14px] px-5 text-[15.5px] font-bold sm:min-w-[230px] sm:flex-none ${
