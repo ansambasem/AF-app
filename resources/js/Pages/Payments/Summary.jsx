@@ -53,7 +53,7 @@ function SummaryFilters({ summary }) {
                     <SearchableSelect clearable={false} value={filters.user} options={[{ value: '', label: 'جميع المستخدمين' }, ...options.users]} onChange={(value) => apply({ user: value })} searchPlaceholder="ابحث عن موظف..." />
                 </label>
             ) : (
-                <p className="flex items-center gap-2 pb-2 text-sm text-gray-500">
+                <p className="flex w-full items-center gap-2 text-sm text-gray-500">
                     <Icon name="lock" className="h-4 w-4 text-gray-400" />
                     ملخص تحصيلك أنت فقط
                 </p>
