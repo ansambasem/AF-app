@@ -6,6 +6,7 @@ use App\Enums\CashBoxType;
 use App\Enums\ClosingStatus;
 use App\Enums\PaymentMethod;
 use App\Models\AuditNote;
+use App\Models\BillingPeriod;
 use App\Models\Branch;
 use App\Models\CashBox;
 use App\Models\CashBoxPayment;
@@ -123,7 +124,10 @@ class BranchClosingWorkflow
             }
             $latest = Closing::query()->where('branch_id', $branchId)->whereNotNull('workflow_settings')->orderByDesc('coverage_until')->orderBy('id')->first()
                 ?? $this->restartPeriods($branchId, $setting);
-            if ((int) $latest->workflow_settings['week_starts_on'] !== $setting->week_starts_on || $latest->workflow_settings['cutoff_time'] !== ClosingSetting::DEFAULT_CUTOFF) {
+            if ($this->followsBillingPeriods($branchId)) {
+                // The boxes follow the billing period: their period never ends by itself, only when the period is closed by hand (closeWithBillingPeriod()).
+                $this->keepOpen($latest);
+            } elseif ((int) $latest->workflow_settings['week_starts_on'] !== $setting->week_starts_on || $latest->workflow_settings['cutoff_time'] !== ClosingSetting::DEFAULT_CUTOFF) {
                 $settings = $this->settings($setting);
                 $until = $this->nextEnd($latest->coverage_from, $settings);
                 $latest->update([
@@ -131,7 +135,7 @@ class BranchClosingWorkflow
                     'period_end' => $until->subSecond()->setTimezone(config('app.business_timezone'))->toDateString(),
                 ]);
             }
-            while ($latest->coverage_until->lessThanOrEqualTo(now())) {
+            while (! $this->followsBillingPeriods($branchId) && $latest->coverage_until->lessThanOrEqualTo(now())) {
                 $change = ClosingSettingChange::query()->where('branch_id', $branchId)->whereNull('applied_at')->where('effective_from', '<=', $latest->coverage_until)->latest('id')->first();
                 $settings = $this->settings($setting);
                 if ($change) {
@@ -151,6 +155,62 @@ class BranchClosingWorkflow
                         $this->attachEntry($payment);
                     }
                 });
+        });
+    }
+
+    /**
+     * Whether the branch's boxes follow its billing periods: once it has
+     * opened one, a box period lasts as long as the billing period and ends
+     * only when the manager closes it, never at a week's end.
+     */
+    public function followsBillingPeriods(int $branchId): bool
+    {
+        return app(BillingPeriods::class)->of($branchId)->contains(fn (BillingPeriod $period): bool => $period->opened_at !== null);
+    }
+
+    /**
+     * Keep the box period under way open: its end is only ever a day ahead,
+     * moved on as it nears, so nothing closes it or its boxes by itself.
+     */
+    private function keepOpen(Closing $latest): void
+    {
+        if ($latest->coverage_until->greaterThan(now()->addHours(12))) {
+            return;
+        }
+        $until = CarbonImmutable::now()->addDay()->utc();
+        $latest->update([
+            'coverage_until' => $until, 'scheduled_until' => $until,
+            'period_end' => $until->subSecond()->setTimezone(config('app.business_timezone'))->toDateString(),
+        ]);
+    }
+
+    /**
+     * The manager closed the branch's billing period by hand: the box
+     * period under way ends at that moment, its boxes still open are closed
+     * with it (as a week's end once closed them, for the branch to look
+     * over and the audit to review), and the next box period begins at once
+     * for the payments of the next billing period.
+     */
+    public function closeWithBillingPeriod(int $branchId, CarbonImmutable $closedAt): void
+    {
+        if (! ClosingSetting::ownFor($branchId)?->workflow_started_at) {
+            return;
+        }
+        $this->locked($branchId, function () use ($branchId, $closedAt): void {
+            $setting = ClosingSetting::ownFor($branchId);
+            $latest = Closing::query()->where('branch_id', $branchId)->whereNotNull('workflow_settings')->orderByDesc('coverage_until')->orderBy('id')->first();
+            if ($latest === null || $latest->coverage_from->greaterThanOrEqualTo($closedAt)) {
+                return;
+            }
+            $end = $closedAt->utc();
+            $latest->update([
+                'coverage_until' => $end, 'scheduled_until' => $end,
+                'period_end' => $end->subSecond()->setTimezone(config('app.business_timezone'))->toDateString(),
+            ]);
+            // The next box period first, so an entry made at the very moment the period closed has a period to stay open in.
+            $next = $this->createPeriod($branchId, $end, $end->addDay(), $this->settings($setting));
+            $this->keepOpen($next);
+            $this->closeExpiredBoxes($branchId, 'أُغلق مع إغلاق فترة الفوترة.');
         });
     }
 
@@ -337,11 +397,11 @@ class BranchClosingWorkflow
      * Seal expired periods without attributing receipt or audit approval to
      * a person. Empty boxes are discarded as before; entries stay in place.
      */
-    private function closeExpiredBoxes(int $branchId): void
+    private function closeExpiredBoxes(int $branchId, string $reason = 'أُغلق تلقائيًا لانتهاء الفترة الأسبوعية.'): void
     {
         CashBox::query()->where('branch_id', $branchId)->whereIn('status', ['open', 'pending'])
             ->whereHas('closing', fn ($query) => $query->whereNotNull('workflow_settings')->where('coverage_until', '<=', now()))
-            ->with('closing')->withExists('payments')->withMax('payments', 'occurred_at')->chunkById(100, function ($boxes): void {
+            ->with('closing')->withExists('payments')->withMax('payments', 'occurred_at')->chunkById(100, function ($boxes) use ($reason): void {
                 foreach ($boxes as $box) {
                     if (! $box->payments_exists) {
                         $box->delete();
@@ -362,7 +422,7 @@ class BranchClosingWorkflow
                         'status' => 'received', 'closed_at' => $box->closing->coverage_until,
                         'close_reason' => CashBox::CLOSE_REASON_PERIOD_END, 'open_key' => null,
                         'expected_counts' => $this->expected($box),
-                        'reason' => trim(($box->reason ? $box->reason."\n" : '').'أُغلق تلقائيًا لانتهاء الفترة الأسبوعية.'),
+                        'reason' => trim(($box->reason ? $box->reason."\n" : '').$reason),
                     ]);
                 }
             });

@@ -138,7 +138,8 @@ class BillingPeriods
     /**
      * Close the branch's open period by hand: from now on nothing new is
      * recorded in it and payments wait for the next period to open (the one
-     * set up ahead opens at once if its first day has come). Only its
+     * set up ahead opens at once if its first day has come). The branch's
+     * box period ends with it, closing the boxes still open in it. Only its
      * branch's manager may (BranchClosingAccess::manage(), checked by the
      * caller). Its lines and figures stay as they are.
      */
@@ -153,6 +154,8 @@ class BillingPeriods
             $current->update(['closed_at' => now()]);
         });
         unset($this->loaded[$period->branch_id], $this->refreshed[$period->branch_id]);
+        // The boxes follow the period: their period ends with it, and its open boxes close with it.
+        app(BranchClosingWorkflow::class)->closeWithBillingPeriod($period->branch_id, CarbonImmutable::instance($period->fresh()->closed_at));
         $this->refresh($period->branch_id);
 
         return $period->refresh();

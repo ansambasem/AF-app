@@ -96,7 +96,7 @@ export default function Index({ branches, branch, periods, suggestion, canManage
                 <PageHeader
                     eyebrow={branch.name}
                     title="فترات الفوترة"
-                    info="الفترة تحدّد القراءات والفواتير والدفعات. تبقى مفتوحة مهما طالت حتى يغلقها مدير الفرع يدويًا، وكل ما يُسجَّل أثناء فتحها يُحسب فيها. لا تُسجَّل الدفعات إلا في فترة مفتوحة. بعد الإغلاق يعتمدها مدير الفرع لتُقفل نهائيًا ويُحفظ رصيد كل مشترك فيها."
+                    info="الفترة تحدّد القراءات والفواتير والدفعات وصناديق المحصّلين. تبقى مفتوحة مهما طالت حتى يغلقها مدير الفرع يدويًا فتُغلق صناديقها معها، وكل ما يُسجَّل أثناء فتحها يُحسب فيها. لا تُسجَّل الدفعات إلا في فترة مفتوحة. بعد الإغلاق يعتمدها مدير الفرع لتُقفل نهائيًا ويُحفظ رصيد كل مشترك فيها."
                     actions={branches.length > 1 && (
                         <select aria-label="الفرع" value={branch.id} onChange={(event) => router.get('/billing-periods', { branch_id: event.target.value })}
                             className="rounded-control border-gray-300 bg-surface text-sm text-gray-900">
@@ -158,7 +158,7 @@ export default function Index({ branches, branch, periods, suggestion, canManage
                 onCancel={() => setClosing(null)}
                 onConfirm={close}
                 title="إغلاق الفترة؟"
-                message={closing && `ستُغلق الفترة ${closing.label} ولن تُسجَّل فيها دفعات جديدة. تبقى حركاتها كما هي، ويستطيع مدير الفرع تعديلها حتى يعتمدها. تُسجَّل الدفعات بعدها في الفترة التالية عند فتحها.`}
+                message={closing && `ستُغلق الفترة ${closing.label} ولن تُسجَّل فيها دفعات جديدة، وتُغلق معها صناديق المحصّلين المفتوحة لتظهر للفرع والتدقيق. تبقى حركاتها كما هي، ويستطيع مدير الفرع تعديلها حتى يعتمدها. تُسجَّل الدفعات بعدها في الفترة التالية وصناديقها الجديدة.`}
                 confirmLabel="إغلاق الفترة"
             />
 
