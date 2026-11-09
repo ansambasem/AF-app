@@ -299,30 +299,18 @@ class CollectorCashBoxWebTest extends TestCase
         $this->actingAs($this->collector($branch))->get(route('payments.cash-boxes.show', [$box, 'format' => 'csv']))->assertNotFound();
     }
 
-    public function test_summary_lists_every_entry_of_the_open_boxes_and_narrows_them_to_the_picked_type(): void
+    public function test_summary_shows_the_open_boxes_and_leaves_their_entries_inside_them(): void
     {
         [$branch, $head, $collector] = $this->start();
         $cashBox = $this->payment($branch, $collector);
-        $payment = $cashBox->payments()->sole()->transaction;
-        $clearing = SubscriptionTransaction::recordClearing(Subscription::factory()->for($branch)->create(), $collector, '40', 'صيانة المولد');
+        SubscriptionTransaction::recordClearing(Subscription::factory()->for($branch)->create(), $collector, '40', 'صيانة المولد');
         $clearingBox = CashBox::query()->where('user_id', $collector->id)->where('type', 'clearing')->where('status', 'open')->sole();
 
         $this->actingAs($collector)->get(route('payments.summary'))->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('entries.total', 2)
-            ->where('counts', ['all' => 2, 'cash' => 1, 'bank_transfer' => 0, 'clearing' => 1])
-            ->where('filters.filter.type', '')
-            ->where('entries.data.1.amount', '100.00')
-            ->where('entries.data.1.box.url', route('payments.cash-boxes.show', $cashBox))
-            ->where('entries.data.1.receiptUrl', route('subscriptions.payments.receipt', [$payment->subscription_id, $payment->id])));
-
-        $this->get(route('payments.summary', ['filter' => ['type' => 'clearing']]))->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('filters.filter.type', 'clearing')
+            ->missing('entries')
+            ->where('current.cash.id', $cashBox->id)
             ->where('current.clearing.id', $clearingBox->id)
-            ->where('entries.total', 1)
-            ->where('entries.data.0.service', 'صيانة المولد')
-            ->where('entries.data.0.receiptUrl', route('subscriptions.payments.receipt', [$clearing->subscription_id, $clearing->id])));
-
-        $this->get(route('payments.summary', ['filter' => ['type' => 'bank_transfer']]))->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('entries.total', 0)->where('current.bank_transfer', null));
+            ->where('current.bank_transfer', null)
+            ->where('summary.clearings', '40.00'));
     }
 }

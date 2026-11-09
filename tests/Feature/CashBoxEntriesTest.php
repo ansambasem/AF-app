@@ -41,50 +41,23 @@ class CashBoxEntriesTest extends TestCase
         return CashBoxPayment::query()->where('subscription_transaction_id', $payment->id)->sole();
     }
 
-    public function test_collector_sees_every_entry_of_the_branchs_open_boxes_and_can_narrow_to_a_type_of_box_or_a_collector(): void
+    public function test_the_collector_sees_each_entry_inside_its_box_not_on_the_summary(): void
     {
         [$branch, , $collector] = $this->start();
         $cash = $this->entry($branch, $collector, '100');
         $transfer = $this->entry($branch, $collector, '250', 'bank_transfer');
-        $colleague = User::factory()->collector()->for($branch)->create(['name' => 'رامي']);
-        $theirs = $this->entry($branch, $colleague, '999');
-        // Another branch's boxes never show.
-        [$otherBranch, , $otherCollector] = $this->start();
-        $this->entry($otherBranch, $otherCollector, '5000');
 
         $this->actingAs($collector)->get(route('payments.summary'))->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Payments/Summary')
-            ->where('entries.total', 3)
-            ->where('counts', ['all' => 3, 'cash' => 2, 'bank_transfer' => 1, 'clearing' => 0])
-            ->where('people', [['id' => $colleague->id, 'name' => 'رامي'], ['id' => $collector->id, 'name' => 'سامي']]));
+            ->missing('entries')
+            ->missing('counts')
+            ->where('current.cash.id', $cash->cash_box_id)
+            ->where('current.bank_transfer.id', $transfer->cash_box_id));
 
-        $this->get(route('payments.summary', ['filter' => ['user' => $colleague->id]]))->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('entries.total', 1)
-            ->where('entries.data.0.id', $theirs->id)
-            ->where('filters.filter.user', (string) $colleague->id));
-
-        $this->get(route('payments.summary', ['filter' => ['user' => $collector->id]]))->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('Payments/Summary')
-            ->where('entries.total', 2)
-            ->where('counts', ['all' => 2, 'cash' => 1, 'bank_transfer' => 1, 'clearing' => 0])
-            ->where('entries.data.1.id', $cash->id)
-            ->where('entries.data.1.box.number', $cash->box->number)
-            ->where('entries.data.1.box.url', route('payments.cash-boxes.show', $cash->box))
-            ->where('entries.data.1.ledger.voucherNumber', $cash->transaction->displayVoucherNumber())
-            ->where('entries.data.1.ledger.description', 'دفعة نقدية')
-            ->where('entries.data.1.ledger.recordedByName', 'سامي')
-            // A collector who may not open subscribers gets no link to the statement.
-            ->where('entries.data.1.statementUrl', null));
-
-        $this->get(route('payments.summary', ['filter' => ['type' => 'bank_transfer']]))->assertInertia(fn (AssertableInertia $page) => $page
+        $this->get(route('payments.cash-boxes.show', $transfer->cash_box_id))->assertInertia(fn (AssertableInertia $page) => $page
             ->where('entries.total', 1)
             ->where('entries.data.0.id', $transfer->id)
-            ->where('entries.data.0.box.number', $transfer->box->number)
-            ->where('entries.data.0.ledger.referenceNumber', 'TRX-77')
-            ->where('entries.data.0.ledger.bankName', 'بنك فلسطين')
-            ->where('entries.data.0.ledger.senderBankName', 'جوال باي')
-            ->where('entries.data.0.ledger.typeLabel', 'دفعة')
-            ->where('filters.filter.type', 'bank_transfer'));
+            ->where('entries.data.0.ledger.referenceNumber', 'TRX-77'));
     }
 
     public function test_closer_sees_staff_entries_with_who_recorded_them_and_a_link_that_opens_the_box(): void
@@ -169,10 +142,11 @@ class CashBoxEntriesTest extends TestCase
         $this->actingAs($head)->post(route('payments.cash-boxes.actions', ['action' => 'receive', 'record' => $closed->cash_box_id]), ['branch_id' => $branch->id])->assertSessionHasNoErrors();
         $open = $this->entry($branch, $collector, '40');
 
-        $this->actingAs($collector)->get(route('payments.summary'))->assertInertia(fn (AssertableInertia $page) => $page
+        // The collector's summary lists no entries: they are looked over inside each box.
+        $this->actingAs($collector)->get(route('payments.summary'))->assertInertia(fn (AssertableInertia $page) => $page->missing('entries'));
+        $this->get(route('payments.cash-boxes.show', $open->cash_box_id))->assertInertia(fn (AssertableInertia $page) => $page
             ->where('entries.total', 1)
-            ->where('entries.data.0.id', $open->id)
-            ->where('counts.all', 1));
+            ->where('entries.data.0.id', $open->id));
         $this->actingAs($head)->get(route('payments.cash-boxes.entries'))->assertInertia(fn (AssertableInertia $page) => $page
             ->where('entries.total', 1)
             ->where('entries.data.0.id', $open->id));

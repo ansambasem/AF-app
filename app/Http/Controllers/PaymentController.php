@@ -15,8 +15,9 @@ use App\Http\Concerns\PresentsCashBoxes;
 use App\Http\Requests\StoreSplitPaymentRequest;
 use App\Models\AuditNote;
 use App\Models\Bank;
+use App\Models\BillingPeriod;
+use App\Models\Branch;
 use App\Models\CashBox;
-use App\Models\CashBoxPayment;
 use App\Models\CollectorDebt;
 use App\Models\MeterBox;
 use App\Models\StandingDiscount;
@@ -25,7 +26,10 @@ use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
 use App\Models\Tariff;
 use App\Models\User;
+use App\Support\BillingPeriods;
+use App\Support\BranchClosingAccess;
 use App\Support\BranchClosingWorkflow;
+use App\Support\BranchDomainScope;
 use App\Support\ClosingPeriods;
 use App\Support\DailySeries;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,9 +56,6 @@ class PaymentController extends Controller
 
     /** The most subscriptions the split form's search lists; a longer list asks the user to narrow the search. */
     private const RESULT_LIMIT = 12;
-
-    /** The payments listed under the day's totals: the branch's latest. */
-    private const RECENT_PAYMENTS = 20;
 
     /**
      * The quick payments page: the subscribers of the user's branch in a table
@@ -109,13 +110,15 @@ class PaymentController extends Controller
     }
 
     /**
-     * The collection summary of the user's branch: what every user collected
-     * there today (the totals, each user's share, and the latest payments),
-     * and every entry in the branch's open boxes, filtered by
-     * `?filter[type]=` to one type of box and `?filter[user]=` to one
-     * collector and searched as the branch's entries are. What waits on the
-     * user (a handover to confirm, audit notes, debts) and their own open
-     * boxes stay theirs. Only the user's own branch is ever shown.
+     * The collection summary: what was collected (payments by cash and
+     * transfer, and clearings) in the chosen period and branch. Everyone
+     * sees what they collected themselves; the Super Admin and whoever
+     * may look over the branch's collections (close or receive its boxes,
+     * or read its financial log) see every user's total and may pick one
+     * user. Each choice is checked here: a user who may not is shown their
+     * own figures whatever is asked, and only their own branch. What waits
+     * on the user (a handover to confirm, audit notes, debts) and their
+     * own open boxes stay below it.
      */
     public function summary(Request $request): InertiaResponse
     {
@@ -123,51 +126,15 @@ class PaymentController extends Controller
 
         $actor = $request->user();
         $cashBox = $this->ownCashBoxes($actor);
-        $people = $this->branchCollectors($actor);
-        $person = $people->firstWhere('id', $request->integer('filter.user'));
-        $entries = $this->branchOpenEntries($actor)
-            ->when($person, fn (Builder $query) => $query->whereHas('box', fn (Builder $box) => $box->where('user_id', $person['id'])));
-        $list = $this->entryList($request, $entries, fn (CashBox $box): string => route('payments.cash-boxes.show', $box));
-        $list['filters']['filter']['user'] = $person ? (string) $person['id'] : '';
 
         return Inertia::render('Payments/Summary', [
-            'today' => $this->todaysPayments($actor),
+            'summary' => $this->collectionSummary($request, $actor),
             'cashBox' => $cashBox,
             'current' => $cashBox['current'],
-            'people' => $people->values()->all(),
-            ...$list,
             'needsAction' => $cashBox['needsAction'],
             ...$this->collectionCounts($actor),
             'collectionUrls' => $this->collectionUrls(),
         ]);
-    }
-
-    /**
-     * The entries of every open box in the actor's branch, whoever holds it
-     * (none without a branch).
-     *
-     * @return Builder<CashBoxPayment>
-     */
-    private function branchOpenEntries(User $actor): Builder
-    {
-        return CashBoxPayment::query()->whereHas('box', fn (Builder $box) => $box->where('branch_id', $actor->workBranchId())->whereIn('status', ['open', 'pending']));
-    }
-
-    /**
-     * The users holding an open box in the actor's branch, to narrow its
-     * entries to one of them.
-     *
-     * @return Collection<int, array{id: int, name: string}>
-     */
-    private function branchCollectors(User $actor): Collection
-    {
-        if ($actor->workBranchId() === null) {
-            return collect();
-        }
-
-        return User::query()->whereIn('id', CashBox::query()->where('branch_id', $actor->workBranchId())->whereIn('status', ['open', 'pending'])->select('user_id'))
-            ->orderBy('name')->get(['id', 'name'])
-            ->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name]);
     }
 
     /**
@@ -386,56 +353,82 @@ class PaymentController extends Controller
     }
 
     /**
-     * What was collected in the user's branch in the current business day,
-     * by every user and from every subscription: the totals (cancelled
-     * payments left out), each user's share, and the latest payments.
-     * Nothing for a user without a branch.
+     * The collection summary asked for, held to what the actor may see:
+     * the branch (the Super Admin's pick, else their own), the period (a
+     * billing period of the branch, or today; the open period by default)
+     * and the user (anyone of the branch for whoever may look over its
+     * collections, else the actor alone), with the totals, how they were
+     * paid, and each user's share when every user is shown.
      *
-     * @return array{count: int, total: string, cash: string, transfers: string, collectors: array<int, array<string, mixed>>, payments: array<int, array<string, mixed>>}
+     * @return array<string, mixed>
      */
-    private function todaysPayments(User $actor): array
+    private function collectionSummary(Request $request, User $actor): array
     {
-        $branchId = $actor->workBranchId();
-        $periods = ClosingPeriods::for($branchId);
-        $day = $periods->dayOf(now());
-        [$from, $until] = $periods->utcRange($day, $day);
+        // Every branch to pick from, even while the Super Admin's view is narrowed to one.
+        $branches = $actor->isSuperAdmin() ? Branch::query()->withoutGlobalScope(BranchDomainScope::class)->orderBy('name')->get(['id', 'name']) : collect();
+        $branchId = $actor->isSuperAdmin()
+            ? ($branches->firstWhere('id', $request->integer('branch_id'))?->id ?? $actor->workBranchId() ?? $branches->first()?->id)
+            : $actor->workBranchId();
+        $seesStaff = $branchId !== null && ($actor->isSuperAdmin() || BranchClosingAccess::receive($actor, $branchId) || $actor->hasPermission(PermissionKey::ViewCollections));
 
-        $payments = $branchId === null ? collect() : SubscriptionTransaction::query()
-            ->where('type', SubscriptionTransaction::TYPE_PAYMENT)
-            ->whereNull('cancelled_at')
-            ->whereHas('subscription', fn (Builder $subscription) => $subscription->withoutGlobalScopes()->where('branch_id', $branchId))
-            ->where('created_at', '>=', $from)
-            ->where('created_at', '<', $until)
-            ->with(['subscription', 'recordedBy:id,name'])
-            ->latest('id')
-            ->get();
+        $periodService = app(BillingPeriods::class);
+        $periods = $branchId === null ? collect() : $periodService->of($branchId)->filter(fn (BillingPeriod $period): bool => $period->opened_at !== null)->sortByDesc(fn (BillingPeriod $period): string => $period->starts_on->toDateString())->values();
+        $asked = (string) $request->query('period', '');
+        $period = $asked === 'today' ? null : ($periods->firstWhere('id', (int) $asked) ?? ($asked === '' ? ($periodService->open($branchId) ?? null) : null));
+        $periodKey = $period ? (string) $period->id : 'today';
 
-        $sumOf = fn (Collection $lines): string => number_format($lines->sum(fn (SubscriptionTransaction $payment): float => -(float) $payment->amount), 2, '.', '');
-        $cash = $payments->filter(fn (SubscriptionTransaction $payment): bool => $payment->payment_method === PaymentMethod::Cash);
+        $people = $seesStaff ? User::withoutGlobalScopes()->where('branch_id', $branchId)
+            ->orWhereIn('id', SubscriptionTransaction::query()->whereIn('type', [SubscriptionTransaction::TYPE_PAYMENT, SubscriptionTransaction::TYPE_CLEARING])
+                ->whereHas('subscription', fn (Builder $subscription) => $subscription->withoutGlobalScopes()->where('branch_id', $branchId))
+                ->when($period, fn (Builder $lines) => $lines->where('billing_period_id', $period->id))
+                ->select('recorded_by'))
+            ->orderBy('name')->get(['id', 'name']) : collect();
+        $userId = $seesStaff ? $people->firstWhere('id', $request->integer('user'))?->id : $actor->id;
+
+        $lines = collect();
+        if ($branchId !== null) {
+            $query = SubscriptionTransaction::query()
+                ->whereIn('type', [SubscriptionTransaction::TYPE_PAYMENT, SubscriptionTransaction::TYPE_CLEARING])
+                ->whereNull('cancelled_at')
+                ->whereHas('subscription', fn (Builder $subscription) => $subscription->withoutGlobalScopes()->where('branch_id', $branchId))
+                ->when($userId, fn (Builder $lines) => $lines->where('recorded_by', $userId));
+            if ($period) {
+                $query->where('billing_period_id', $period->id);
+            } else {
+                $days = ClosingPeriods::for($branchId);
+                [$from, $until] = $days->utcRange($days->dayOf(now()), $days->dayOf(now()));
+                $query->where('created_at', '>=', $from)->where('created_at', '<', $until);
+            }
+            $lines = $query->with('recordedBy:id,name')->get(['id', 'type', 'amount', 'payment_method', 'recorded_by']);
+        }
+
+        $sumOf = fn (Collection $part): string => number_format($part->sum(fn (SubscriptionTransaction $line): float => -(float) $line->amount), 2, '.', '');
+        $figures = fn (Collection $part): array => [
+            'count' => $part->count(),
+            'total' => $sumOf($part),
+            'cash' => $sumOf($part->filter(fn (SubscriptionTransaction $line): bool => $line->type === SubscriptionTransaction::TYPE_PAYMENT && $line->payment_method === PaymentMethod::Cash)),
+            'transfers' => $sumOf($part->filter(fn (SubscriptionTransaction $line): bool => $line->type === SubscriptionTransaction::TYPE_PAYMENT && $line->payment_method !== PaymentMethod::Cash)),
+            'clearings' => $sumOf($part->where('type', SubscriptionTransaction::TYPE_CLEARING)),
+        ];
 
         return [
-            'count' => $payments->count(),
-            'total' => $sumOf($payments),
-            'cash' => $sumOf($cash),
-            'transfers' => $sumOf($payments->reject(fn (SubscriptionTransaction $payment): bool => $payment->payment_method === PaymentMethod::Cash)),
-            'collectors' => $payments->groupBy('recorded_by')->map(fn (Collection $lines): array => [
-                'id' => $lines->first()->recorded_by,
-                'name' => $lines->first()->recordedBy?->name,
-                'isYou' => $lines->first()->recorded_by === $actor->id,
-                'count' => $lines->count(),
-                'total' => $sumOf($lines),
-            ])->sortByDesc(fn (array $collector): float => (float) $collector['total'])->values()->all(),
-            'payments' => $payments->take(self::RECENT_PAYMENTS)->map(fn (SubscriptionTransaction $payment): array => [
-                'id' => $payment->id,
-                'collectorName' => $payment->recordedBy?->name,
-                'subscriptionName' => $payment->subscription->displayName(),
-                'amount' => SubscriptionTransaction::formatAmount(ltrim($payment->amount, '-')),
-                'methodLabel' => $payment->payment_method ? __($payment->payment_method->label()) : null,
-                'bankName' => $payment->bank_name,
-                'voucherNumber' => $payment->displayVoucherNumber(),
-                'time' => DailySeries::localTime($payment->created_at),
-                'receiptUrl' => route('subscriptions.payments.receipt', [$payment->subscription, $payment]),
-            ])->values()->all(),
+            ...$figures($lines),
+            'branch' => $branchId ? ['id' => $branchId, 'name' => Branch::query()->withoutGlobalScope(BranchDomainScope::class)->whereKey($branchId)->value('name')] : null,
+            'period' => $period ? ['key' => $periodKey, 'label' => $period->label(), 'statusLabel' => $period->statusLabel()] : ['key' => 'today', 'label' => 'اليوم '.DailySeries::today()->toDateString(), 'statusLabel' => null],
+            'user' => $userId ? ['id' => $userId, 'name' => $userId === $actor->id ? $actor->name : $people->firstWhere('id', $userId)?->name, 'isYou' => $userId === $actor->id] : null,
+            'seesStaff' => $seesStaff,
+            'byUser' => $userId === null ? $lines->groupBy('recorded_by')->map(fn (Collection $part): array => [
+                'id' => $part->first()->recorded_by,
+                'name' => $part->first()->recordedBy?->name ?? 'غير محدد',
+                'isYou' => $part->first()->recorded_by === $actor->id,
+                ...$figures($part),
+            ])->sortByDesc(fn (array $row): float => (float) $row['total'])->values()->all() : null,
+            'options' => [
+                'branches' => $branches->map(fn (Branch $branch): array => ['value' => (string) $branch->id, 'label' => $branch->name])->values()->all(),
+                'periods' => [['value' => 'today', 'label' => 'اليوم'], ...$periods->take(24)->map(fn (BillingPeriod $item): array => ['value' => (string) $item->id, 'label' => $item->label().' · '.$item->statusLabel()])->all()],
+                'users' => $people->map(fn (User $person): array => ['value' => (string) $person->id, 'label' => $person->name])->values()->all(),
+            ],
+            'filters' => ['branch_id' => $branchId ? (string) $branchId : '', 'period' => $periodKey, 'user' => $seesStaff && $userId ? (string) $userId : ''],
         ];
     }
 }
