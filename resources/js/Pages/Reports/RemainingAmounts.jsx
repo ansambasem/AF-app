@@ -101,7 +101,7 @@ function PaymentsDialog({ row, date, onClose }) {
             {detail && (
                 <>
                     <dl className="grid gap-3 text-sm sm:grid-cols-3">
-                        {[['invoiceTarget', 'مستهدف الفاتورة'], ['advanceUsed', 'المقدم المستخدم'], ['discountToInvoice', 'الخصم على الفاتورة'], ['invoiceSettled', 'تسوية الفاتورة'], ['paidToAccumulated', 'المحصّل من المتراكم'], ['newAdvance', 'المقدم الجديد']].map(([key, label]) => (
+                        {[['discountToInvoice', 'الخصم على الفاتورة'], ['advanceUsed', 'المقدم المستخدم'], ['invoiceTarget', 'مستهدف الفاتورة'], ['paidToInvoice', 'دفعات الفاتورة'], ['paidToAccumulated', 'المحصّل من المتراكم'], ['carriedAdvance', 'المقدم المرحّل للقادمة']].map(([key, label]) => (
                             <div key={key} className="rounded-control bg-gray-50 px-3 py-2"><dt className="text-gray-500">{label}</dt><dd className="font-bold"><Money value={detail.row[key]} /> ₪</dd></div>
                         ))}
                     </dl>

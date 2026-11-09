@@ -111,7 +111,7 @@ class PaymentAllocationTest extends TestCase
         return [
             'payments' => intdiv($row['payments'], 100),
             'invoiceTarget' => intdiv($row['invoiceTarget'], 100),
-            'invoiceSettled' => intdiv($row['invoiceSettled'], 100),
+            'paidToInvoice' => intdiv($row['paidToInvoice'], 100),
             'paidToAccumulated' => intdiv($row['paidToAccumulated'], 100),
             'newAdvance' => intdiv($row['newAdvance'], 100),
             'invoiceRemaining' => intdiv($row['invoiceRemaining'], 100),
@@ -136,7 +136,7 @@ class PaymentAllocationTest extends TestCase
         $this->pay($subscription, '120');
 
         $this->assertSame([
-            'payments' => 120, 'invoiceTarget' => 100, 'invoiceSettled' => 100, 'paidToAccumulated' => 20, 'newAdvance' => 0,
+            'payments' => 120, 'invoiceTarget' => 100, 'paidToInvoice' => 100, 'paidToAccumulated' => 20, 'newAdvance' => 0,
             'invoiceRemaining' => 0, 'accumulatedRemaining' => 0, 'remaining' => 0, 'invoiceRate' => 100, 'accumulatedRate' => 100,
         ], $this->settled($this->row($period, $subscription)));
     }
@@ -149,12 +149,12 @@ class PaymentAllocationTest extends TestCase
         $this->pay($subscription, '120');
 
         $this->assertSame([
-            'payments' => 120, 'invoiceTarget' => 100, 'invoiceSettled' => 100, 'paidToAccumulated' => 0, 'newAdvance' => 20,
+            'payments' => 120, 'invoiceTarget' => 100, 'paidToInvoice' => 100, 'paidToAccumulated' => 0, 'newAdvance' => 20,
             'invoiceRemaining' => 0, 'accumulatedRemaining' => 0, 'remaining' => -20, 'invoiceRate' => 100, 'accumulatedRate' => null,
         ], $this->settled($this->row($period, $subscription)));
     }
 
-    public function test_example_3_the_advance_brought_forward_and_a_new_payment_settle_the_invoice(): void
+    public function test_example_3_the_advance_brought_forward_takes_off_the_invoice_and_the_new_payment_settles_the_rest(): void
     {
         $subscription = $this->subscription();
         $period = $this->carried($subscription, advance: 50);
@@ -163,7 +163,7 @@ class PaymentAllocationTest extends TestCase
 
         $row = $this->row($period, $subscription);
         $this->assertSame([
-            'payments' => 50, 'invoiceTarget' => 100, 'invoiceSettled' => 100, 'paidToAccumulated' => 0, 'newAdvance' => 0,
+            'payments' => 50, 'invoiceTarget' => 50, 'paidToInvoice' => 50, 'paidToAccumulated' => 0, 'newAdvance' => 0,
             'invoiceRemaining' => 0, 'accumulatedRemaining' => 0, 'remaining' => 0, 'invoiceRate' => 100, 'accumulatedRate' => null,
         ], $this->settled($row));
         $this->assertSame([5000, 5000], [$row['advanceUsed'], $row['paidToInvoice']]);
@@ -178,13 +178,13 @@ class PaymentAllocationTest extends TestCase
 
         $row = $this->row($period, $subscription);
         $this->assertSame([
-            'payments' => 70, 'invoiceTarget' => 100, 'invoiceSettled' => 100, 'paidToAccumulated' => 0, 'newAdvance' => 20,
+            'payments' => 70, 'invoiceTarget' => 50, 'paidToInvoice' => 50, 'paidToAccumulated' => 0, 'newAdvance' => 20,
             'invoiceRemaining' => 0, 'accumulatedRemaining' => 0, 'remaining' => -20, 'invoiceRate' => 100, 'accumulatedRate' => null,
         ], $this->settled($row));
-        $this->assertSame([5000, 5000], [$row['advanceUsed'], $row['paidToInvoice']]);
+        $this->assertSame([5000, 5000, 2000], [$row['advanceUsed'], $row['paidToInvoice'], $row['carriedAdvance']]);
     }
 
-    public function test_example_5_a_discount_settles_the_invoice_without_counting_as_money_or_reaching_the_accumulated(): void
+    public function test_example_5_the_discount_comes_off_the_invoice_first_and_the_payment_settles_the_rest_then_the_accumulated(): void
     {
         $subscription = $this->subscription();
         $period = $this->carried($subscription, accumulated: 20);
@@ -193,12 +193,13 @@ class PaymentAllocationTest extends TestCase
         $this->pay($subscription, '30');
 
         $row = $this->row($period, $subscription);
+        // 100 − 90 discount leaves 10 to pay: the payment of 30 settles it, and its other 20 the accumulated.
         $this->assertSame([
-            'payments' => 30, 'invoiceTarget' => 100, 'invoiceSettled' => 100, 'paidToAccumulated' => 0, 'newAdvance' => 0,
-            'invoiceRemaining' => 0, 'accumulatedRemaining' => 0, 'remaining' => 0, 'invoiceRate' => 100, 'accumulatedRate' => 0,
+            'payments' => 30, 'invoiceTarget' => 10, 'paidToInvoice' => 10, 'paidToAccumulated' => 20, 'newAdvance' => 0,
+            'invoiceRemaining' => 0, 'accumulatedRemaining' => 0, 'remaining' => 0, 'invoiceRate' => 100, 'accumulatedRate' => 100,
         ], $this->settled($row));
-        // The payment and the discount stay apart: 30 of money and 70 of the discount on the invoice, the rest of the discount on the debt.
-        $this->assertSame([9000, 3000, 7000, 2000], [$row['discounts'], $row['paidToInvoice'], $row['discountToInvoice'], $row['discountToAccumulated']]);
+        // The discount stays apart from the money: it is never in the invoice payments.
+        $this->assertSame([9000, 3000, 1000, 9000, 0], [$row['discounts'], $row['payments'], $row['paidToInvoice'], $row['discountToInvoice'], $row['discountToAccumulated']]);
     }
 
     public function test_example_6_charges_are_part_of_the_invoice_target_never_the_accumulated(): void
@@ -211,7 +212,7 @@ class PaymentAllocationTest extends TestCase
 
         $row = $this->row($period, $subscription);
         $this->assertSame([
-            'payments' => 11200, 'invoiceTarget' => 11200, 'invoiceSettled' => 11200, 'paidToAccumulated' => 0, 'newAdvance' => 0,
+            'payments' => 11200, 'invoiceTarget' => 11200, 'paidToInvoice' => 11200, 'paidToAccumulated' => 0, 'newAdvance' => 0,
             'invoiceRemaining' => 0, 'accumulatedRemaining' => 0, 'remaining' => 0, 'invoiceRate' => 100, 'accumulatedRate' => null,
         ], $this->settled($row));
         $this->assertSame(0, $row['accumulated']);
@@ -224,7 +225,8 @@ class PaymentAllocationTest extends TestCase
 
         $row = $this->row($period, $subscription);
         $this->assertSame(0, $row['collectible']);
-        $this->assertSame(['totalRate' => null, 'invoiceRate' => null, 'accumulatedRate' => null], PeriodStatement::rates($row));
+        // No invoice target: nothing was left to pay of it, so its rate is full; nothing else was to collect.
+        $this->assertSame(['totalRate' => null, 'invoiceRate' => 100, 'accumulatedRate' => null], PeriodStatement::rates($row));
         $this->assertSame(0, array_sum(array_map(fn (string $column): int => abs($row[$column]), PeriodStatement::SETTLEMENT)));
     }
 
@@ -235,8 +237,8 @@ class PaymentAllocationTest extends TestCase
         $this->pay($subscription, '20');
 
         $row = $this->row($period, $subscription);
-        $this->assertSame(['payments' => 20, 'invoiceTarget' => 0, 'invoiceSettled' => 0, 'paidToAccumulated' => 20, 'newAdvance' => 0,
-            'invoiceRemaining' => 0, 'accumulatedRemaining' => 30, 'remaining' => 30, 'invoiceRate' => null, 'accumulatedRate' => 40], $this->settled($row));
+        $this->assertSame(['payments' => 20, 'invoiceTarget' => 0, 'paidToInvoice' => 0, 'paidToAccumulated' => 20, 'newAdvance' => 0,
+            'invoiceRemaining' => 0, 'accumulatedRemaining' => 30, 'remaining' => 30, 'invoiceRate' => 100, 'accumulatedRate' => 40], $this->settled($row));
         $this->assertSame(40, PeriodStatement::rates($row)['totalRate']);
     }
 
@@ -259,8 +261,9 @@ class PaymentAllocationTest extends TestCase
         $this->pay($subscription, '50');
 
         $row = $this->row($period, $subscription);
-        $this->assertSame([13000, 5000, 2000, 7000, 6000, 6000], [$row['invoiceTarget'], $row['paidToInvoice'], $row['discountToInvoice'], $row['invoiceSettled'], $row['invoiceRemaining'], $row['remaining']]);
-        $this->assertSame(['totalRate' => 45, 'invoiceRate' => 53, 'accumulatedRate' => null], PeriodStatement::rates($row));
+        // 100 + 30 charges − 20 discount = 110 to pay; the payment of 50 settles 50 of it.
+        $this->assertSame([11000, 11000, 5000, 2000, 6000, 6000], [$row['afterDiscount'], $row['invoiceTarget'], $row['paidToInvoice'], $row['discountToInvoice'], $row['invoiceRemaining'], $row['remaining']]);
+        $this->assertSame(['totalRate' => 45, 'invoiceRate' => 45, 'accumulatedRate' => null], PeriodStatement::rates($row));
     }
 
     public function test_a_partial_payment_leaves_part_of_the_invoice(): void
@@ -270,7 +273,7 @@ class PaymentAllocationTest extends TestCase
         $this->invoice($subscription, 100);
         $this->pay($subscription, '40');
 
-        $this->assertSame(['payments' => 40, 'invoiceTarget' => 100, 'invoiceSettled' => 40, 'paidToAccumulated' => 0, 'newAdvance' => 0,
+        $this->assertSame(['payments' => 40, 'invoiceTarget' => 100, 'paidToInvoice' => 40, 'paidToAccumulated' => 0, 'newAdvance' => 0,
             'invoiceRemaining' => 60, 'accumulatedRemaining' => 0, 'remaining' => 60, 'invoiceRate' => 40, 'accumulatedRate' => null], $this->settled($this->row($period, $subscription)));
     }
 
@@ -282,7 +285,7 @@ class PaymentAllocationTest extends TestCase
         $this->pay($subscription, '130');
 
         $row = $this->row($period, $subscription);
-        $this->assertSame(['payments' => 130, 'invoiceTarget' => 100, 'invoiceSettled' => 100, 'paidToAccumulated' => 30, 'newAdvance' => 0,
+        $this->assertSame(['payments' => 130, 'invoiceTarget' => 100, 'paidToInvoice' => 100, 'paidToAccumulated' => 30, 'newAdvance' => 0,
             'invoiceRemaining' => 0, 'accumulatedRemaining' => 20, 'remaining' => 20, 'invoiceRate' => 100, 'accumulatedRate' => 60], $this->settled($row));
         $this->assertSame(86, PeriodStatement::rates($row)['totalRate']);
     }
@@ -295,7 +298,7 @@ class PaymentAllocationTest extends TestCase
         $this->pay($subscription, '150');
 
         $row = $this->row($period, $subscription);
-        $this->assertSame(['payments' => 150, 'invoiceTarget' => 100, 'invoiceSettled' => 100, 'paidToAccumulated' => 20, 'newAdvance' => 30,
+        $this->assertSame(['payments' => 150, 'invoiceTarget' => 100, 'paidToInvoice' => 100, 'paidToAccumulated' => 20, 'newAdvance' => 30,
             'invoiceRemaining' => 0, 'accumulatedRemaining' => 0, 'remaining' => -30, 'invoiceRate' => 100, 'accumulatedRate' => 100], $this->settled($row));
         $this->assertSame(100, PeriodStatement::rates($row)['totalRate']);
 

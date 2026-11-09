@@ -39,8 +39,8 @@ class PeriodStatement
      * subscriptions table: they are read in the details and the indicators.
      */
     public const SETTLEMENT = [
-        'invoiceTarget', 'advanceUsed', 'paidToInvoice', 'discountToInvoice', 'invoiceSettled', 'invoiceRemaining',
-        'paidToAccumulated', 'discountToAccumulated', 'accumulatedRemaining', 'newAdvance', 'collectible',
+        'afterDiscount', 'advanceUsed', 'invoiceTarget', 'unusedAdvance', 'paidToInvoice', 'discountToInvoice', 'invoiceSettled', 'invoiceRemaining',
+        'paidToAccumulated', 'discountToAccumulated', 'accumulatedRemaining', 'newAdvance', 'carriedAdvance', 'collectible',
     ];
 
     /**
@@ -114,67 +114,86 @@ class PeriodStatement
     }
 
     /**
-     * How the period was settled, in cents, the one rule every page reads:
+     * How the period was settled, in cents, the one rule every page reads,
+     * in this order:
      *
-     *   invoice target = invoice + charges
-     *   1. the advance brought forward settles the target first;
-     *   2. the period's payments (cash, transfers, clearings) settle what is left of it;
-     *   3. its discounts settle what is still left (never counted as money in);
-     *   4. what is left of the payments goes to the accumulated debt (collected),
-     *   5. what is left of the discounts too (not collected: a discount is no payment);
-     *   6. and what is left of the payments then is the new advance carried forward.
+     *   1. billed          = invoice + charges
+     *   2. after discount  = MAX(0, billed − discounts)          (the discount comes off first, all of it)
+     *   3. advance used    = MIN(advance brought forward, after discount)
+     *      invoice target  = after discount − advance used        (never below nothing)
+     *      unused advance  = advance brought forward − advance used (kept, carried to the next period)
+     *   4. the period's new payments (cash, transfers, clearings) settle the invoice target,
+     *   5. what is left of the discount comes off the accumulated debt, then the payments left settle it,
+     *   6. and what is left of the payments is the new advance.
      *
-     * Nothing is counted twice: each shekel of a payment goes to one place,
-     * and the invoice is never settled beyond its target. A reversal in the
-     * period of an earlier period's line reopens that debt (a refunded
-     * payment, a cancelled discount) or adds to the credit (a cancelled
-     * charge), so the parts always add up to the period's closing balance.
+     * The discount and the advance used only set what is still to pay; they
+     * are never counted as money paid. Nothing is counted twice: each shekel
+     * of a payment goes to one place, the advance is taken off once (in the
+     * invoice target), and what is carried to the next period (unused
+     * advance, new advance, a discount beyond everything owed) is the
+     * period's closing credit. A reversal in the period of an earlier
+     * period's line reopens that debt (a refunded payment, a cancelled
+     * discount) or adds to the credit (a cancelled charge), so the parts
+     * always add up to the period's closing balance.
      *
      * @return array<string, int>
      */
     public static function allocate(int $accumulated, int $advance, int $invoice, int $charges, int $discounts, int $payments): array
     {
         $billed = $invoice + $charges;
-        $target = max($billed, 0);
+        $gross = max($billed, 0);
         $credit = $advance + max(-$billed, 0);
         $debt = $accumulated + max(-$discounts, 0) + max(-$payments, 0);
         $paid = max($payments, 0);
         $discounted = max($discounts, 0);
 
-        $advanceUsed = min($credit, $target);
-        $paidToInvoice = min($paid, $target - $advanceUsed);
-        $discountToInvoice = min($discounted, $target - $advanceUsed - $paidToInvoice);
-        $paidToAccumulated = min($paid - $paidToInvoice, $debt);
-        $discountToAccumulated = min($discounted - $discountToInvoice, $debt - $paidToAccumulated);
-        $invoiceSettled = $advanceUsed + $paidToInvoice + $discountToInvoice;
-        $beforePayments = $billed + $accumulated - $advance - $discounts;
+        $discountToInvoice = min($discounted, $gross);
+        $afterDiscount = $gross - $discountToInvoice;
+        $advanceUsed = min($credit, $afterDiscount);
+        $target = $afterDiscount - $advanceUsed;
+        $unusedAdvance = $credit - $advanceUsed;
+        $paidToInvoice = min($paid, $target);
+        $discountToAccumulated = min($discounted - $discountToInvoice, $debt);
+        $paidToAccumulated = min($paid - $paidToInvoice, $debt - $discountToAccumulated);
+        $newAdvance = $paid - $paidToInvoice - $paidToAccumulated;
+        $discountCredit = $discounted - $discountToInvoice - $discountToAccumulated;
 
         return [
-            'invoiceTarget' => $target,
+            'afterDiscount' => $afterDiscount,
             'advanceUsed' => $advanceUsed,
+            'invoiceTarget' => $target,
+            'unusedAdvance' => $unusedAdvance,
             'paidToInvoice' => $paidToInvoice,
             'discountToInvoice' => $discountToInvoice,
-            'invoiceSettled' => $invoiceSettled,
-            'invoiceRemaining' => $target - $invoiceSettled,
+            // The invoice as settled in all: by its discount, the advance and new money.
+            'invoiceSettled' => $discountToInvoice + $advanceUsed + $paidToInvoice,
+            'invoiceRemaining' => $target - $paidToInvoice,
             'paidToAccumulated' => $paidToAccumulated,
             'discountToAccumulated' => $discountToAccumulated,
-            'accumulatedRemaining' => $debt - $paidToAccumulated - $discountToAccumulated,
-            'newAdvance' => $paid - $paidToInvoice - $paidToAccumulated,
-            // What the subscription had to pay in money this period: what it owed before paying, never below nothing.
-            'collectible' => max($beforePayments, 0),
+            'accumulatedRemaining' => $debt - $discountToAccumulated - $paidToAccumulated,
+            'newAdvance' => $newAdvance,
+            // Carried to the next period as its advance: the unused advance, the new one, and a discount beyond everything owed.
+            'carriedAdvance' => $unusedAdvance + $newAdvance + $discountCredit,
+            // What the subscription had to pay in money this period: the invoice target and the accumulated left after its discount.
+            'collectible' => $target + ($debt - $discountToAccumulated),
         ];
     }
 
     /**
      * The three collection rates of summed rows, as whole percentages never
-     * above 100 (null when there was nothing to collect):
+     * above 100:
      *
-     *   total       = money that settled what was owed (invoice and accumulated) ÷ what had to be paid in money
-     *   invoice     = invoice settled ÷ invoice target
+     *   total       = new money that settled what was owed (invoice and accumulated) ÷ what had to be paid in money
+     *   invoice     = new money paid to the invoice ÷ invoice target (after its discount and the advance used);
+     *                 100 when the target is nothing, the invoice being settled before any payment was needed
      *   accumulated = collected from the accumulated debt ÷ accumulated at the period's start
      *
+     * The discount and the advance used are never in a rate's numerator: they
+     * are already taken off the invoice target. The total and accumulated
+     * rates are null when there was nothing to collect.
+     *
      * @param  array<string, int>  $totals
-     * @return array{totalRate: ?int, invoiceRate: ?int, accumulatedRate: ?int}
+     * @return array{totalRate: ?int, invoiceRate: int, accumulatedRate: ?int}
      */
     public static function rates(array $totals): array
     {
@@ -182,7 +201,7 @@ class PeriodStatement
 
         return [
             'totalRate' => $rate($totals['paidToInvoice'] + $totals['paidToAccumulated'], $totals['collectible']),
-            'invoiceRate' => $rate($totals['invoiceSettled'], $totals['invoiceTarget']),
+            'invoiceRate' => $rate($totals['paidToInvoice'], $totals['invoiceTarget']) ?? 100,
             'accumulatedRate' => $rate($totals['paidToAccumulated'], $totals['accumulated']),
         ];
     }
