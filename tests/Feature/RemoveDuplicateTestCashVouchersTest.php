@@ -10,6 +10,7 @@ use App\Models\TransactionDeletion;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -48,6 +49,19 @@ class RemoveDuplicateTestCashVouchersTest extends TestCase
         $this->index = require database_path('migrations/2026_11_09_090221_add_unique_cash_voucher_to_subscription_transactions.php');
         // The database as it is on the server: the index not yet built, so vouchers can be shared.
         $this->index->down();
+        File::deleteDirectory(storage_path('app/private/voucher-cleanup'));
+    }
+
+    protected function tearDown(): void
+    {
+        File::deleteDirectory(storage_path('app/private/voucher-cleanup'));
+        parent::tearDown();
+    }
+
+    /** @return array<string, mixed> */
+    private function saved(string $file): array
+    {
+        return json_decode(File::get(File::directories(storage_path('app/private/voucher-cleanup'))[0].'/'.$file), true);
     }
 
     public function test_the_first_payment_of_each_voucher_is_kept_and_the_duplicates_are_deleted_with_what_points_at_them(): void
@@ -81,10 +95,13 @@ class RemoveDuplicateTestCashVouchersTest extends TestCase
         $this->assertNoOrphans();
 
         // Every deleted row was saved first, and each deletion is in the audit log with its reason.
-        $saved = json_decode(Storage::disk('local')->get(Storage::disk('local')->files('voucher-cleanup')[0]), true);
+        $saved = $this->saved('deleted-rows.json');
         $this->assertSame([$duplicate->id, $otherSubscriber->id], array_column(array_column(array_column($saved, 'transactions'), 0), 'id'));
         $this->assertSame([$duplicate->id, $refund->id], array_column($saved[0]['transactions'], 'id'));
         $this->assertSame([$entry->id], array_column($saved[0]['cash_box_payments'], 'id'));
+        $before = $this->saved('tables-before.json');
+        $this->assertCount(11, $before['subscription_transactions']);
+        $this->assertContains($entry->id, array_column($before['cash_box_payments'], 'id'));
         $deletions = TransactionDeletion::query()->orderBy('id')->get();
         $this->assertSame([$this->first->id, $this->second->id], $deletions->pluck('subscription_id')->all());
         $this->assertSame([TransactionDeletion::ACTION_ERASE, TransactionDeletion::ACTION_ERASE], $deletions->pluck('action')->all());
@@ -112,7 +129,7 @@ class RemoveDuplicateTestCashVouchersTest extends TestCase
 
         $this->assertSame($before, SubscriptionTransaction::query()->orderBy('id')->get()->map->getAttributes()->all());
         $this->assertSame(0, TransactionDeletion::query()->count());
-        $this->assertSame([], Storage::disk('local')->files('voucher-cleanup'));
+        $this->assertDirectoryDoesNotExist(storage_path('app/private/voucher-cleanup'));
     }
 
     private function runCleanup(): string
