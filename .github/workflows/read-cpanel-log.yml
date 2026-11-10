@@ -1,0 +1,35 @@
+name: Read cPanel deploy log (temporary)
+
+on:
+  push:
+    branches:
+      - claude/read-cpanel-log
+
+permissions:
+  contents: read
+
+env:
+  CPANEL_HOST: abuzaed.ps
+  CPANEL_USER: abuzaedp
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the last deploy log and the voucher cleanup files
+        env:
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: |
+          api() {
+            curl -sS --max-time 120 \
+              -H "Authorization: cpanel ${CPANEL_USER}:${CPANEL_API_TOKEN}" \
+              "https://${CPANEL_HOST}:2083/execute/$1" "${@:2}"
+          }
+          read_file() {
+            echo "===== $1/$2 ====="
+            api Fileman/get_file_content --data-urlencode "dir=$1" --data-urlencode "file=$2" \
+              | jq -r 'if .status == 1 then .data.content else "ERROR: \(.errors)" end' | tail -n "${3:-200}"
+          }
+          api VersionControlDeployment/retrieve | jq -r '.data | sort_by(.deploy_id) | .[-2:][] | "\(.deploy_id) \(.timestamps) \(.log_path)"'
+          log=$(api VersionControlDeployment/retrieve | jq -r '.data | sort_by(.deploy_id) | last | .log_path')
+          read_file "$(dirname "$log")" "$(basename "$log")" 120
