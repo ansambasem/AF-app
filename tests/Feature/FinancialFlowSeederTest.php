@@ -111,7 +111,8 @@ class FinancialFlowSeederTest extends TestCase
 
         $this->assertSame($original, $existing->fresh()->getRawOriginal());
         $this->assertDatabaseCount('subscription_transactions', 46);
-        $this->assertDatabaseHas('payment_voucher_sequences', ['id' => 1, 'last_number' => 21]);
-        $this->assertSame(14, SubscriptionTransaction::query()->whereNotNull('voucher_number')->distinct()->count('voucher_number'));
+        $this->assertDatabaseHas('payment_voucher_sequences', ['id' => 1, 'last_number' => 11]);
+        // Cash payments get no system number; the existing one (8) and the three clearings keep theirs.
+        $this->assertSame(4, SubscriptionTransaction::query()->whereNotNull('voucher_number')->distinct()->count('voucher_number'));
     }
 }

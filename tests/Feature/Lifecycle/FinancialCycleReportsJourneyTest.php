@@ -75,7 +75,7 @@ class FinancialCycleReportsJourneyTest extends TestCase
         $monaDollars = $this->pay($collector, $mona, ['amount' => '10', 'currency' => 'USD', 'exchange_rate' => '3.7', 'payment_method' => 'cash']);
         $this->actingAs($manager)->post(route('subscriptions.discounts.store', $salem), ['method' => 'shekel', 'value' => '5'])->assertSessionHasNoErrors();
         $salemDiscount = $salem->transactions()->where('type', SubscriptionTransaction::TYPE_DISCOUNT)->sole();
-        $this->assertSame(['000001', null, '000002'], [$salemCash->printedVoucherNumber(), $khaledTransfer->printedVoucherNumber(), $monaDollars->printedVoucherNumber()]);
+        $this->assertSame([null, null, null], [$salemCash->printedVoucherNumber(), $khaledTransfer->printedVoucherNumber(), $monaDollars->printedVoucherNumber()]);
         $this->assertSame(['-37.00', '10.00'], [$monaDollars->amount, $monaDollars->currency_amount]);
         $this->assertBalances([45.0, 36.4, 28.0], $salem, $khaled, $mona);
 

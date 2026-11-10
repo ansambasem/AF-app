@@ -17,6 +17,7 @@ use App\Models\SubscriptionTransaction;
 use App\Models\TransactionDeletion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -86,7 +87,7 @@ class SubscriptionTransactionCorrectionTest extends TestCase
                 ->where('entries.2.reverses.id', $payment->id)
                 ->where('entries.2.reverses.lineNumber', 2)
                 ->where('entries.2.isCredit', false)
-                ->where('entries.2.description', 'إلغاء: دفعة نقدية · سند '.$payment->printedVoucherNumber())
+                ->where('entries.2.description', 'إلغاء: دفعة نقدية')
                 ->where('entries.2.balance', '200.00')
                 ->where('entries.3.id', $replacement->id)
                 ->where('entries.3.isCorrection', true)
@@ -642,9 +643,10 @@ class SubscriptionTransactionCorrectionTest extends TestCase
         $this->assertSame(200.0, $this->subscription->balance());
     }
 
-    public function test_a_permanently_erased_payment_voucher_number_is_never_reused(): void
+    public function test_an_erased_cash_payment_frees_no_system_voucher_number_since_it_took_none(): void
     {
         $this->grantPermanentDeletionTo($this->branchAdmin);
+        $counter = DB::table('payment_voucher_sequences')->value('last_number');
         $erased = $this->recordPayment(['amount' => '80', 'payment_method' => 'cash']);
 
         $this->actingAs($this->branchAdmin)
@@ -652,7 +654,8 @@ class SubscriptionTransactionCorrectionTest extends TestCase
             ->assertSessionHasNoErrors();
         $next = $this->recordPayment(['amount' => '90', 'payment_method' => 'cash']);
 
-        $this->assertSame($erased->voucher_number + 1, $next->voucher_number);
+        $this->assertSame([null, null], [$erased->voucher_number, $next->voucher_number]);
+        $this->assertSame($counter, DB::table('payment_voucher_sequences')->value('last_number'));
         $this->assertDatabaseMissing('subscription_transactions', ['id' => $erased->id]);
     }
 

@@ -53,7 +53,7 @@ class PaymentReceiptTest extends TestCase
                 ->where('subscription.accountNumber', $this->subscription->account_number)
                 ->where('subscription.branchName', 'فرع الكرادة')
                 ->where('receipt.voucherNumber', '4471')
-                ->where('receipt.systemVoucherNumber', '000001')
+                ->where('receipt.systemVoucherNumber', null)
                 ->where('receipt.date', '2026-08-30')
                 ->where('receipt.time', '12:40')
                 ->where('receipt.amount', '20')
