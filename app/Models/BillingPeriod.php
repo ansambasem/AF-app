@@ -77,6 +77,15 @@ class BillingPeriod extends Model
         return $this->starts_on->format('j/n/Y').' – '.$this->ends_on->format('j/n/Y');
     }
 
+    /**
+     * The month the period was created in, "2026-10", on the business's
+     * clock: the month the filters file it under, whatever days it covers.
+     */
+    public function createdMonth(): string
+    {
+        return $this->created_at->copy()->setTimezone(config('app.business_timezone'))->format('Y-m');
+    }
+
     public function statusLabel(): string
     {
         return match ($this->status()) {

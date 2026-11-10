@@ -32,6 +32,7 @@ use App\Support\BranchClosingWorkflow;
 use App\Support\BranchDomainScope;
 use App\Support\ClosingPeriods;
 use App\Support\DailySeries;
+use App\Support\PeriodPicker;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -425,7 +426,7 @@ class PaymentController extends Controller
             ])->sortByDesc(fn (array $row): float => (float) $row['total'])->values()->all() : null,
             'options' => [
                 'branches' => $branches->map(fn (Branch $branch): array => ['value' => (string) $branch->id, 'label' => $branch->name])->values()->all(),
-                'periods' => [['value' => 'today', 'label' => 'اليوم'], ...$periods->take(24)->map(fn (BillingPeriod $item): array => ['value' => (string) $item->id, 'label' => $item->label().' · '.$item->statusLabel()])->all()],
+                'periods' => PeriodPicker::choices($periods, fn (BillingPeriod $item): string => (string) $item->id, $period ? (string) $period->id : ''),
                 'users' => $people->map(fn (User $person): array => ['value' => (string) $person->id, 'label' => $person->name])->values()->all(),
             ],
             'filters' => ['branch_id' => $branchId ? (string) $branchId : '', 'period' => $periodKey, 'user' => $seesStaff && $userId ? (string) $userId : ''],

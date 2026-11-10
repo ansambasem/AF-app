@@ -254,7 +254,8 @@ class PaymentsPageTest extends TestCase
         $this->actingAs($this->collector)->get(route('payments.summary'))->assertInertia(fn (AssertableInertia $page) => $page
             ->where('summary.period.key', (string) $second->id)
             ->where('summary.total', '25.00')
-            ->where('summary.options.periods', fn ($options): bool => collect($options)->pluck('value')->all() === ['today', (string) $second->id, (string) $first->id]));
+            ->where('summary.options.periods.value', (string) $second->id)
+            ->where('summary.options.periods.years', fn ($years): bool => collect($years)->flatMap(fn ($year) => collect($year['months'])->flatMap(fn ($month) => collect($month['periods'])->pluck('value')))->all() === [(string) $second->id, (string) $first->id]));
         $this->get(route('payments.summary', ['period' => 'today']))->assertInertia(fn (AssertableInertia $page) => $page
             ->where('summary.period.key', 'today')->where('summary.total', '10.00'));
         $this->get(route('payments.summary', ['period' => $first->id]))->assertInertia(fn (AssertableInertia $page) => $page

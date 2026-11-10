@@ -8,6 +8,7 @@ import DialogFrame from '@/Components/DialogFrame';
 import SecondaryButton from '@/Components/SecondaryButton';
 import Pagination from '@/Components/DataTable/Pagination';
 import StatusPill from '@/Components/DataTable/StatusPill';
+import PeriodCascade from '@/Components/PeriodCascade';
 import { formatMoney, formatNumber } from '@/lib/format';
 import { COLLECTION_INDICATORS, COLLECTION_RATES, MONEY_COLUMNS, SETTLEMENT_COLUMNS, SUBSCRIBER_COLUMNS, formatRate } from '@/lib/remainingAmounts';
 
@@ -187,7 +188,7 @@ function Settlement({ rows, date }) {
  * accumulated collected, new advance and the three rates); under the
  * subscribers, each one's settlement and the split of its payments.
  */
-export default function RemainingAmounts({ filters, branches, periodOptions, summary, branchRows, rows }) {
+export default function RemainingAmounts({ filters, branches, periodChoices, summary, branchRows, rows }) {
     const [search, setSearch] = useState(filters.search);
 
     function apply(changes) {
@@ -213,13 +214,7 @@ export default function RemainingAmounts({ filters, branches, periodOptions, sum
             <Head title="تقرير المبالغ المتبقية" />
 
             <div className="rise-in mb-6 flex flex-wrap items-end gap-3 rounded-panel border border-gray-100 bg-surface p-4 shadow-card">
-                <label className="grid gap-1 text-sm font-semibold text-gray-700">
-                    الفترة
-                    <select className={select} value={filters.date} onChange={(event) => apply({ date: event.target.value })}>
-                        <option value="">الفترة المفتوحة الحالية</option>
-                        {periodOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                </label>
+                {periodChoices.years.length > 0 && <PeriodCascade choices={periodChoices} onChange={(value) => apply({ date: value })} />}
                 {branches.length > 1 && (
                     <label className="grid gap-1 text-sm font-semibold text-gray-700">
                         الفرع

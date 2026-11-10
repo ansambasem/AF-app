@@ -184,3 +184,11 @@ test('the page trail names the section and page, also from a page inside it', ()
     assert.equal(pageTrail(groups, '/profile').link.label, 'الملف الشخصي');
     assert.equal(pageTrail(groups, '/ledger'), null);
 });
+
+test('the disconnection lists are no longer offered in the menu or the finance section', () => {
+    const can = Object.fromEntries([...MAIN_LINKS, ...SETTINGS_LINKS].filter((link) => link.can).map((link) => [link.can, true]));
+    const hrefs = allowedNavigationGroups({ ...can, viewDisconnections: true }).flatMap((group) => group.links.map((link) => link.href));
+
+    assert.equal(hrefs.includes('/disconnection-lists'), false);
+    assert.ok(hrefs.includes('/payments/summary'));
+});
