@@ -19,7 +19,7 @@ const UserModal = lazy(() => import('@/Pages/Users/UserModal'));
  * The home page: the branch picker first (for whoever sees every branch;
  * everyone else sees their own branch named there), then the open billing
  * period's accounts and what waits on someone — readings to approve or
- * enter, open boxes, disconnections due. Each part shows only to those who
+ * enter, open boxes. Each part shows only to those who
  * may open its page, and follows the branch picked at the top.
  */
 export default function Dashboard({
@@ -41,7 +41,7 @@ export default function Dashboard({
     const [creating, setCreating] = useState(null);
     // A save from one of the dashboard's windows comes back here, with the branch picked.
     const returnHere = { preserveState: true, headers: { 'X-Return-To': `${window.location.pathname}${window.location.search}` } };
-    const { readings, disconnections, boxes } = sections;
+    const { readings, boxes } = sections;
     const branchView = useBranchView();
 
     /** Reloads the dashboard for another governorate or branch. */
@@ -94,23 +94,6 @@ export default function Dashboard({
             subtitle: 'فيها حركات لم تُغلق',
             count: boxes.open,
             href: '/payments/cash-boxes?place=open',
-        },
-        disconnections && {
-            key: 'overdue',
-            icon: 'power',
-            title: 'قطع متأخر',
-            subtitle: 'في قوائم القطع ولم يُنفّذ',
-            count: disconnections.overdue,
-            href: '/disconnection-lists',
-            tone: 'red',
-        },
-        disconnections && {
-            key: 'upcoming',
-            icon: 'calendar',
-            title: 'قطع خلال 7 أيام',
-            subtitle: `${formatNumber(disconnections.openLists)} قائمة مفتوحة`,
-            count: disconnections.upcoming,
-            href: '/disconnection-lists',
         },
     ].filter(Boolean);
     const hasAnyData = Boolean(periodAccounts) || attention.length > 0;

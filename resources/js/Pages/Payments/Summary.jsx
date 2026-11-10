@@ -5,6 +5,7 @@ import Icon from '@/Components/Icon';
 import KpiTile from '@/Components/KpiTile';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SearchableSelect from '@/Components/SearchableSelect';
+import PeriodCascade from '@/Components/PeriodCascade';
 import { formatMoney } from '@/lib/format';
 import {
     boxTypes,
@@ -43,10 +44,15 @@ function SummaryFilters({ summary }) {
                     <SearchableSelect clearable={false} value={filters.branch_id} options={options.branches} onChange={(value) => apply({ branch_id: value, user: '', period: '' })} />
                 </label>
             )}
-            <label className="grid w-full gap-1.5 text-sm font-semibold text-gray-700 sm:w-72">
-                الفترة
-                <SearchableSelect clearable={false} searchable={options.periods.length > 8} value={filters.period} options={options.periods} onChange={(value) => apply({ period: value })} />
-            </label>
+            {options.periods.years.length > 0 && <PeriodCascade choices={options.periods} onChange={(value) => apply({ period: value })} />}
+            <div className="grid gap-1.5 text-sm font-semibold text-gray-700">
+                <span>{options.periods.years.length > 0 ? 'أو' : 'الفترة'}</span>
+                <button type="button" aria-pressed={filters.period === 'today'} onClick={() => apply({ period: 'today' })}
+                    className={`inline-flex h-10 items-center gap-2 rounded-control border px-3.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 ${filters.period === 'today' ? 'border-gray-900 bg-gray-900 text-surface shadow-sm' : 'border-gray-200 bg-surface text-gray-700 hover:border-gray-300 hover:text-gray-900'}`}>
+                    <Icon name="calendar" className="h-4 w-4" />
+                    تحصيل اليوم
+                </button>
+            </div>
             {summary.seesStaff ? (
                 <label className="grid w-full gap-1.5 text-sm font-semibold text-gray-700 sm:w-64">
                     المستخدم

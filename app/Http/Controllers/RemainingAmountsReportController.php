@@ -9,6 +9,7 @@ use App\Models\Subscription;
 use App\Support\BillingPeriods;
 use App\Support\DailySeries;
 use App\Support\FinancialReportAccess;
+use App\Support\PeriodPicker;
 use App\Support\PeriodStatement;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -69,7 +70,7 @@ class RemainingAmountsReportController extends Controller
         return Inertia::render('Reports/RemainingAmounts', [
             'filters' => ['date' => $filters['date'] ?? '', 'branch_id' => (string) ($filters['branch_id'] ?? ''), 'status' => $status, 'search' => $filters['search'] ?? '', 'sort' => $sort],
             'branches' => $branches->map(fn (Branch $branch): array => ['id' => $branch->id, 'name' => $branch->name])->values(),
-            'periodOptions' => $this->periodOptions($chosen),
+            'periodChoices' => $this->periodChoices($chosen, $filters['date'] ?? '', $periods->filter()->sortByDesc('created_at')->first()),
             'summary' => PeriodStatement::present(PeriodStatement::summarize($rows)),
             'branchRows' => $byBranch->map(fn (array $group): array => [
                 'id' => $group['branch']->id,
@@ -105,19 +106,21 @@ class RemainingAmountsReportController extends Controller
     }
 
     /**
-     * The periods to pick from: each distinct span the branches had, newest
-     * first, by its first day (the date that picks every branch's period it
-     * falls in).
+     * The periods to pick from, by the year and month they were created:
+     * each distinct span the branches had, by its first day (the date that
+     * picks every branch's period it falls in). With no date picked, the
+     * newest of the branches' open periods is the one shown.
      *
      * @param  Collection<int, Branch>  $branches
-     * @return list<array{value: string, label: string}>
+     * @return array<string, mixed>
      */
-    private function periodOptions(Collection $branches): array
+    private function periodChoices(Collection $branches, string $date, ?BillingPeriod $shown): array
     {
-        return $branches->flatMap(fn (Branch $branch) => $this->periods->of($branch->id)->filter(fn (BillingPeriod $period): bool => $period->opened_at !== null))
+        $periods = $branches->flatMap(fn (Branch $branch) => $this->periods->of($branch->id)->filter(fn (BillingPeriod $period): bool => $period->opened_at !== null))
+            ->sortBy(fn (BillingPeriod $period): string => $period->created_at->format('YmdHis'))
             ->unique(fn (BillingPeriod $period): string => $period->starts_on->toDateString().$period->ends_on->toDateString())
-            ->sortByDesc(fn (BillingPeriod $period): string => $period->starts_on->toDateString())
-            ->map(fn (BillingPeriod $period): array => ['value' => $period->starts_on->toDateString(), 'label' => $period->label().' · '.$period->statusLabel()])
-            ->values()->all();
+            ->values();
+
+        return PeriodPicker::choices($periods, fn (BillingPeriod $period): string => $period->starts_on->toDateString(), $date, $date === '' ? $shown : null);
     }
 }

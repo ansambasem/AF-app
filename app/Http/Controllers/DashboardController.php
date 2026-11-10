@@ -24,7 +24,7 @@ class DashboardController extends Controller
      * branch, or for the Super Admin the whole company, narrowed by
      * governorate or branch from the picker at the top: the open billing
      * period's accounts, and what waits on someone (readings to approve or
-     * enter, open boxes, disconnections due). Each part appears only for
+     * enter, open boxes). Each part appears only for
      * someone who may open the page it summarizes.
      */
     public function index(Request $request): InertiaResponse
@@ -48,7 +48,6 @@ class DashboardController extends Controller
 
         $sections = fn (): array => once(fn (): array => array_filter([
             'readings' => $overview->readings(),
-            'disconnections' => $overview->disconnections(),
             'boxes' => $overview->boxes(),
         ], fn (?array $section): bool => $section !== null));
         $periodAccounts = fn (): ?array => once(fn (): ?array => $overview->periodAccounts());

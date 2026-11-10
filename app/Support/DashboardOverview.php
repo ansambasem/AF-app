@@ -2,14 +2,11 @@
 
 namespace App\Support;
 
-use App\Enums\DisconnectionItemStatus;
 use App\Enums\MeterReadingStatus;
 use App\Enums\SubscriptionStatus;
 use App\Models\Branch;
 use App\Models\CashBox;
 use App\Models\Closing;
-use App\Models\DisconnectionList;
-use App\Models\DisconnectionListItem;
 use App\Models\MeterReading;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
@@ -21,8 +18,8 @@ use Illuminate\Support\Collection;
  * The dashboard's figures for the branches someone looks after: a branch's
  * staff see their own branch, the Super Admin the whole company or the
  * branch they pick. The dashboard shows the open billing period's accounts
- * and what waits on someone (readings to approve or enter, open boxes,
- * disconnections due); each part is worked out only for someone who may
+ * and what waits on someone (readings to approve or enter, open boxes);
+ * each part is worked out only for someone who may
  * open the page it summarizes, by the same rules and sums as that page.
  */
 class DashboardOverview
@@ -130,28 +127,6 @@ class DashboardOverview
             })->sortByDesc(fn (array $branch): float => (float) $branch['payments'])->values()->all() : null,
             'top' => $rows->sortByDesc('remaining')->filter(fn (array $row): bool => $row['remaining'] > 0)->take(5)
                 ->map(fn (array $row): array => ['subscriptionId' => $row['subscriptionId'], 'name' => $row['name'], 'accountNumber' => $row['accountNumber'], 'branchName' => $row['branchName'], 'remaining' => Closing::money($row['remaining'])])->values()->all(),
-        ];
-    }
-
-    /**
-     * The disconnection lists: subscriptions past their planned date with
-     * nothing done yet, and those planned for the week ahead.
-     *
-     * @return array{overdue: int, upcoming: int, openLists: int}|null
-     */
-    public function disconnections(): ?array
-    {
-        if (! $this->actor->can('viewAny', DisconnectionList::class)) {
-            return null;
-        }
-
-        $today = DailySeries::today();
-        $scheduled = fn (): Builder => DisconnectionListItem::query()->whereIn('branch_id', $this->branchIds())->where('status', DisconnectionItemStatus::Scheduled);
-
-        return [
-            'overdue' => $scheduled()->whereDate('scheduled_for', '<', $today->toDateString())->count(),
-            'upcoming' => $scheduled()->whereDate('scheduled_for', '>=', $today->toDateString())->whereDate('scheduled_for', '<=', $today->addDays(7)->toDateString())->count(),
-            'openLists' => DisconnectionList::query()->whereIn('branch_id', $this->branchIds())->whereNull('closed_at')->count(),
         ];
     }
 
