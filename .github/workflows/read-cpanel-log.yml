@@ -30,11 +30,7 @@ jobs:
             api Fileman/get_file_content --data-urlencode "dir=$1" --data-urlencode "file=$2" \
               | jq -r 'if .status == 1 then .data.content else "ERROR: \(.errors)" end' | tail -n "${3:-200}"
           }
-          api VersionControlDeployment/retrieve | jq -r '.data | sort_by(.deploy_id) | .[-4:][] | "\(.deploy_id) \(.timestamps) \(.log_path)"'
-          log=$(api VersionControlDeployment/retrieve | jq -r '.data | sort_by(.deploy_id) | last | .log_path')
-          read_file "$(dirname "$log")" "$(basename "$log")" 300
-          for dir in /home/abuzaedp/powercollect/storage/app/private/voucher-cleanup /home/abuzaedp/powercollect/storage/app/voucher-cleanup; do
-            echo "===== list $dir ====="
-            api Fileman/list_files --data-urlencode "dir=$dir" | jq -r 'if .status == 1 then (.data[] | "\(.file) \(.size)") else "ERROR: \(.errors)" end'
-          done
-          read_file /home/abuzaedp/powercollect/storage/logs laravel.log 80 | cut -c1-400
+          d=/home/abuzaedp/powercollect/storage/app/private/voucher-cleanup/2026-11-10_075351
+          api Fileman/list_files --data-urlencode "dir=$d" | jq -r '.data[] | "\(.file) \(.size)"'
+          api Fileman/get_file_content --data-urlencode "dir=$d" --data-urlencode "file=deleted-rows.json" | jq -r '.data.content' \
+            | jq -c '.[] | {voucher, kept, transactions: [.transactions[] | {id, subscription_id, type, amount, payment_method, manual_voucher_number, status, created_at}], box_entries: [.cash_box_payments[] | {id, amount, status}], closing_rows: (.closing_payments|length), amendments: (.transaction_amendments|length), bank_audits: (.bank_transfer_audits|length), notes_unlinked: .audit_notes_unlinked}'
