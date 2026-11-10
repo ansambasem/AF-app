@@ -6,7 +6,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Removes the duplicate paper voucher numbers left on standing cash payments
@@ -23,7 +22,8 @@ use Illuminate\Support\Facades\Storage;
  * correction they made of an older line is unlinked from it. Nothing else
  * is touched. Before anything is deleted:
  *  - a full backup is attempted (backup:run), and
- *  - every row to be deleted is written to storage/app/voucher-cleanup/<time>.json,
+ *  - every row to be deleted, and a whole copy of each table it touches, is
+ *    written to storage/app/private/voucher-cleanup/<time>/,
  * and each deletion is kept in the audit log (transaction_deletions, shown
  * on the transaction audit page) with its reason. Each subscription's
  * running balance is recalculated afterwards. With no duplicates, nothing
@@ -83,9 +83,15 @@ return new class extends Migration
         }
     }
 
+    /** Every table the cleanup deletes from or changes, copied whole before anything is. */
+    private const TABLES = ['subscription_transactions', 'cash_box_payments', 'closing_payments', 'transaction_amendments', 'bank_transfer_audits', 'audit_notes'];
+
     /**
-     * A full backup when the backup command can make one, and in any case
-     * every row that will be deleted, written before anything is.
+     * A full backup when the backup command can make one; and in any case,
+     * written with plain PHP (the server's PHP command line has no fileinfo,
+     * which Laravel's storage disks need), every row that will be deleted and
+     * a whole copy of each table the cleanup touches. Nothing is deleted
+     * unless both are saved.
      *
      * @param  list<array{voucher: string, kept: int, removed: list<int>}>  $plan
      */
@@ -104,13 +110,26 @@ return new class extends Migration
                 $rows[] = ['voucher' => $group['voucher'], 'kept' => $group['kept'], ...$this->tree($paymentId)];
             }
         }
-
-        $path = 'voucher-cleanup/'.now()->format('Y-m-d_His').'.json';
-        $written = Storage::disk('local')->put($path, json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-        if (! $written) {
-            throw new RuntimeException('The rows to delete could not be saved first; nothing was deleted.');
+        $tables = [];
+        foreach (self::TABLES as $table) {
+            $tables[$table] = DB::table($table)->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all();
         }
-        echo 'Rows to delete saved to storage/app/'.(config('filesystems.disks.local.root') === storage_path('app/private') ? 'private/' : '').$path."\n";
+
+        $directory = storage_path('app/private/voucher-cleanup/'.now()->format('Y-m-d_His'));
+        $saved = (is_dir($directory) || mkdir($directory, 0750, true))
+            && $this->save($directory.'/deleted-rows.json', $rows)
+            && $this->save($directory.'/tables-before.json', $tables);
+        if (! $saved) {
+            throw new RuntimeException('The backup could not be saved to '.$directory.'; nothing was deleted.');
+        }
+        echo 'Rows to delete and the tables before the cleanup saved to '.$directory."\n";
+    }
+
+    private function save(string $path, array $data): bool
+    {
+        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        return file_put_contents($path, $json) === strlen($json);
     }
 
     /**
