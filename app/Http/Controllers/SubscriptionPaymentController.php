@@ -33,11 +33,11 @@ class SubscriptionPaymentController extends Controller
             'ignore_transaction_id' => ['nullable', 'integer'],
         ]);
         $voucher = (string) SubscriptionTransaction::normalizeVoucher($validated['manual_voucher_number']);
-        $conflict = SubscriptionTransaction::cashVoucherConflict($voucher, isset($validated['ignore_transaction_id']) ? (int) $validated['ignore_transaction_id'] : null);
+        $conflict = SubscriptionTransaction::cashVoucherConflict($voucher, $subscription->branch_id, isset($validated['ignore_transaction_id']) ? (int) $validated['ignore_transaction_id'] : null);
 
         return response()->json([
             'available' => $conflict === null,
-            'message' => $conflict ? SubscriptionTransaction::voucherTakenException($voucher, $conflict, $subscription->branch_id)->errors()['manual_voucher_number'][0] : null,
+            'message' => $conflict ? SubscriptionTransaction::voucherTakenException($voucher, $conflict)->errors()['manual_voucher_number'][0] : null,
         ]);
     }
 
@@ -106,7 +106,7 @@ class SubscriptionPaymentController extends Controller
             'amount' => $payment->currency_amount,
             'currency' => $payment->currency->value,
             'inShekels' => ltrim($payment->amount, '-'),
-            'voucherNumber' => $payment->printedVoucherNumber(),
+            'voucherNumber' => $payment->receiptVoucherNumber(),
             'balance' => number_format($subscription->balance(), 2, '.', ''),
             'receiptUrl' => route('subscriptions.payments.receipt', [$subscription, $payment]),
         ]);

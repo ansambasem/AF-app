@@ -84,7 +84,7 @@ class SubscriptionStatementTest extends TestCase
                         // Recorded at 12:40 UTC: the statement shows the business's clock (Gaza, UTC+3).
                         'date' => '2026-08-30 15:40',
                         'voucherNumber' => '4471',
-                        'systemVoucherNumber' => '000001',
+                        'systemVoucherNumber' => null,
                         'manualVoucherNumber' => '4471',
                         'isCredit' => true,
                         'amount' => '74.00',
@@ -125,7 +125,7 @@ class SubscriptionStatementTest extends TestCase
             ->assertInertia(fn ($page) => $page->where('focusLineId', null));
     }
 
-    public function test_a_payment_lowers_the_balance_and_gets_the_next_voucher_number(): void
+    public function test_a_payment_lowers_the_balance_and_gets_no_made_up_voucher_number(): void
     {
         SubscriptionTransaction::factory()->for($this->subscription)->create(['amount' => '100.00']);
 
@@ -136,7 +136,7 @@ class SubscriptionStatementTest extends TestCase
         $this->recordPayment(['amount' => '20.86']);
 
         $this->assertSame(['-26.00', '-20.86'], SubscriptionTransaction::where('type', 'payment')->orderBy('id')->pluck('amount')->all());
-        $this->assertSame([1, 2], SubscriptionTransaction::where('type', 'payment')->orderBy('id')->pluck('voucher_number')->all());
+        $this->assertSame([null, null], SubscriptionTransaction::where('type', 'payment')->orderBy('id')->pluck('voucher_number')->all());
         $this->assertSame(
             ['action' => 'payment-recorded', 'subject' => 'Ahmad — 26 شيكل'],
             $this->branchAdmin->notifications()->oldest()->first()->data,
@@ -156,19 +156,19 @@ class SubscriptionStatementTest extends TestCase
         $this->assertSame('1.0000', $payment->exchange_rate);
     }
 
-    public function test_only_cash_payments_get_a_voucher_number_and_transfers_leave_the_sequence_alone(): void
+    public function test_a_payment_shows_only_the_paper_voucher_the_collector_wrote(): void
     {
-        $this->recordPayment(['amount' => '10'])->assertSessionHasNoErrors();
+        $this->recordPayment(['amount' => '10', 'manual_voucher_number' => '000017'])->assertSessionHasNoErrors();
         $this->recordPayment(['amount' => '20', 'payment_method' => 'bank_transfer', 'bank_name' => 'بنك فلسطين', 'sender_name' => 'Ahmad', 'reference_number' => 'TR-1'])->assertSessionHasNoErrors();
         $this->recordPayment(['amount' => '30', 'payment_method' => 'bank_transfer', 'bank_name' => 'بنك فلسطين', 'sender_name' => 'Ahmad', 'reference_number' => 'TR-2'])->assertSessionHasNoErrors();
         $this->recordPayment(['amount' => '40'])->assertSessionHasNoErrors();
 
-        $this->assertSame([1, null, null, 2], SubscriptionTransaction::orderBy('id')->pluck('voucher_number')->all());
+        $this->assertSame([null, null, null, null], SubscriptionTransaction::orderBy('id')->pluck('voucher_number')->all());
 
         $this->actingAs($this->branchAdmin)
             ->get(route('subscriptions.statement', $this->subscription))
             ->assertInertia(fn ($page) => $page
-                ->where('entries', fn ($entries): bool => collect($entries)->pluck('voucherNumber')->all() === ['000001', null, null, '000002']));
+                ->where('entries', fn ($entries): bool => collect($entries)->pluck('voucherNumber')->all() === ['000017', null, null, null]));
     }
 
     #[TestWith(['USD'])]
@@ -394,11 +394,11 @@ class SubscriptionStatementTest extends TestCase
         SubscriptionTransaction::factory()->for($this->subscription)->create(['amount' => '50.00', 'recorded_by' => $this->branchAdmin->id]);
 
         $this->followingRedirects()
-            ->recordPayment(['amount' => '74'])
+            ->recordPayment(['amount' => '74', 'manual_voucher_number' => '0042'])
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Subscriptions/Statement')
-                ->hasFlash('recordedPayment.voucherNumber', '000001')
+                ->hasFlash('recordedPayment.voucherNumber', '0042')
                 ->hasFlash('recordedPayment.balance', '-24.00'));
     }
 

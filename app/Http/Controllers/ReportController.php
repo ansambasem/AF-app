@@ -517,7 +517,7 @@ class ReportController extends Controller
             'day' => ClosingPeriods::for($line->subscription->branch_id)->dayOf($line->created_at),
             'time' => DailySeries::localTime($line->created_at),
             'branchName' => $line->subscription->branch?->name,
-            'voucherNumber' => $line->printedVoucherNumber(),
+            'voucherNumber' => $line->receiptVoucherNumber(),
             'subscriptionName' => $line->subscription->displayName(),
             'accountNumber' => $line->subscription->account_number,
             'meterBoxNumber' => $line->subscription->meterBox?->box_number,

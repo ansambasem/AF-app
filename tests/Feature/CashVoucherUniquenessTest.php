@@ -107,14 +107,14 @@ class CashVoucherUniquenessTest extends TestCase
         $this->assertSame(5, SubscriptionTransaction::query()->where('type', 'payment')->count());
     }
 
-    public function test_another_branchs_voucher_is_refused_without_naming_its_subscriber(): void
+    public function test_another_branch_may_use_the_same_voucher_number(): void
     {
         $other = Branch::factory()->create();
         $elsewhere = Subscription::factory()->create(['branch_id' => $other->id]);
         SubscriptionTransaction::recordPayment($elsewhere, $this->branchAdmin, ['amount' => '10', 'currency' => 'ILS', 'payment_method' => 'cash', 'manual_voucher_number' => '3']);
 
-        $this->pay(['manual_voucher_number' => '3'])
-            ->assertSessionHasErrors(['manual_voucher_number' => 'رقم السند 3 مستخدم من قبل على دفعة نقدية أخرى في فرع آخر. لكل دفعة نقدية سند واحد ولا يتكرر رقمه؛ تأكد من رقم السند.']);
+        $this->pay(['manual_voucher_number' => '3'])->assertSessionHasNoErrors();
+        $this->assertSame(2, SubscriptionTransaction::query()->withoutGlobalScopes()->where('manual_voucher_number', '3')->count());
     }
 
     public function test_the_database_refuses_two_standing_cash_payments_with_one_voucher_saved_together(): void
@@ -167,6 +167,7 @@ class CashVoucherUniquenessTest extends TestCase
 
     public function test_the_migration_stops_without_changing_anything_when_vouchers_are_already_shared(): void
     {
+        (require database_path('migrations/2026_11_10_083541_scope_cash_voucher_uniqueness_to_branch.php'))->down();
         $migration = require database_path('migrations/2026_11_09_090221_add_unique_cash_voucher_to_subscription_transactions.php');
         $migration->down();
         $this->assertFalse(Schema::hasColumn('subscription_transactions', 'cash_voucher_key'));

@@ -231,7 +231,7 @@ class BranchReportTest extends TestCase
     public function test_the_lines_download_as_csv_narrowed_to_one_kind(): void
     {
         $this->at('2026-10-01 08:00', fn () => SubscriptionTransaction::recordCharge($this->subscription, $this->collector, ChargeType::Penalty, '100', 'late'));
-        $payment = $this->at('2026-10-01 08:10', fn () => $this->pay('40'));
+        $payment = $this->at('2026-10-01 08:10', fn () => $this->pay('40', ['manual_voucher_number' => '000731']));
         $this->actingAs($this->preparer());
 
         $response = $this->get(route('reports.export', ['kind' => 'payments']))->assertOk();
@@ -240,7 +240,7 @@ class BranchReportTest extends TestCase
         $this->assertStringContainsString(rawurlencode('التقارير_North_2026-10-01_2026-10-01.csv'), $response->headers->get('Content-Disposition'));
 
         $this->assertStringStartsWith("\u{FEFF}\"North — التقارير المالية\"\n\"الفترة: 01/10/2026 – 01/10/2026\"\n\nالتاريخ,الوقت,الفرع", $csv);
-        $this->assertStringContainsString($payment->printedVoucherNumber(), $csv);
+        $this->assertStringContainsString($payment->receiptVoucherNumber(), $csv);
         $this->assertStringNotContainsString(__(ChargeType::Penalty->label()), $csv);
         $this->get(route('reports.index', ['kind' => 'charges']))->assertInertia(fn ($page) => $page
             ->where('transactions.data', fn ($lines): bool => collect($lines)->pluck('type')->all() === ['penalty']));
@@ -312,7 +312,7 @@ class BranchReportTest extends TestCase
 
     public function test_print_designer_receives_the_chosen_summary_or_filtered_details_with_company_templates(): void
     {
-        $payment = $this->at('2026-10-01 08:10', fn () => $this->pay('40'));
+        $payment = $this->at('2026-10-01 08:10', fn () => $this->pay('40', ['manual_voucher_number' => '000731']));
         $this->at('2026-10-01 08:20', fn () => SubscriptionTransaction::recordCharge($this->subscription, $this->collector, ChargeType::Penalty, '100', 'late'));
         $this->actingAs($this->preparer());
 
@@ -323,7 +323,7 @@ class BranchReportTest extends TestCase
             ->has('printTemplates'));
         $this->get(route('reports.index', ['print' => 1, 'print_all' => 1, 'print_view' => 'lines', 'kind' => 'payments']))->assertInertia(fn ($page) => $page
             ->where('printData.total', 1)
-            ->where('printData.rows.0.cells.السند', $payment->printedVoucherNumber())
+            ->where('printData.rows.0.cells.السند', '000731')
             ->where('printData.rows.0.cells.له', '40.00')
             ->where('printData.context.templatePage', '/reports'));
     }

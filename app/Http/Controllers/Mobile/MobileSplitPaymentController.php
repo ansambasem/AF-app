@@ -62,7 +62,7 @@ class MobileSplitPaymentController extends Controller
                 'subscription' => $payment->subscription->displayName(),
                 'amount' => $payment->currency_amount,
                 'balance_after' => number_format($payment->subscription->balance(), 2, '.', ''),
-                'voucher_number' => $payment->printedVoucherNumber(),
+                'voucher_number' => $payment->receiptVoucherNumber(),
             ]),
         ], 201);
     }
