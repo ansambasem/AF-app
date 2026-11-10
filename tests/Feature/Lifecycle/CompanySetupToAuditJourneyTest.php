@@ -3,6 +3,7 @@
 namespace Tests\Feature\Lifecycle;
 
 use App\Enums\UserRole;
+use App\Models\Area;
 use App\Models\Bank;
 use App\Models\Branch;
 use App\Models\CashBox;
@@ -53,7 +54,7 @@ class CompanySetupToAuditJourneyTest extends TestCase
         $this->post(route('sub-areas.store'), ['name' => 'البلوك أ', 'branch_id' => $branch->id])->assertSessionHasNoErrors();
         $this->post(route('sub-areas.store'), ['name' => 'البلوك ب', 'branch_id' => $branch->id])->assertSessionHasNoErrors();
         $this->post(route('sub-areas.store'), ['name' => 'البلوك أ', 'branch_id' => $branch->id])->assertSessionHasErrors('name');
-        $this->assertSame(['البلوك أ', 'البلوك ب'], SubArea::query()->where('branch_id', $branch->id)->orderBy('id')->pluck('name')->all());
+        $this->assertSame(['البلوك أ', 'البلوك ب'], $branch->fresh()->subAreas()->orderBy('id')->pluck('name')->all());
 
         // The deployment comes with the banks of config('powercollect.transfer_banks'); the company adds its own and retires one.
         $this->post(route('settings.banks.store'), ['name' => 'بنك الاستثمار الفلسطيني', 'is_receiver' => true, 'is_sender' => true, 'is_active' => true])->assertSessionHasNoErrors();
@@ -108,8 +109,9 @@ class CompanySetupToAuditJourneyTest extends TestCase
         $this->assertSame(5, User::query()->count());
         $this->assertSame(2, SubArea::query()->count());
 
-        // The branch manager adds a tablon to their own branch only, and only in one of its areas.
-        $foreignBlock = SubArea::factory()->create();
+        // The branch manager adds a tablon to their own branch only, and only in their own area.
+        $otherArea = Area::factory()->create();
+        $foreignBlock = SubArea::factory()->create(['area_id' => $otherArea->id]);
         $this->actingAs($manager)->post(route('meter-boxes.store'), ['name' => 'المخبز', 'box_number' => 'T-104', 'sub_area_id' => $foreignBlock->id])->assertSessionHasErrors('sub_area_id');
         $this->actingAs($manager)->post(route('meter-boxes.store'), ['name' => 'المخبز', 'box_number' => 'T-101', 'sub_area_id' => $company['blockB']->id])->assertSessionHasErrors('box_number');
         $this->actingAs($manager)->post(route('meter-boxes.store'), ['name' => 'المخبز', 'box_number' => 'T-104', 'sub_area_id' => $company['blockB']->id, 'branch_id' => Branch::factory()->create()->id])->assertSessionHasNoErrors();

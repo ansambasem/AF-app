@@ -7,10 +7,11 @@ use Database\Factories\BranchFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
-#[Fillable(['name', 'location', 'phone', 'is_active'])]
+#[Fillable(['name', 'location', 'phone', 'is_active', 'area_id'])]
 class Branch extends Model
 {
     /** @use HasFactory<BranchFactory> */
@@ -24,10 +25,22 @@ class Branch extends Model
         ];
     }
 
-    /** The branch's areas (formerly «منطقة 2»), each holding its meter boxes. */
+    /**
+     * The branch's area container (the former «المنطقة» level, which was the
+     * branch itself): it holds the branch's areas. Not shown on its own.
+     */
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class);
+    }
+
+    /**
+     * The branch's areas (the «منطقة 2» rows, shown as «المنطقة»): those in
+     * its area container, through the link the branch already has.
+     */
     public function subAreas(): HasMany
     {
-        return $this->hasMany(SubArea::class);
+        return $this->hasMany(SubArea::class, 'area_id', 'area_id');
     }
 
     public function users(): HasMany
@@ -68,7 +81,6 @@ class Branch extends Model
             'المشتركون' => $this->subscriptions()->count(),
             'المستخدمون' => $this->users()->count(),
             'الطبلونات' => $this->meterBoxes()->count(),
-            'المناطق' => $this->subAreas()->count(),
             'القراءات' => $this->meterReadings()->count(),
         ]);
     }

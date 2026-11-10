@@ -3,19 +3,18 @@ import { Head, router } from '@inertiajs/react';
 import SettingsLayout from '@/Layouts/SettingsLayout';
 import PageHeader from '@/Components/PageHeader';
 import { useDeleteRecord } from '@/hooks/useDeleteRecord';
-import SubAreaModal from '../SubAreas/SubAreaModal';
 import HierarchyColumn from './HierarchyColumn';
 import { areaBoxesHref, areasCountLabel, boxesCountLabel } from '@/lib/branchAreas';
 
 /**
  * The branch's areas: the branches on one side (only the Super Admin has
  * more than their own), the chosen branch's areas on the other, added and
- * renamed in place. Picking an area opens its meter boxes. Areas that
- * belong to no branch yet are listed for the Super Admin to assign.
+ * renamed in place. Picking an area opens its meter boxes. What the data
+ * leaves undecided (a container two branches share, an area in no branch)
+ * is listed for the Super Admin as it is, unchanged.
  */
-export default function Index({ branches, branch, areas, unassignedAreas, canChooseBranch }) {
+export default function Index({ branches, branch, areas, review, canChooseBranch }) {
     const [activeLevel, setActiveLevel] = useState(branch && !canChooseBranch ? 1 : 0);
-    const [modalArea, setModalArea] = useState(null);
     const { requestDelete, deleteDialog } = useDeleteRecord('المنطقة');
 
     function pickBranch(option) {
@@ -26,6 +25,12 @@ export default function Index({ branches, branch, areas, unassignedAreas, canCho
     return (
         <SettingsLayout header={<PageHeader title="مناطق الفروع" info="لكل فرع مناطقه، ولكل منطقة طبلوناتها. اختر الفرع لتظهر مناطقه، وأضف أو عدّل في مكانها، واضغط على منطقة لفتح طبلوناتها." />}>
             <Head title="مناطق الفروع" />
+
+            {branch?.sharedWith.length > 0 && (
+                <p role="status" className="mt-3 rounded-control border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                    مناطق هذا الفرع مسجّلة مشتركة مع: {branch.sharedWith.join('، ')}. تظهر هنا كما هي، ولا تُضاف إليها مناطق حتى يُحسم فرعها.
+                </p>
+            )}
 
             <div className={`mt-3 grid grid-cols-1 overflow-hidden rounded-card border border-gray-100 bg-surface shadow-card lg:min-h-[30rem] ${canChooseBranch ? 'lg:grid-cols-2' : ''}`}>
                 {canChooseBranch && (
@@ -48,12 +53,11 @@ export default function Index({ branches, branch, areas, unassignedAreas, canCho
                     noun="المنطقة"
                     items={branch ? areas : null}
                     waiting={{ title: 'اختر فرعًا أولًا', text: 'من عمود الفروع.' }}
-                    onPick={(area) => router.visit(areaBoxesHref(area))}
+                    onPick={(area) => router.visit(areaBoxesHref(branch.id, area))}
                     subtitle={(area) => boxesCountLabel(area.boxesCount)}
                     canAdd={Boolean(branch?.canCreateArea)}
                     createRequest={{ method: 'post', url: '/sub-areas', data: { branch_id: branch?.id } }}
-                    updateRequest={(area) => ({ method: 'put', url: `/sub-areas/${area.id}`, data: { branch_id: area.branch_id ?? '' } })}
-                    onMore={canChooseBranch ? setModalArea : undefined}
+                    updateRequest={(area) => ({ method: 'put', url: `/sub-areas/${area.id}`, data: {} })}
                     onDelete={(area) => requestDelete(`/sub-areas/${area.id}`, area.name, 'المنطقة')}
                     emptyText="لا توجد مناطق في هذا الفرع بعد"
                     active={activeLevel === 1}
@@ -61,23 +65,19 @@ export default function Index({ branches, branch, areas, unassignedAreas, canCho
                 />
             </div>
 
-            {unassignedAreas.length > 0 && (
-                <section aria-label="مناطق بلا فرع" className="mt-6 rounded-card border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
-                    <h2 className="text-sm font-bold text-amber-900 dark:text-amber-200">مناطق لا تتبع أي فرع بعد ({unassignedAreas.length})</h2>
-                    <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">لم يُعرف فرعها عند نقل المناطق من المحافظات. اختر لكل منها فرعها.</p>
-                    <ul className="mt-3 flex flex-wrap gap-2">
-                        {unassignedAreas.map((area) => (
-                            <li key={area.id}>
-                                <button type="button" onClick={() => setModalArea(area)} className="rounded-control border border-amber-300 bg-surface px-3 py-1.5 text-sm font-semibold text-gray-800 hover:border-amber-500">
-                                    {area.name} · {boxesCountLabel(area.boxesCount)}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
+            {review && (review.sharedContainers.length > 0 || review.unattachedAreas.length > 0) && (
+                <section aria-label="حالات تحتاج قرارًا" className="mt-6 space-y-3 rounded-card border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                    <h2 className="text-sm font-bold">حالات لا يحدد فيها النظام فرع المنطقة بشكل مؤكد</h2>
+                    <p className="text-xs">معروضة كما هي في البيانات، ولم يُغيَّر أو يُنقل منها شيء.</p>
+                    {review.sharedContainers.map((shared) => (
+                        <p key={shared.branches.join('|')} className="text-sm">فروع تشترك في مناطق واحدة ({shared.areas}): {shared.branches.join('، ')}</p>
+                    ))}
+                    {review.unattachedAreas.length > 0 && (
+                        <p className="text-sm">مناطق لا تتبع أي فرع: {review.unattachedAreas.map((area) => `${area.name} (${boxesCountLabel(area.boxesCount)})`).join('، ')}</p>
+                    )}
                 </section>
             )}
 
-            {modalArea && <SubAreaModal key={modalArea.id} show onClose={() => setModalArea(null)} subArea={modalArea} branches={branches} canChooseBranch={canChooseBranch} />}
             {deleteDialog}
         </SettingsLayout>
     );

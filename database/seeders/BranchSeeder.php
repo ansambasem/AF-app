@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Area;
 use App\Models\Branch;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -12,29 +13,30 @@ class BranchSeeder extends Seeder
     /**
      * Keep each key unchanged when renaming a branch.
      *
-     * @var list<array{key: string, name: string}>
+     * @var list<array{key: string, name: string, area: string}>
      */
     private const BRANCHES = [
-        ['key' => 'camp-two', 'name' => 'مكتب مخيم 2'],
-        ['key' => 'bureij-office', 'name' => 'مكتب البريج'],
-        ['key' => 'new-camp-office', 'name' => 'مكتب المخيم الجديد'],
-        ['key' => 'nuseirat-office', 'name' => 'مكتب النصيرات'],
-        ['key' => 'zawaida-office', 'name' => 'مكتب الزوايدة'],
+        ['key' => 'camp-two', 'name' => 'مكتب مخيم 2', 'area' => 'مخيم 2'],
+        ['key' => 'bureij-office', 'name' => 'مكتب البريج', 'area' => 'البريج'],
+        ['key' => 'new-camp-office', 'name' => 'مكتب المخيم الجديد', 'area' => 'المخيم الجديد'],
+        ['key' => 'nuseirat-office', 'name' => 'مكتب النصيرات', 'area' => 'النصيرات'],
+        ['key' => 'zawaida-office', 'name' => 'مكتب الزوايدة', 'area' => 'الزوايدة'],
     ];
 
-    /**
-     * Seed the agreed branches, without replacing existing records (an
-     * existing branch of the same name takes the key), then the camp
-     * branch's areas.
-     */
+    /** Seed the agreed branch names and locations without replacing existing records. */
     public function run(): void
     {
         DB::transaction(function (): void {
+            $this->call(LocationSeeder::class);
+
             foreach (self::BRANCHES as $definition) {
+                // The branch's area container (the former «المنطقة» level); no governorate any more.
+                $area = Area::query()->firstOrCreate(['name' => $definition['area']]);
+
                 $branch = Branch::query()->where('seed_key', $definition['key'])->first();
 
                 if ($branch === null) {
-                    $matches = Branch::query()->whereNull('seed_key')->get()
+                    $matches = Branch::query()->whereNull('seed_key')->where('area_id', $area->id)->get()
                         ->filter(fn (Branch $candidate): bool => $this->normalizedName($candidate->name) === $this->normalizedName($definition['name']));
 
                     if ($matches->count() > 1) {
@@ -45,11 +47,9 @@ class BranchSeeder extends Seeder
                 }
 
                 $branch->seed_key = $definition['key'];
-                $branch->fill(['name' => trim($definition['name'])]);
+                $branch->fill(['name' => trim($definition['name']), 'area_id' => $area->id]);
                 $branch->save();
             }
-
-            $this->call(LocationSeeder::class);
         });
     }
 

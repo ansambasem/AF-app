@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\Branch;
 use App\Models\SubArea;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,7 +19,6 @@ class SubAreaFactory extends Factory
     {
         return [
             'name' => fake()->unique()->streetName(),
-            'branch_id' => Branch::factory(),
         ];
     }
 }

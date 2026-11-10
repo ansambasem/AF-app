@@ -6,6 +6,7 @@ import FormSection from '@/Components/Form/FormSection';
 import Icon from '@/Components/Icon';
 import TextInput from '@/Components/TextInput';
 import MeterBoxSubAreaSelect from './MeterBoxSubAreaSelect';
+import { areaAfterBranchChange, areasOfBranch } from '@/lib/branchAreas';
 
 /**
  * The form's starting values: the meter box's own when editing,
@@ -24,14 +25,14 @@ export function meterBoxFormData(meterBox) {
 export default function MeterBoxForm({ data, setData, errors, branches, canChooseBranch, canCreateSubArea, subAreas, currentBranchId }) {
     const [createdSubAreas, setCreatedSubAreas] = useState([]);
 
-    // A box belongs to one area of its branch: the branch the Super Admin picks, or the actor's own.
+    // The branch comes first, then one of its areas (optional): the branch the Super Admin picks, or the actor's own.
     const branchId = canChooseBranch ? data.branch_id : currentBranchId;
     const availableSubAreas = [...new Map([...subAreas, ...createdSubAreas].map((item) => [String(item.id), item])).values()];
-    const subAreasInArea = branchId ? availableSubAreas.filter((subArea) => String(subArea.branch_id) === String(branchId)) : [];
+    const subAreasInArea = areasOfBranch(availableSubAreas, branchId);
 
     const displayName = [data.name.trim(), data.name_suffix.trim()].filter(Boolean).join(' ');
     const subArea = subAreasInArea.find((option) => String(option.id) === String(data.sub_area_id));
-    const requiredFields = ['name', 'box_number', 'sub_area_id', ...(canChooseBranch ? ['branch_id'] : [])];
+    const requiredFields = ['name', 'box_number', ...(canChooseBranch ? ['branch_id'] : [])];
 
     return (
         <div className="space-y-4">
@@ -92,7 +93,7 @@ export default function MeterBoxForm({ data, setData, errors, branches, canChoos
                         label="الفرع"
                         required
                         value={data.branch_id}
-                        onChange={(value) => setData((current) => ({ ...current, branch_id: value, sub_area_id: '' }))}
+                        onChange={(value) => setData((current) => ({ ...current, branch_id: value, sub_area_id: areaAfterBranchChange(availableSubAreas, current.sub_area_id, value) }))}
                         options={namedOptions(branches)}
                         placeholder="— اختر فرعًا —"
                         emptyMessage="لا توجد فروع بعد"

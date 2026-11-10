@@ -31,6 +31,20 @@ export function boxesCountLabel(count) {
 }
 
 /** The meter boxes page narrowed to one area of one branch. */
-export function areaBoxesHref(area) {
-    return `/meter-boxes?${new URLSearchParams({ 'filter[branch_id]': String(area.branch_id), 'filter[sub_area_id]': String(area.id) })}`;
+export function areaBoxesHref(branchId, area) {
+    return `/meter-boxes?${new URLSearchParams({ 'filter[branch_id]': String(branchId), 'filter[sub_area_id]': String(area.id) })}`;
+}
+
+/** The areas of `branchId`, from the form's area options (each names the branches it belongs to). */
+export function areasOfBranch(subAreas, branchId) {
+    if (!branchId) {
+        return [];
+    }
+
+    return subAreas.filter((area) => (area.branch_ids ?? []).some((id) => String(id) === String(branchId)));
+}
+
+/** The area kept when the branch changes: the chosen one if it is the new branch's too, else none. */
+export function areaAfterBranchChange(subAreas, areaId, branchId) {
+    return areaId && areasOfBranch(subAreas, branchId).some((area) => String(area.id) === String(areaId)) ? areaId : '';
 }

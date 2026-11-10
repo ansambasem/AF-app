@@ -3,6 +3,7 @@
 namespace Tests\Feature\Subscriptions;
 
 use App\Enums\SubscriptionStatus;
+use App\Models\Area;
 use App\Models\Branch;
 use App\Models\MeterBox;
 use App\Models\SubArea;
@@ -103,11 +104,11 @@ class SubscriptionAuthorizationTest extends TestCase
         $this->assertDatabaseMissing('subscriptions', ['national_id' => '555555555']);
     }
 
-    public function test_create_form_offers_only_the_own_branchs_areas_and_no_meter_box_list(): void
+    public function test_create_form_exposes_the_own_branch_area_and_subarea_and_no_meter_box_list(): void
     {
-        $branch = Branch::factory()->create();
-        $subArea = SubArea::factory()->for($branch)->create();
-        SubArea::factory()->create();
+        $area = Area::factory()->create();
+        $branch = Branch::factory()->inArea($area)->create();
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
         MeterBox::factory()->create(['branch_id' => $branch->id, 'sub_area_id' => $subArea->id]);
         $dataEntry = User::factory()->dataEntry()->create(['branch_id' => $branch->id]);
 
@@ -115,6 +116,7 @@ class SubscriptionAuthorizationTest extends TestCase
             ->get(route('subscriptions.create'))
             ->assertInertia(fn ($page) => $page
                 ->where('currentBranchId', $branch->id)
+                ->missing('currentBranchAreaName')
                 ->has('subAreas', 1)
                 ->where('subAreas.0.id', $subArea->id)
                 // The form finds boxes as the user types, so the page never carries them all.
@@ -281,10 +283,8 @@ class SubscriptionAuthorizationTest extends TestCase
     {
         $superAdmin = User::factory()->superAdmin()->create();
         $branch = Branch::factory()->create(['name' => 'North']);
-        $area = SubArea::factory()->for($branch)->create(['name' => 'المدارس']);
-        $box = MeterBox::factory()->for($branch)->create(['sub_area_id' => $area->id]);
         $tariff = Tariff::factory()->residential()->create();
-        Subscription::factory()->create(['branch_id' => $branch->id, 'tariff_id' => $tariff->id, 'full_name' => 'Detail Fields Subscription', 'meter_box_id' => $box->id]);
+        Subscription::factory()->create(['branch_id' => $branch->id, 'tariff_id' => $tariff->id, 'full_name' => 'Detail Fields Subscription']);
 
         $response = $this->actingAs($superAdmin)->get(route('subscriptions.index'));
 
@@ -293,7 +293,6 @@ class SubscriptionAuthorizationTest extends TestCase
             ->where('subscriptions.data.0.full_name', 'Detail Fields Subscription')
             ->where('subscriptions.data.0.tariffRate', (string) $tariff->rate)
             ->where('subscriptions.data.0.branchName', 'North')
-            ->where('subscriptions.data.0.subAreaName', 'المدارس')
             ->missing('subscriptions.data.0.governorateName'));
     }
 }

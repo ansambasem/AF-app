@@ -42,18 +42,34 @@ class SubAreaPolicy
     }
 
     /**
-     * Renaming an area: a Super Admin any; anyone else with the permission
-     * only those of the branch they work in.
+     * Determine whether the user can update the model: a Super Admin any
+     * sub-area; anyone else with the permission only those in their own
+     * branch's area.
      */
     public function update(User $user, SubArea $subArea): bool
     {
-        return $user->isSuperAdmin() || ($user->hasPermission(PermissionKey::UpdateSubAreas) && $this->ofTheirBranch($user, $subArea));
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        return $user->hasPermission(PermissionKey::UpdateSubAreas)
+            && $subArea->area_id !== null
+            && (int) $subArea->area_id === $user->branchAreaId();
     }
 
-    /** Deleting takes its own permission, for an area of the user's branch (any for the Super Admin). */
+    /**
+     * Deleting takes its own permission, for a sub-area of the user's
+     * branch's area (any for the Super Admin).
+     */
     public function delete(User $user, SubArea $subArea): bool
     {
-        return $user->isSuperAdmin() || ($user->hasPermission(PermissionKey::DeleteSubAreas) && $this->ofTheirBranch($user, $subArea));
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        return $user->hasPermission(PermissionKey::DeleteSubAreas)
+            && $subArea->area_id !== null
+            && (int) $subArea->area_id === $user->branchAreaId();
     }
 
     /**
@@ -70,10 +86,5 @@ class SubAreaPolicy
     public function forceDelete(User $user, SubArea $subArea): bool
     {
         return false;
-    }
-
-    private function ofTheirBranch(User $user, SubArea $subArea): bool
-    {
-        return $subArea->branch_id !== null && $user->workBranchId() !== null && (int) $subArea->branch_id === $user->workBranchId();
     }
 }

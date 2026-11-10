@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Area;
 use App\Models\Branch;
 use App\Models\CircuitBreaker;
 use App\Models\MeterBox;
@@ -20,9 +21,10 @@ class CampTwoSubscribersSeederTest extends TestCase
 
     private function prepareBranch(): Branch
     {
-        $branch = Branch::factory()->create(['seed_key' => 'camp-two', 'name' => 'مكتب مخيم 2']);
+        $area = Area::factory()->create();
+        $branch = Branch::factory()->inArea($area)->create(['seed_key' => 'camp-two', 'name' => 'مكتب مخيم 2']);
         User::factory()->superAdmin()->create();
-        foreach (SubArea::factory()->count(5)->for($branch)->create() as $subArea) {
+        foreach (SubArea::factory()->count(5)->for($area)->create() as $subArea) {
             MeterBox::factory()->count(2)->for($branch)->for($subArea)->create();
         }
         CircuitBreaker::factory()->create(['ampere' => 2, 'minimum_payment' => 20]);
@@ -59,7 +61,7 @@ class CampTwoSubscribersSeederTest extends TestCase
         $this->assertCount(10, $subscriptions->pluck('meter_box_id')->unique());
         foreach ($subscriptions as $subscription) {
             $this->assertSame($branch->id, $subscription->meterBox->branch_id);
-            $this->assertSame($branch->id, $subscription->meterBox->subArea->branch_id);
+            $this->assertSame($branch->area_id, $subscription->meterBox->subArea->area_id);
         }
     }
 
@@ -82,10 +84,11 @@ class CampTwoSubscribersSeederTest extends TestCase
 
     public function test_missing_meter_boxes_leave_all_subscription_data_unchanged(): void
     {
-        $branch = Branch::factory()->create(['seed_key' => 'camp-two']);
+        $area = Area::factory()->create();
+        $branch = Branch::factory()->inArea($area)->create(['seed_key' => 'camp-two']);
         MeterBox::factory()->for($branch)->create();
-        // A box of the branch whose area is another branch's does not count as a camp box.
-        $otherSubArea = SubArea::factory()->create();
+        $otherArea = Area::factory()->create();
+        $otherSubArea = SubArea::factory()->for($otherArea)->create();
         MeterBox::factory()->for($branch)->for($otherSubArea)->create();
 
         try {
@@ -113,7 +116,7 @@ class CampTwoSubscribersSeederTest extends TestCase
 
         $subscription->refresh();
         $this->assertNotSame($unassignedBox->id, $subscription->meter_box_id);
-        $this->assertSame($branch->id, $subscription->meterBox->subArea->branch_id);
+        $this->assertSame($branch->area_id, $subscription->meterBox->subArea->area_id);
         unset($before['meter_box_id'], $before['updated_at']);
         $after = $subscription->getAttributes();
         unset($after['meter_box_id'], $after['updated_at']);

@@ -49,7 +49,7 @@ class MeterBoxController extends Controller
         $query = $this->matchingBoxes($request, $actor);
 
         $branchId = BranchDomainContext::id() ?? ($actor->isSuperAdmin() ? $request->input('filter.branch_id') : $actor->workBranchId());
-        $selectedBranch = filled($branchId) ? Branch::query()->find((int) $branchId, ['id']) : null;
+        $selectedBranch = filled($branchId) ? Branch::query()->find((int) $branchId, ['id', 'area_id']) : null;
 
         $summary = DB::query()->fromSub((clone $query)->reorder(), 'matching_boxes')
             ->selectRaw('COUNT(*) AS total, COALESCE(SUM(subscriptions_count), 0) AS subscriptions')
@@ -86,7 +86,7 @@ class MeterBoxController extends Controller
             ],
             'filters' => $this->dataTableState($request, 'box_number'),
             'filterOptions' => $this->filterOptions($actor, $request, $selectedBranch),
-            'selectedBranch' => $selectedBranch?->only(['id']),
+            'selectedBranch' => $selectedBranch?->only(['id', 'area_id']),
             'groupByRegion' => $request->input('group') === 'region',
             // The Super Admin reads, large above the list, which branch's boxes it holds.
             'branchScope' => fn () => BranchScope::shownTo($actor) ? BranchScope::forFilter($actor, $request->input('filter.branch_id')) : null,
@@ -306,8 +306,8 @@ class MeterBoxController extends Controller
     /**
      * The create/edit forms' choices: the branch (for a Super Admin, who
      * picks it; everyone else's is the one they work in) and the areas a
-     * box can be placed in, each with the branch it belongs to, so the form
-     * offers only the chosen branch's areas.
+     * box can be placed in, each with the branches it belongs to, so the
+     * form offers only the chosen branch's areas.
      *
      * @return array{branches: Collection, canChooseBranch: bool, canCreateSubArea: bool, subAreas: Collection, currentBranchId: ?int}
      */
@@ -320,7 +320,7 @@ class MeterBoxController extends Controller
             'branches' => $canChooseBranch ? Branch::query()->orderBy('name')->get(['id', 'name']) : collect(),
             'canChooseBranch' => $canChooseBranch,
             'canCreateSubArea' => $actor->can('create', SubArea::class),
-            'subAreas' => SubArea::visibleTo($actor)->orderBy('name')->get(['id', 'name', 'branch_id']),
+            'subAreas' => SubArea::optionsFor($actor),
             'currentBranchId' => $canChooseBranch ? null : $actor->workBranchId(),
         ];
     }
@@ -336,7 +336,7 @@ class MeterBoxController extends Controller
     {
         $groups = [
             $this->subAreaFilterGroup(SubArea::visibleTo($actor)
-                ->when($selectedBranch, fn (Builder $query): Builder => $query->where('branch_id', $selectedBranch->id))
+                ->when($selectedBranch, fn (Builder $query): Builder => $query->where('area_id', $selectedBranch->area_id))
                 ->orderBy('name')->get()),
             ...$this->meterBoxFilterGroupsFor($actor, $request, $actor->isSuperAdmin() ? fn (MeterBox $box): string => $box->branch->name : null),
         ];

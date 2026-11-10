@@ -78,7 +78,7 @@ class MobileCollectionController extends Controller
         $subscription = Subscription::query()
             ->whereNull('subscriptions.archived_at')
             ->visibleTo($request->user())
-            ->with(['branch', 'meterBox.subArea', 'tariff', 'circuitBreaker', 'latestMeterReading'])
+            ->with(['branch.area', 'meterBox.subArea', 'tariff', 'circuitBreaker', 'latestMeterReading'])
             ->findOrFail($subscription);
         $lastReading = $subscription->latestMeterReading;
         $balanceInCents = Closing::cents($subscription->balance());
@@ -116,7 +116,7 @@ class MobileCollectionController extends Controller
                 'meter_box_location' => $subscription->meterBox?->location,
                 'phone' => $subscription->contactPhone(),
                 'address' => $subscription->address,
-                'area_name' => $subscription->meterBox?->subArea?->name,
+                'area_name' => $subscription->branch?->area?->name,
                 'sub_area_name' => $subscription->meterBox?->subArea?->name,
                 'balance' => Closing::money($balanceInCents),
                 'status' => $subscription->status->value,

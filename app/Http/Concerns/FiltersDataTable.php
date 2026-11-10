@@ -326,18 +326,21 @@ trait FiltersDataTable
     }
 
     /**
-     * The "Area" dropdown: each of the given areas tied to the one branch it
-     * belongs to, so picking a branch lists only its areas.
+     * The "Area" dropdown: each of the given areas tied to the branch it
+     * belongs to (through the branch's area container), so picking a
+     * branch lists only its areas.
      *
      * @param  iterable<int, SubArea>  $subAreas
      * @return array{key: string, label: string, options: array<int, array{value: string, label: string, scope: array<string, string|array<int, string>>}>}
      */
     protected function subAreaFilterGroup(iterable $subAreas): array
     {
+        $branches = SubArea::branchesByContainer();
+
         return $this->filterGroup('sub_area_id', 'المنطقة', collect($subAreas)->map(fn (SubArea $subArea) => [
             'value' => (string) $subArea->getKey(),
             'label' => $subArea->name,
-            'scope' => $this->filterScope(['branch_id' => $subArea->branch_id]),
+            'scope' => $this->filterScope(['branch_id' => $branches[$subArea->area_id] ?? []]),
         ]));
     }
 

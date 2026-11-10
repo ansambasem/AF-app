@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\PermissionKey;
+use App\Models\Area;
 use App\Models\MeterBox;
 use App\Models\MobileAccessToken;
 use App\Models\Permission;
@@ -21,8 +22,10 @@ class SharedProfileSubscriptionsTest extends TestCase
 
     public function test_statement_subscription_cards_include_the_meter_box_name_suffix_number_and_area(): void
     {
+        $area = Area::factory()->create(['name' => 'المخيم']);
+        $subArea = SubArea::factory()->create(['name' => 'الحي الشرقي', 'area_id' => $area->id]);
         $actor = User::factory()->branchAdmin()->create();
-        $subArea = SubArea::factory()->create(['name' => 'الحي الشرقي', 'branch_id' => $actor->branch_id]);
+        $actor->branch->update(['area_id' => $area->id]);
         $box = MeterBox::factory()->create(['branch_id' => $actor->branch_id, 'sub_area_id' => $subArea->id, 'name' => 'طبلون السوق', 'name_suffix' => 'أ', 'box_number' => '110303']);
         $subscription = Subscription::factory()->create(['branch_id' => $actor->branch_id, 'meter_box_id' => $box->id]);
         Subscription::factory()->for($subscription->profile, 'profile')->create(['branch_id' => $actor->branch_id, 'meter_box_id' => null]);
@@ -31,6 +34,8 @@ class SharedProfileSubscriptionsTest extends TestCase
             ->has('subscriptions', 2)
             ->where('subscriptions.0.meterBoxName', 'طبلون السوق أ')
             ->where('subscriptions.0.meterBoxNumber', '110303')
+            // The former area level (the branch itself) is no longer shown beside the area.
+            ->missing('subscriptions.0.areaName')
             ->where('subscriptions.0.subAreaName', 'الحي الشرقي')
             ->where('subscriptions.1.meterBoxName', null)
             ->where('subscriptions.1.subAreaName', null));

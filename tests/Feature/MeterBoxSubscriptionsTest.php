@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Enums\ChargeType;
 use App\Enums\PermissionKey;
 use App\Enums\SubscriptionStatus;
+use App\Models\Area;
 use App\Models\Branch;
 use App\Models\CircuitBreaker;
+use App\Models\Governorate;
 use App\Models\MeterBox;
 use App\Models\SubArea;
 use App\Models\Subscription;
@@ -121,15 +123,17 @@ class MeterBoxSubscriptionsTest extends TestCase
             ->where('meterBoxes.data', fn ($rows): bool => collect($rows)->pluck('id')->all() === [$last->id, $second->id, $first->id]));
     }
 
-    public function test_a_selected_branch_offers_only_its_own_areas(): void
+    public function test_a_selected_branch_supplies_its_own_area_and_only_its_subareas(): void
     {
-        $branch = Branch::factory()->create();
-        $subArea = SubArea::factory()->for($branch)->create();
-        SubArea::factory()->create();
+        $governorate = Governorate::factory()->create();
+        $area = Area::factory()->create(['governorate_id' => $governorate->id]);
+        $branch = Branch::factory()->inArea($area)->create();
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
+        SubArea::factory()->create(['area_id' => Area::factory()->create()->id]);
         $owner = User::factory()->superAdmin()->create();
 
         $this->actingAs($owner)->get(route('meter-boxes.index', ['filter' => ['branch_id' => $branch->id]]))->assertInertia(fn ($page) => $page
-            ->where('selectedBranch', ['id' => $branch->id])
+            ->where('selectedBranch', ['id' => $branch->id, 'area_id' => $area->id])
             ->has('filterOptions.0.options', 1)->where('filterOptions.0.options.0.value', (string) $subArea->id));
         $this->get(route('meter-boxes.index', ['filter' => ['branch_id' => '']]))->assertInertia(fn ($page) => $page
             ->where('selectedBranch', null)->has('filterOptions.0.options', 2));
@@ -137,8 +141,8 @@ class MeterBoxSubscriptionsTest extends TestCase
 
     public function test_box_name_and_number_filters_update_region_totals_without_including_other_branches(): void
     {
-        $area = Branch::factory()->create();
-        $actor = User::factory()->branchAdmin()->for($area)->create();
+        $area = Area::factory()->create();
+        $actor = User::factory()->branchAdmin()->for(Branch::factory()->inArea($area))->create();
         $firstArea = SubArea::factory()->for($area)->create();
         $secondArea = SubArea::factory()->for($area)->create();
         $first = MeterBox::factory()->for($actor->branch)->create(['name' => 'السوق', 'name_suffix' => 'أ', 'sub_area_id' => $firstArea->id]);
@@ -192,8 +196,8 @@ class MeterBoxSubscriptionsTest extends TestCase
 
     public function test_grouping_by_region_lists_each_regions_boxes_together_with_unplaced_boxes_last(): void
     {
-        $area = Branch::factory()->create();
-        $actor = User::factory()->branchAdmin()->for($area)->create();
+        $area = Area::factory()->create();
+        $actor = User::factory()->branchAdmin()->for(Branch::factory()->inArea($area))->create();
         $market = SubArea::factory()->for($area)->create(['name' => 'السوق']);
         $camp = SubArea::factory()->for($area)->create(['name' => 'المخيم']);
         $unplaced = MeterBox::factory()->for($actor->branch)->create(['box_number' => '1']);
@@ -210,8 +214,8 @@ class MeterBoxSubscriptionsTest extends TestCase
 
     public function test_boxes_print_with_their_subscribers_under_their_region_in_the_chosen_order(): void
     {
-        $area = Branch::factory()->create();
-        $actor = User::factory()->branchAdmin()->for($area)->create();
+        $area = Area::factory()->create();
+        $actor = User::factory()->branchAdmin()->for(Branch::factory()->inArea($area))->create();
         $camp = SubArea::factory()->for($area)->create(['name' => 'المخيم']);
         $box = MeterBox::factory()->for($actor->branch)->create(['name' => 'ابو ذر', 'name_suffix' => '8', 'box_number' => '205883', 'sub_area_id' => $camp->id]);
         $unplaced = MeterBox::factory()->for($actor->branch)->create(['name' => 'الجامع', 'box_number' => '100']);

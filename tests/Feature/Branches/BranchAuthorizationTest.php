@@ -3,8 +3,10 @@
 namespace Tests\Feature\Branches;
 
 use App\Enums\PermissionKey;
+use App\Models\Area;
 use App\Models\Branch;
 use App\Models\SubArea;
+use App\Models\Governorate;
 use App\Models\Permission;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
@@ -24,15 +26,27 @@ class BranchAuthorizationTest extends TestCase
             ->assertOk();
     }
 
-    public function test_a_branch_is_no_longer_placed_in_a_governorate_or_an_area(): void
+    public function test_the_branch_form_no_longer_places_a_branch_in_a_governorate(): void
     {
         $superAdmin = User::factory()->superAdmin()->create();
+        $governorate = Governorate::factory()->create();
 
         $this->actingAs($superAdmin)->post(route('branches.store'), [
-            'name' => 'Downtown Branch', 'governorate_id' => 5, 'area_id' => 7,
+            'name' => 'Downtown Branch', 'governorate_id' => $governorate->id,
         ])->assertRedirect(route('branches.index'));
 
-        $this->assertDatabaseHas('branches', ['name' => 'Downtown Branch', 'governorate_id' => null, 'area_id' => null]);
+        $this->assertDatabaseHas('branches', ['name' => 'Downtown Branch', 'governorate_id' => null]);
+    }
+
+    public function test_editing_a_branch_keeps_its_existing_area_container(): void
+    {
+        $superAdmin = User::factory()->superAdmin()->create();
+        $area = Area::factory()->create();
+        $branch = Branch::factory()->inArea($area)->create(['name' => 'Old']);
+
+        $this->actingAs($superAdmin)->put(route('branches.update', $branch), ['name' => 'New', 'is_active' => true])->assertSessionHasNoErrors();
+
+        $this->assertSame([$area->id, 'New'], [$branch->fresh()->area_id, $branch->fresh()->name]);
     }
 
     public function test_super_admin_can_create_a_branch(): void
@@ -111,11 +125,12 @@ class BranchAuthorizationTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_the_branches_page_counts_each_branchs_areas(): void
+    public function test_the_branches_page_counts_each_branchs_areas_and_offers_no_governorate_filter(): void
     {
         $superAdmin = User::factory()->superAdmin()->create();
-        $branch = Branch::factory()->create(['name' => 'A Branch']);
-        SubArea::factory()->count(2)->for($branch)->create();
+        $area = Area::factory()->create();
+        Branch::factory()->inArea($area)->create(['name' => 'A Branch']);
+        SubArea::factory()->count(2)->for($area)->create();
 
         $this->actingAs($superAdmin)->get(route('branches.index'))->assertInertia(fn ($page) => $page
             ->where('branches.data.0.name', 'A Branch')

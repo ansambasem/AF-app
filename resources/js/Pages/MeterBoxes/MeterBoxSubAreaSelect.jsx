@@ -53,12 +53,11 @@ export default function MeterBoxSubAreaSelect({ id, value, onChange, onCreated, 
             <FormSelect
                 id={id}
                 label="منطقة الطبلون"
-                required
                 searchable
                 value={value}
                 onChange={onChange}
                 options={options}
-                placeholder="— اختر المنطقة —"
+                placeholder="— بلا منطقة —"
                 blockedMessage={blockedMessage}
                 emptyMessage="لا توجد مناطق في هذا الفرع بعد"
                 error={error}

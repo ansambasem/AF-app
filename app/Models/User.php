@@ -260,6 +260,16 @@ class User extends Authenticatable
     }
 
     /**
+     * The area (منطقة) the user's branch sits in — the only area where
+     * anyone but a Super Admin may add or edit sub-areas. Null when the
+     * user has no branch or the branch has no area set.
+     */
+    public function branchAreaId(): ?int
+    {
+        return $this->workBranch()?->area_id;
+    }
+
+    /**
      * Super Admins implicitly hold every permission; everyone else needs an
      * explicit grant recorded in the permission_user pivot. The grants are
      * read once and reused, since one page checks many permissions.

@@ -5,6 +5,7 @@ namespace Tests\Feature\MeterReadings;
 use App\Enums\MeterReadingStatus;
 use App\Enums\PermissionKey;
 use App\Enums\SubscriptionStatus;
+use App\Models\Area;
 use App\Models\Branch;
 use App\Models\MeterBox;
 use App\Models\MeterReading;
@@ -728,11 +729,13 @@ class MeterReadingTest extends TestCase
                 ->where('rows.data.0.id', $inCampOne->id));
     }
 
-    public function test_the_reading_sheets_filters_name_the_branch_and_area_each_option_belongs_to(): void
+    public function test_the_reading_sheets_filters_name_the_branch_each_area_and_box_belongs_to(): void
     {
-        $north = Branch::factory()->create();
-        $south = Branch::factory()->create();
-        $subArea = SubArea::factory()->for($north)->create();
+        $area = Area::factory()->create();
+        $otherArea = Area::factory()->create();
+        $north = Branch::factory()->create(['area_id' => $area->id]);
+        $south = Branch::factory()->create(['area_id' => $otherArea->id]);
+        $subArea = SubArea::factory()->create(['area_id' => $area->id]);
         $box = MeterBox::factory()->create(['branch_id' => $north->id, 'sub_area_id' => $subArea->id, 'name' => 'camp']);
 
         $this->actingAs(User::factory()->superAdmin()->create())
@@ -740,9 +743,9 @@ class MeterReadingTest extends TestCase
             ->assertInertia(fn ($page) => $page->where('filterOptions', function ($groups) use ($north, $subArea, $box): bool {
                 $option = fn (string $key, int|string $value): array => collect(collect($groups)->firstWhere('key', $key)['options'])->firstWhere('value', (string) $value);
 
-                // No governorate or former area level any more: an area is its branch's.
+                // No governorate or former area level to filter by: an area is its branch's.
                 return collect($groups)->firstWhere('key', 'area_id') === null
-                    && $option('sub_area_id', $subArea->id)['scope'] === ['branch_id' => (string) $north->id]
+                    && $option('sub_area_id', $subArea->id)['scope'] === ['branch_id' => [(string) $north->id]]
                     && $option('meter_box_id', $box->id)['scope'] === ['branch_id' => (string) $north->id, 'sub_area_id' => (string) $subArea->id]
                     && $option('meter_box_name', 'camp')['scope']['branch_id'] === [(string) $north->id];
             }));

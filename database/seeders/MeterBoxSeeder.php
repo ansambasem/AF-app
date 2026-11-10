@@ -20,7 +20,7 @@ class MeterBoxSeeder extends Seeder
         $this->call(LocationSeeder::class);
 
         $branch = LocationSeeder::branch();
-        $subAreaIds = SubArea::query()->where('branch_id', $branch->id)->pluck('id', 'name');
+        $subAreaIds = SubArea::query()->pluck('id', 'name');
         $boxes = json_decode((string) file_get_contents(__DIR__.'/data/meter_boxes.json'), true, 512, JSON_THROW_ON_ERROR);
         $created = 0;
         $skipped = [];

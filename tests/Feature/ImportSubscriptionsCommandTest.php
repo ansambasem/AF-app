@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AccountingType;
+use App\Models\Area;
 use App\Models\Branch;
 use App\Models\MeterBox;
 use App\Models\SubArea;
@@ -22,7 +23,7 @@ class ImportSubscriptionsCommandTest extends TestCase
 
     private const HEADER_WITH_BOX = "subscription_number,name,phone_number,balance,subscription_type,minimum_limit,area,box_number\n";
 
-    private Branch $branch;
+    private Area $area;
 
     private User $user;
 
@@ -30,9 +31,9 @@ class ImportSubscriptionsCommandTest extends TestCase
     {
         parent::setUp();
 
-        $this->branch = Branch::factory()->create();
+        $this->area = Area::factory()->create();
         $this->user = User::factory()->dataEntry()->create([
-            'branch_id' => $this->branch->id,
+            'branch_id' => Branch::factory()->inArea($this->area)->create()->id,
         ]);
         Tariff::factory()->residential()->create();
     }
@@ -55,7 +56,7 @@ class ImportSubscriptionsCommandTest extends TestCase
         return MeterBox::factory()->create([
             'box_number' => $number,
             'branch_id' => ($branch ?? $this->user->branch)->id,
-            'sub_area_id' => SubArea::factory()->create(['branch_id' => $this->branch->id])->id,
+            'sub_area_id' => SubArea::factory()->create(['area_id' => $this->area->id])->id,
         ]);
     }
 

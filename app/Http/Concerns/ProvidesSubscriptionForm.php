@@ -104,7 +104,7 @@ trait ProvidesSubscriptionForm
             'tariffs' => $tariffs,
             // Any subscription can be given any customer segment, whatever their tariff.
             'segments' => fn () => TariffSegment::orderBy('name')->get(['id', 'name']),
-            'subAreas' => fn () => SubArea::visibleTo($actor)->orderBy('name')->get(['id', 'name', 'branch_id']),
+            'subAreas' => fn () => SubArea::optionsFor($actor),
             'circuitBreakers' => fn () => CircuitBreaker::orderBy('ampere')->get(),
             'canChooseBranch' => $canChooseBranch,
             'currentBranchId' => $canChooseBranch ? null : $actor->workBranchId(),

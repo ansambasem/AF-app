@@ -174,7 +174,7 @@ class DashboardTest extends TestCase
 
         $response = $this->actingAs($superAdmin)->get(route('dashboard'));
 
-        // The branch form has no governorate or area to pick any more: its options are empty.
+        // The branch form has no governorate (or area container) to pick: its options are empty.
         $response->assertInertia(fn ($page) => $page
             ->where('canCreateBranch', true)
             ->missing('branchForm')

@@ -139,7 +139,7 @@ class RecordDeletionTest extends TestCase
 
     public function test_places_are_deleted_only_once_nothing_is_under_them(): void
     {
-        $area = SubArea::factory()->for($this->branch)->create();
+        $area = SubArea::factory()->create();
         $meterBox = MeterBox::factory()->create(['branch_id' => $this->branch->id, 'sub_area_id' => $area->id]);
 
         $this->deleteAs($this->superAdmin, route('sub-areas.destroy', $area))->assertSessionHasErrors('delete');

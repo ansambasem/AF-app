@@ -16,6 +16,7 @@ import { formatAmount } from '@/lib/currency';
 import { initials } from '@/lib/format';
 import { plainDigits } from '@/lib/formValidation';
 import DateInput from '@/Components/DateInput';
+import { areasOfBranch } from '@/lib/branchAreas';
 
 const STATUS_OPTIONS = [
     { value: 'active', label: 'نشط', dot: 'green' },
@@ -159,7 +160,7 @@ export default function SubscriptionForm({
     const [selectedBox, setSelectedBox] = useState(meterBox);
     const [subAreaId, setSubAreaId] = useState(() => (meterBox?.sub_area_id ? String(meterBox.sub_area_id) : ''));
 
-    const subAreasInArea = resolvedBranchId ? subAreas.filter((subArea) => String(subArea.branch_id) === String(resolvedBranchId)) : [];
+    const subAreasInArea = areasOfBranch(subAreas, resolvedBranchId);
 
     // A Super Admin's boxes are those of the branch chosen; a branch's staff already get only their own.
     const boxBranchId = canChooseBranch ? data.branch_id : '';

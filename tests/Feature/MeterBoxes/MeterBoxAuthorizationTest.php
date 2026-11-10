@@ -5,7 +5,6 @@ namespace Tests\Feature\MeterBoxes;
 use App\Enums\PermissionKey;
 use App\Models\Branch;
 use App\Models\MeterBox;
-use App\Models\SubArea;
 use App\Models\Permission;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
@@ -35,7 +34,6 @@ class MeterBoxAuthorizationTest extends TestCase
             'box_number' => 'BOX-100',
             'location' => 'Main St',
             'branch_id' => $branch->id,
-            'sub_area_id' => SubArea::factory()->for($branch)->create()->id,
         ]);
 
         $response->assertRedirect(route('meter-boxes.index'));
@@ -54,7 +52,6 @@ class MeterBoxAuthorizationTest extends TestCase
             'name' => $meterBox->name,
             'box_number' => 'BOX-UPDATED',
             'branch_id' => $meterBox->branch_id,
-            'sub_area_id' => SubArea::factory()->create(['branch_id' => $meterBox->branch_id])->id,
         ]);
 
         $response->assertRedirect(route('meter-boxes.index'));
@@ -73,7 +70,6 @@ class MeterBoxAuthorizationTest extends TestCase
             'name' => 'Renamed box',
             'box_number' => 'BOX-1',
             'branch_id' => $meterBox->branch_id,
-            'sub_area_id' => SubArea::factory()->create(['branch_id' => $meterBox->branch_id])->id,
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -95,7 +91,7 @@ class MeterBoxAuthorizationTest extends TestCase
         $otherBranch = Branch::factory()->create();
 
         $this->actingAs($branchAdmin)
-            ->post(route('meter-boxes.store'), ['name' => 'Street box', 'box_number' => 'BOX-1', 'branch_id' => $otherBranch->id, 'sub_area_id' => SubArea::factory()->create(['branch_id' => $branchAdmin->branch_id])->id])
+            ->post(route('meter-boxes.store'), ['name' => 'Street box', 'box_number' => 'BOX-1', 'branch_id' => $otherBranch->id])
             ->assertRedirect(route('meter-boxes.index'));
 
         $this->assertDatabaseHas('meter_boxes', ['box_number' => 'BOX-1', 'branch_id' => $branchAdmin->branch_id]);
@@ -108,7 +104,7 @@ class MeterBoxAuthorizationTest extends TestCase
         $foreignBox = MeterBox::factory()->create(['box_number' => 'BOX-2', 'name' => 'Old name']);
 
         $this->actingAs($branchAdmin)
-            ->put(route('meter-boxes.update', $ownBox), ['name' => 'Renamed box', 'box_number' => 'BOX-1', 'sub_area_id' => SubArea::factory()->create(['branch_id' => $branchAdmin->branch_id])->id])
+            ->put(route('meter-boxes.update', $ownBox), ['name' => 'Renamed box', 'box_number' => 'BOX-1'])
             ->assertSessionHasNoErrors();
         $this->actingAs($branchAdmin)
             ->put(route('meter-boxes.update', $foreignBox), ['name' => 'Hijacked', 'box_number' => 'BOX-2'])

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Area;
 use App\Models\Branch;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -23,5 +24,15 @@ class BranchFactory extends Factory
             'phone' => fake()->phoneNumber(),
             'is_active' => true,
         ];
+    }
+
+    /**
+     * Indicate that the branch's areas are those of the given area container.
+     */
+    public function inArea(Area $area): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'area_id' => $area->id,
+        ]);
     }
 }
