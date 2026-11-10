@@ -177,7 +177,7 @@ void main() {
     expect(copied, '0599111222');
     expect(find.text('تم نسخ رقم الهاتف.'), findsOneWidget);
     await tester.ensureVisible(find.text('الحي الشرقي'));
-    expect(find.text('المنطقة 2'), findsOneWidget);
+    expect(find.text('المنطقة'), findsOneWidget);
     expect(find.text('منطقة الفرع'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());

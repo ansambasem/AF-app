@@ -4,10 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\ChargeType;
 use App\Enums\PermissionKey;
-use App\Models\Area;
 use App\Models\Branch;
-use App\Models\Governorate;
 use App\Models\MeterBox;
+use App\Models\SubArea;
 use App\Models\Permission;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
@@ -140,19 +139,16 @@ class RecordDeletionTest extends TestCase
 
     public function test_places_are_deleted_only_once_nothing_is_under_them(): void
     {
-        $governorate = Governorate::factory()->create();
-        $area = Area::factory()->create(['governorate_id' => $governorate->id]);
-        $meterBox = MeterBox::factory()->create(['branch_id' => $this->branch->id]);
+        $area = SubArea::factory()->create();
+        $meterBox = MeterBox::factory()->create(['branch_id' => $this->branch->id, 'sub_area_id' => $area->id]);
 
-        $this->deleteAs($this->superAdmin, route('governorates.destroy', $governorate))->assertSessionHasErrors('delete');
+        $this->deleteAs($this->superAdmin, route('sub-areas.destroy', $area))->assertSessionHasErrors('delete');
         $this->deleteAs($this->superAdmin, route('branches.destroy', $this->branch))->assertSessionHasErrors('delete');
         $this->deleteAs($this->superAdmin, route('meter-boxes.destroy', $meterBox))->assertSessionHasNoErrors();
-        $this->deleteAs($this->superAdmin, route('areas.destroy', $area))->assertSessionHasNoErrors();
-        $this->deleteAs($this->superAdmin, route('governorates.destroy', $governorate))->assertSessionHasNoErrors();
+        $this->deleteAs($this->superAdmin, route('sub-areas.destroy', $area))->assertSessionHasNoErrors();
 
         $this->assertModelMissing($meterBox);
         $this->assertModelMissing($area);
-        $this->assertModelMissing($governorate);
         $this->assertModelExists($this->branch);
     }
 

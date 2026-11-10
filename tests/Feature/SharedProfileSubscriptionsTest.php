@@ -34,7 +34,8 @@ class SharedProfileSubscriptionsTest extends TestCase
             ->has('subscriptions', 2)
             ->where('subscriptions.0.meterBoxName', 'طبلون السوق أ')
             ->where('subscriptions.0.meterBoxNumber', '110303')
-            ->where('subscriptions.0.areaName', 'المخيم')
+            // The former area level (the branch itself) is no longer shown beside the area.
+            ->missing('subscriptions.0.areaName')
             ->where('subscriptions.0.subAreaName', 'الحي الشرقي')
             ->where('subscriptions.1.meterBoxName', null)
             ->where('subscriptions.1.subAreaName', null));

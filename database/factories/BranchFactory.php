@@ -27,13 +27,12 @@ class BranchFactory extends Factory
     }
 
     /**
-     * Indicate that the branch sits in the given area (and its governorate).
+     * Indicate that the branch's areas are those of the given area container.
      */
     public function inArea(Area $area): static
     {
         return $this->state(fn (array $attributes) => [
             'area_id' => $area->id,
-            'governorate_id' => $area->governorate_id,
         ]);
     }
 }

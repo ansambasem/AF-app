@@ -212,9 +212,12 @@ class PaymentsAndBranchScopesJourneyTest extends TestCase
     private function openSecondBranch(array $company): array
     {
         $this->actingAs($this->superAdmin);
-        $this->post(route('branches.store'), ['name' => 'فرع دير البلح', 'is_active' => true, 'governorate_id' => $company['governorate']->id, 'area_id' => $company['area']->id])->assertSessionHasNoErrors();
+        $this->post(route('branches.store'), ['name' => 'فرع دير البلح', 'is_active' => true])->assertSessionHasNoErrors();
         $branch = Branch::query()->where('name', 'فرع دير البلح')->sole();
-        $this->post(route('meter-boxes.store'), ['name' => 'البركة', 'box_number' => 'D-201', 'sub_area_id' => $company['blockB']->id, 'branch_id' => $branch->id])->assertSessionHasNoErrors();
+        // The second branch has its own areas; another branch's are not offered to its boxes.
+        $this->post(route('meter-boxes.store'), ['name' => 'البركة', 'box_number' => 'D-201', 'sub_area_id' => $company['blockB']->id, 'branch_id' => $branch->id])->assertSessionHasErrors('sub_area_id');
+        $this->post(route('sub-areas.store'), ['name' => 'البركة', 'branch_id' => $branch->id])->assertSessionHasNoErrors();
+        $this->post(route('meter-boxes.store'), ['name' => 'البركة', 'box_number' => 'D-201', 'sub_area_id' => $branch->fresh()->subAreas()->sole()->id, 'branch_id' => $branch->id])->assertSessionHasNoErrors();
         $staff = [];
         foreach (['manager' => ['مدير دير البلح', 'deir-manager', UserRole::BranchAdmin->starterPermissions()], 'collector' => ['جابي دير البلح', 'deir-collector', UserRole::Collector->starterPermissions()]] as $key => [$name, $username, $permissions]) {
             $this->post(route('users.store'), ['name' => $name, 'username' => $username, 'password' => self::PASSWORD, 'password_confirmation' => self::PASSWORD, 'branch_id' => $branch->id])->assertSessionHasNoErrors();

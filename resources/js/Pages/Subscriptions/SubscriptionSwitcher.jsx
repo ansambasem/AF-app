@@ -40,7 +40,7 @@ export default function SubscriptionSwitcher({ subscriberNumber, subscriptions, 
             <div className="ssw-grid">
                 {subscriptions.map((subscription) => {
                     const current = subscription.id === currentId;
-                    const area = [...new Set([subscription.areaName, subscription.subAreaName].filter(Boolean))].join(' / ');
+                    const area = subscription.subAreaName ?? '';
 
                     return (
                         <button

@@ -192,7 +192,7 @@ return [
         'rate' => 'السعر',
         'box_number' => 'رقم الطبلون',
         'area_id' => 'المنطقة',
-        'sub_area_id' => 'منطقة 2',
+        'sub_area_id' => 'المنطقة',
         'governorate_id' => 'المحافظة',
         'area_ids' => 'المناطق',
         'subscription_id' => 'المشترك',

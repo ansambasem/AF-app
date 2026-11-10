@@ -2,9 +2,7 @@
 
 namespace App\Http\Concerns;
 
-use App\Models\Area;
 use App\Models\Branch;
-use App\Models\Governorate;
 use App\Models\UserType;
 use App\Support\BranchDomainContext;
 use Illuminate\Support\Collection;
@@ -16,18 +14,15 @@ use Illuminate\Support\Collection;
 trait ProvidesFormOptions
 {
     /**
-     * The governorates and areas a branch can be placed in. Areas are sent
-     * unfiltered (each carrying its governorate_id) so the form can narrow
-     * the area choices client-side once a governorate is picked.
+     * The branch form's choices: none any more — a branch is no longer
+     * placed in a governorate or an area; its areas are managed on the
+     * branch areas page. Kept so the form's loading stays as it was.
      *
-     * @return array{governorates: Collection, areas: Collection}
+     * @return array<string, never>
      */
     protected function branchFormOptions(): array
     {
-        return [
-            'governorates' => Governorate::orderBy('name')->get(),
-            'areas' => Area::with('governorate')->orderBy('name')->get(),
-        ];
+        return [];
     }
 
     /**

@@ -30,9 +30,7 @@ export const SECTION_DETAILS = {
     users: { icon: 'user', description: 'حسابات الموظفين', page: 'المستخدمون' },
     user_types: { icon: 'badge', description: 'أنواع المستخدمين', page: 'أنواع المستخدمين' },
     branches: { icon: 'pin', description: 'فروع الشركة', page: 'الفروع' },
-    governorates: { icon: 'map', description: 'المحافظات', page: 'المحافظات' },
-    areas: { icon: 'map', description: 'المناطق', page: 'المناطق' },
-    sub_areas: { icon: 'map', description: 'منطقة 2 داخل منطقة الفرع', page: 'منطقة 2' },
+    sub_areas: { icon: 'map', description: 'مناطق الفرع التي تتبعها طبلوناته', page: 'مناطق الفروع' },
 };
 
 export function sectionIcon(key) {

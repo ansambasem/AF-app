@@ -37,7 +37,7 @@ before(async () => {
 function renderForm(data) {
     return renderToStaticMarkup(createElement(MeterBoxForm, {
         data, setData() {}, errors: {}, branches: [], canChooseBranch: false,
-        governorates: [], areas: [], subAreas: [], currentBranchAreaId: null,
+        subAreas: [], currentBranchId: null,
     }));
 }
 

@@ -6,7 +6,7 @@ test('hover navigation avoids background requests for financial and reading page
     for (const href of ['/dashboard', '/subscriptions?sort=name', '/meter-readings', '/reading-cycles', '/reports', '/ledger', '/payments/summary', '/disconnection-lists', '/unknown']) {
         assert.equal(shouldPrefetchPage(href), false, href);
     }
-    for (const href of ['/profile', '/settings/mobile-app', '/governorates?selected=1', '/tariffs', '/circuit-breakers#list']) {
+    for (const href of ['/profile', '/settings/mobile-app', '/branch-areas?selected=1', '/tariffs', '/circuit-breakers#list']) {
         assert.equal(shouldPrefetchPage(href), true, href);
     }
     assert.equal(shouldPrefetchPage('https://untrusted.test/profile'), false);

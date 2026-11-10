@@ -33,7 +33,7 @@ test('custom legacy filters do not highlight a tab that misrepresents the result
 test('the pinned bar names each active filter by its label and option, then the search', () => {
     const groups = [
         { key: 'branch_id', label: 'الفرع', options: [{ value: 3, label: 'فرع العشار' }] },
-        { key: 'sub_area_id', label: 'منطقة 2', options: [{ value: '7', label: 'حي الجزائر' }] },
+        { key: 'sub_area_id', label: 'المنطقة', options: [{ value: '7', label: 'حي الجزائر' }] },
         { key: 'meter_box_id', label: 'الطبلون', options: [{ value: 12, label: 'BOX-9597' }] },
     ];
 

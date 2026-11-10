@@ -37,7 +37,7 @@ class CompanyForms
         'subscriber_name' => 'اسم المشترك', 'subscription_name' => 'اسم الاشتراك',
         'subscriber_number' => 'رقم المشترك', 'account_number' => 'رقم الاشتراك',
         'national_id' => 'رقم الهوية', 'phone' => 'رقم الهاتف', 'address' => 'العنوان',
-        'branch' => 'الفرع', 'area' => 'المنطقة', 'sub_area' => 'منطقة 2',
+        'branch' => 'الفرع', 'area' => 'المنطقة', 'sub_area' => 'المنطقة (منطقة 2 سابقًا)',
         'meter_box' => 'اسم الطبلون واللاحقة', 'meter_box_number' => 'رقم الطبلون',
         'tariff' => 'نوع الاشتراك', 'breaker' => 'القاطع',
         'minimum_charge' => 'الحد الأدنى', 'kilo_price' => 'سعر الكيلو',
@@ -89,7 +89,7 @@ class CompanyForms
         if ($subscription === null) {
             return $base;
         }
-        $subscription->loadMissing(['profile', 'branch.area', 'meterBox.subArea', 'tariff', 'circuitBreaker', 'latestMeterReading']);
+        $subscription->loadMissing(['profile', 'branch', 'meterBox.subArea', 'tariff', 'circuitBreaker', 'latestMeterReading']);
 
         return [
             ...$base,
@@ -101,7 +101,7 @@ class CompanyForms
             'phone' => $subscription->contactPhone() ?? '',
             'address' => $subscription->address ?? '',
             'branch' => $subscription->branch?->name ?? '',
-            'area' => $subscription->branch?->area?->name ?? '',
+            'area' => $subscription->meterBox?->subArea?->name ?? '',
             'sub_area' => $subscription->meterBox?->subArea?->name ?? '',
             'meter_box' => $subscription->meterBox?->displayName() ?? '',
             'meter_box_number' => $subscription->meterBox?->box_number ?? '',

@@ -1,8 +1,8 @@
 import Icon from '@/Components/Icon';
 
-/** "محافظة بغداد · الكرادة", from the parts a branch has. */
+/** Where a branch is, as written on it (its address), or nothing. */
 export function branchPlace(branch) {
-    return [branch.governorateName, branch.areaName].filter(Boolean).join(' · ');
+    return branch.location ?? '';
 }
 
 /** A branch's pin tile, with a dot for whether it is working (the name beside it says so in words). */

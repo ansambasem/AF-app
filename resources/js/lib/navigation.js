@@ -1,4 +1,4 @@
-const PREFETCH_PAGES = new Set(['/profile', '/settings/mobile-app', '/governorates', '/tariffs', '/circuit-breakers']);
+const PREFETCH_PAGES = new Set(['/profile', '/settings/mobile-app', '/branch-areas', '/tariffs', '/circuit-breakers']);
 
 /** Only small lookup pages are fetched on hover; financial lists wait for an explicit visit. */
 export function shouldPrefetchPage(href) {
@@ -38,7 +38,7 @@ export const SETTINGS_LINKS = [
     { href: '/branches', label: 'الفروع', description: 'الفروع ومسؤولوها ومناطقها', icon: 'pin', can: 'viewBranches' },
     { href: '/tariffs', label: 'التعرفات', description: 'سعر الأمبير وشرائح الاشتراك', icon: 'dollar', can: 'viewTariffs' },
     { href: '/circuit-breakers', label: 'القواطع', description: 'أحجام القواطع المتاحة للمشتركين', icon: 'bolt', can: 'viewCircuitBreakers' },
-    { href: '/governorates', label: 'المحافظات', description: 'المحافظات والمناطق والأحياء', icon: 'map', can: 'viewGovernorates' },
+    { href: '/branch-areas', label: 'مناطق الفروع', description: 'مناطق كل فرع وطبلوناتها', icon: 'map', can: 'viewBranchAreas' },
     { href: '/settings/permissions', label: 'الصلاحيات', description: 'ما يراه كل دور وما يعدّله', icon: 'shield', can: 'manageSettings' },
     { href: '/settings/print-templates', label: 'قوالب الطباعة', description: 'شكل الوصل والكشوفات المطبوعة', icon: 'printer', can: 'managePrintTemplates' },
     { href: '/settings/sms', label: 'إعدادات الرسائل', description: 'ربط مزوّد الرسائل القصيرة SMS', icon: 'send', can: 'manageSmsSettings' },
@@ -65,7 +65,7 @@ export const NAVIGATION_GROUPS = [
     { id: 'daily', label: 'المشتركون', shortLabel: 'المشتركون', icon: 'users', description: 'المشتركون والطبلونات والقراءات والرسائل', hrefs: ['/subscriptions', '/meter-boxes', '/meter-readings', '/reading-cycles', '/messages'] },
     { id: 'finance', label: 'المالية والتحصيل', shortLabel: 'المالية', icon: 'wallet', description: 'الدفعات والصناديق والإغلاق', hrefs: ['/payments', '/payments/summary', '/payments/cash-boxes', '/billing-periods', '/ledger', '/receivables'] },
     { id: 'reports', label: 'التقارير والرقابة', shortLabel: 'التقارير', icon: 'trend', description: 'التقارير والأداء والتدقيق', hrefs: ['/reports', '/reports/remaining', '/company-forms', '/branch-performance', '/transaction-audit'] },
-    { id: 'infrastructure', label: 'الفروع والشبكة', shortLabel: 'الشبكة', icon: 'bolt', description: 'الفروع والبنية الكهربائية', hrefs: ['/branches', '/governorates', '/circuit-breakers'] },
+    { id: 'infrastructure', label: 'الفروع والشبكة', shortLabel: 'الشبكة', icon: 'bolt', description: 'الفروع والبنية الكهربائية', hrefs: ['/branches', '/branch-areas', '/circuit-breakers'] },
     { id: 'administration', label: 'الإدارة والإعدادات', shortLabel: 'الإدارة', icon: 'cog', description: 'المستخدمون والصلاحيات والإعدادات', hrefs: ['/users', '/settings/permissions', '/tariffs', '/settings/payments', '/settings/print-templates', '/settings/sms', '/settings/mobile-app'], featured: ['/users', '/settings/permissions'] },
 ];
 

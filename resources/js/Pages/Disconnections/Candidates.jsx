@@ -172,7 +172,7 @@ export default function Candidates({ list, subscriptions, reasonOptions, today, 
                             </th>
                             <SortableTh column="display_name" label="المشترك" sortState={filters} onSort={sort} />
                             <th>الطبلون</th>
-                            <th>منطقة 2</th>
+                            <th>المنطقة</th>
                             <SortableTh column="balance" label="الرصيد" sortState={filters} onSort={sort} />
                             <th>قوائم القطع</th>
                         </tr>
@@ -190,7 +190,7 @@ export default function Candidates({ list, subscriptions, reasonOptions, today, 
                                     </td>
                                     <td data-label="المشترك"><RowIdentity name={row.name} subtitle={row.accountNumber} subtitleDir="ltr" /></td>
                                     <td data-label="الطبلون" className="text-gray-600">{row.meterBoxNumber ? <span className="data-chip">{row.meterBoxNumber}</span> : '—'}</td>
-                                    <td data-label="منطقة 2" className="text-gray-600">{row.subAreaName ?? '—'}</td>
+                                    <td data-label="المنطقة" className="text-gray-600">{row.subAreaName ?? '—'}</td>
                                     <td data-label="الرصيد" className="whitespace-nowrap font-semibold"><Balance value={row.balance} /></td>
                                     <td data-label="قوائم القطع">
                                         {row.waitingOn ? <StatusPill tone="amber" label={row.waitingOn.isThisList ? 'في هذه القائمة' : `في «${row.waitingOn.title}»`} /> : <span className="text-gray-400">—</span>}

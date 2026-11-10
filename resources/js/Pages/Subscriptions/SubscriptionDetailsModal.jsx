@@ -217,8 +217,7 @@ export default function SubscriptionDetailsModal({ subscription, onClose, onEdit
                                 <Field label="الحد الأدنى" value={money(subscription.minimum_charge)} numeric /><Field label="خصم القراءات الأسبوعية" value={subscription.standingDiscountSummary && <>{subscription.standingDiscountSummary}{subscription.canAddDiscount && <StopStandingDiscountButton subscriptionId={subscription.id} subscriptionName={subscription.full_name} discountLabel={subscription.standingDiscountSummary} className="ms-2" />}</>} />
                             </dl></Section>
                             <Section title="الموقع والعداد" icon="pin" onEdit={canUpdate ? onEdit : undefined}><dl className="sp-fields">
-                                <Field label="الفرع" value={subscription.branchName} /><Field label="المحافظة" value={subscription.governorateName} />
-                                <Field label="المنطقة" value={subscription.areaName} /><Field label="منطقة 2" value={subscription.subAreaName} />
+                                <Field label="الفرع" value={subscription.branchName} /><Field label="المنطقة" value={subscription.subAreaName} />
                                 <Field label="اسم الطبلون" value={subscription.meterBoxName} /><Field label="رقم الطبلون" value={subscription.meterBoxNumber} numeric copy />
                                 <Field label="العنوان" value={subscription.address} wide />
                             </dl></Section>

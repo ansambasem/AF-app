@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
-#[Fillable(['name', 'location', 'phone', 'is_active', 'governorate_id', 'area_id'])]
+#[Fillable(['name', 'location', 'phone', 'is_active', 'area_id'])]
 class Branch extends Model
 {
     /** @use HasFactory<BranchFactory> */
@@ -25,14 +25,22 @@ class Branch extends Model
         ];
     }
 
-    public function governorate(): BelongsTo
-    {
-        return $this->belongsTo(Governorate::class);
-    }
-
+    /**
+     * The branch's area container (the former «المنطقة» level, which was the
+     * branch itself): it holds the branch's areas. Not shown on its own.
+     */
     public function area(): BelongsTo
     {
         return $this->belongsTo(Area::class);
+    }
+
+    /**
+     * The branch's areas (the «منطقة 2» rows, shown as «المنطقة»): those in
+     * its area container, through the link the branch already has.
+     */
+    public function subAreas(): HasMany
+    {
+        return $this->hasMany(SubArea::class, 'area_id', 'area_id');
     }
 
     public function users(): HasMany

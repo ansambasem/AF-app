@@ -23,7 +23,7 @@ class ReadingPrintData
     public static function sheet(LengthAwarePaginator $rows, array $context, bool $audit): array
     {
         $labels = ['المشترك', 'القراءة السابقة', 'القراءة الحالية', 'الفرق (كيلو)', 'سعر الكيلو', 'قيمة القراءة', 'الحد الأدنى', 'المطلوب دفعه', 'الحالة'];
-        $fields = ['fullName' => 'اسم المشترك', 'phone' => 'رقم الجوال', 'accountNumber' => 'رقم الاشتراك', 'meterBoxName' => 'اسم الطبلون', 'meterBoxNumber' => 'رقم الطبلون', 'meterBoxLabel' => 'الطبلون', 'subAreaName' => 'منطقة 2', 'branchName' => 'الفرع', 'tariffName' => 'نوع الاشتراك', 'breakerAmpere' => 'القاطع', 'weekStart' => 'بداية أسبوع القراءة', 'weekEnd' => 'نهاية أسبوع القراءة', 'notes' => 'ملاحظات القراءة', 'discountAmount' => 'خصم القراءة', 'originalAmountDue' => 'المستحق قبل إلغاء الفاتورة'];
+        $fields = ['fullName' => 'اسم المشترك', 'phone' => 'رقم الجوال', 'accountNumber' => 'رقم الاشتراك', 'meterBoxName' => 'اسم الطبلون', 'meterBoxNumber' => 'رقم الطبلون', 'meterBoxLabel' => 'الطبلون', 'subAreaName' => 'المنطقة', 'branchName' => 'الفرع', 'tariffName' => 'نوع الاشتراك', 'breakerAmpere' => 'القاطع', 'weekStart' => 'بداية أسبوع القراءة', 'weekEnd' => 'نهاية أسبوع القراءة', 'notes' => 'ملاحظات القراءة', 'discountAmount' => 'خصم القراءة', 'originalAmountDue' => 'المستحق قبل إلغاء الفاتورة'];
         if ($audit) {
             $labels[] = 'سجّلها';
             $fields += ['recordedBy' => 'مدخل القراءة', 'recordedAt' => 'وقت إدخال القراءة', 'recordedSource' => 'مصدر القراءة'];
@@ -69,10 +69,10 @@ class ReadingPrintData
      */
     public static function distribution(array $boxes, array $context, int $total): array
     {
-        $labels = ['منطقة 2', 'الطبلون', 'القارئ', 'المشتركون', 'طريقة القراءة', 'حالة التوزيع'];
-        $fields = ['subAreaName' => 'منطقة 2', 'boxName' => 'اسم الطبلون', 'boxNumber' => 'رقم الطبلون', 'readerName' => 'القارئ', 'branchName' => 'الفرع', 'approvedBy' => 'اعتمد التوزيع', 'approvedAt' => 'وقت اعتماد التوزيع', 'readingDate' => 'تاريخ القراءة'];
+        $labels = ['المنطقة', 'الطبلون', 'القارئ', 'المشتركون', 'طريقة القراءة', 'حالة التوزيع'];
+        $fields = ['subAreaName' => 'المنطقة', 'boxName' => 'اسم الطبلون', 'boxNumber' => 'رقم الطبلون', 'readerName' => 'القارئ', 'branchName' => 'الفرع', 'approvedBy' => 'اعتمد التوزيع', 'approvedAt' => 'وقت اعتماد التوزيع', 'readingDate' => 'تاريخ القراءة'];
         $data = array_map(fn (array $box): array => self::row([
-            'منطقة 2' => $box['subAreaName'], 'الطبلون' => $box['boxLabel'], 'القارئ' => $box['readerName'],
+            'المنطقة' => $box['subAreaName'], 'الطبلون' => $box['boxLabel'], 'القارئ' => $box['readerName'],
             'المشتركون' => $box['subscribers'], 'طريقة القراءة' => $box['channel'], 'حالة التوزيع' => $box['status'],
         ], $fields, [...$box, 'branchName' => $context['branchName'], 'readingDate' => $context['readingDate']]), $boxes);
 
@@ -86,7 +86,7 @@ class ReadingPrintData
     public static function paper(array $boxes, array $context): array
     {
         $labels = ['#', 'الطبلون', 'المشترك', 'رقم الاشتراك', 'القراءة السابقة', 'القراءة الحالية', 'ملاحظات'];
-        $fields = ['subAreaName' => 'منطقة 2', 'boxName' => 'اسم الطبلون', 'boxNumber' => 'رقم الطبلون', 'fullName' => 'اسم المشترك', 'phone' => 'رقم الجوال', 'accountNumber' => 'رقم الاشتراك', 'branchName' => 'الفرع', 'readingDate' => 'تاريخ القراءة'];
+        $fields = ['subAreaName' => 'المنطقة', 'boxName' => 'اسم الطبلون', 'boxNumber' => 'رقم الطبلون', 'fullName' => 'اسم المشترك', 'phone' => 'رقم الجوال', 'accountNumber' => 'رقم الاشتراك', 'branchName' => 'الفرع', 'readingDate' => 'تاريخ القراءة'];
         $data = [];
         foreach ($boxes as $box) {
             foreach ($box['subscriptions'] as $subscription) {
@@ -95,7 +95,7 @@ class ReadingPrintData
                     'المشترك' => $subscription['name'].($subscription['phone'] ? "\n".$subscription['phone'] : ''),
                     'رقم الاشتراك' => $subscription['accountNumber'], 'القراءة السابقة' => $subscription['previousReading'],
                     'القراءة الحالية' => '', 'ملاحظات' => '',
-                ], $fields, ['subAreaName' => $box['subAreaName'] ?? 'بدون منطقة 2', 'boxName' => $box['name'], 'boxNumber' => $box['number'], 'fullName' => $subscription['name'], 'phone' => $subscription['phone'], 'accountNumber' => $subscription['accountNumber'], 'branchName' => $context['branchName'], 'readingDate' => $context['readingDate']]);
+                ], $fields, ['subAreaName' => $box['subAreaName'] ?? 'بدون منطقة', 'boxName' => $box['name'], 'boxNumber' => $box['number'], 'fullName' => $subscription['name'], 'phone' => $subscription['phone'], 'accountNumber' => $subscription['accountNumber'], 'branchName' => $context['branchName'], 'readingDate' => $context['readingDate']]);
             }
         }
 

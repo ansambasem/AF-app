@@ -13,8 +13,7 @@ export default function SubscriptionModal({
     circuitBreakers,
     subAreas,
     canChooseBranch,
-    currentBranchAreaId,
-    currentBranchAreaName,
+    currentBranchId,
     canEditMinimumCharge,
     canEditKilowattPrice,
     visitOptions,
@@ -44,8 +43,7 @@ export default function SubscriptionModal({
                 circuitBreakers={circuitBreakers}
                 subAreas={subAreas}
                 canChooseBranch={canChooseBranch}
-                currentBranchAreaId={currentBranchAreaId}
-                currentBranchAreaName={currentBranchAreaName}
+                currentBranchId={currentBranchId}
                 canEditMinimumCharge={canEditMinimumCharge}
                 canEditKilowattPrice={canEditKilowattPrice}
                 sharedPersonalDetails={Boolean(sourceSubscription)}

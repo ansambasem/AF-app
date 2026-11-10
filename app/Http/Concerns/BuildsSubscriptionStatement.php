@@ -227,7 +227,7 @@ trait BuildsSubscriptionStatement
             ->readableTo($actor)
             ->when(! $actor->can('viewArchived', Subscription::class), fn ($query) => $query->whereNull('archived_at'))
             ->where('subscriber_profile_id', $subscription->subscriber_profile_id)
-            ->with(['branch.area', 'tariff', 'tariffSegment', 'meterBox.subArea'])
+            ->with(['branch', 'tariff', 'tariffSegment', 'meterBox.subArea'])
             ->withSum('transactions as balance', 'amount')
             ->orderBy('account_number')
             ->get()
@@ -240,7 +240,6 @@ trait BuildsSubscriptionStatement
                 'tariffSegmentName' => $sibling->tariffSegment?->name,
                 'meterBoxNumber' => $sibling->meterBox?->box_number,
                 'meterBoxName' => $sibling->meterBox?->displayName(),
-                'areaName' => $sibling->branch->area?->name,
                 'subAreaName' => $sibling->meterBox?->subArea?->name,
                 'status' => $sibling->status->value,
                 'statusLabel' => $sibling->archived_at !== null ? 'مؤرشف' : __($sibling->status->label()),

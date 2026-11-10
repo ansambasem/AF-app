@@ -2,10 +2,12 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Branch;
 use App\Models\SubArea;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 
 class StoreSubAreaRequest extends FormRequest
 {
@@ -18,24 +20,19 @@ class StoreSubAreaRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
-     * UpdateSubAreaRequest reuses these rules; there, `->ignore()` lets the
-     * record being edited keep its own unique value (on create there is no
-     * route model, so nothing is ignored).
-     *
-     * A Super Admin may place a sub-area in any area (or none); anyone else
-     * only in their own branch's area.
+     * The area's name, unique within its branch (any other branch may use
+     * it), and the branch it is added to: any branch for a Super Admin,
+     * otherwise the branch the user works in.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255', Rule::unique('sub_areas', 'name')->ignore($this->route('sub_area'))],
-            'area_id' => $this->user()->isSuperAdmin()
-                ? ['nullable', Rule::exists('areas', 'id')]
-                : ['required', Rule::in([$this->user()->branchAreaId()])],
+            'branch_id' => $this->user()->isSuperAdmin()
+                ? ['required', 'integer', Rule::exists('branches', 'id')]
+                : ['required', 'integer', Rule::in([$this->user()->workBranchId()])],
+            'name' => ['required', 'string', 'max:255', $this->uniqueInBranch(Branch::query()->whereKey($this->integer('branch_id'))->value('area_id'))],
         ];
     }
 
@@ -45,8 +42,15 @@ class StoreSubAreaRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'area_id.required' => 'يمكنك إضافة منطقة 2 داخل منطقة فرعك فقط.',
-            'area_id.in' => 'يمكنك إضافة منطقة 2 داخل منطقة فرعك فقط.',
+            'name.unique' => 'يوجد في هذا الفرع منطقة بهذا الاسم.',
+            'branch_id.required' => 'اختر الفرع الذي تتبعه المنطقة.',
+            'branch_id.in' => 'يمكنك إضافة مناطق إلى فرعك فقط.',
         ];
+    }
+
+    /** The name may not repeat among the areas of the branch whose area container is `$container`. */
+    protected function uniqueInBranch(?int $container): Unique
+    {
+        return Rule::unique('sub_areas', 'name')->where(fn ($query) => $container === null ? $query->whereRaw('1 = 0') : $query->where('area_id', $container));
     }
 }

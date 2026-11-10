@@ -59,7 +59,7 @@ class MobileReadingDistributionController extends Controller
 
                 return [
                     'id' => $box->id, 'name' => $box->displayName(), 'number' => $box->box_number,
-                    'sub_area_id' => $box->sub_area_id, 'sub_area_name' => $box->subArea?->name ?? 'بدون منطقة 2',
+                    'sub_area_id' => $box->sub_area_id, 'sub_area_name' => $box->subArea?->name ?? 'بدون منطقة',
                     'subscribers' => (int) $box->active_subscriptions_count, 'version' => $assignment?->version ?? 0,
                     'column' => ! $allocated ? 'available' : ($assignment->channel === ReadingAssignmentChannel::Paper ? 'paper' : 'reader:'.$assignment->user_id),
                     'status' => $allocated ? $assignment->status->value : null,

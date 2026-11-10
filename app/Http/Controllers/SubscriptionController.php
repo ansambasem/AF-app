@@ -54,7 +54,7 @@ class SubscriptionController extends Controller
             ->select('subscriptions.*')
             ->selectRaw("COALESCE(NULLIF(subscription_name, ''), full_name) as display_name")
             ->readableTo($actor)
-            ->with(['branch.area', 'branch.governorate', 'meterBox.subArea', 'tariff', 'tariffSegment', 'circuitBreaker', 'standingDiscount', 'registeredBy'])
+            ->with(['branch', 'meterBox.subArea', 'tariff', 'tariffSegment', 'circuitBreaker', 'standingDiscount', 'registeredBy'])
             ->with(['meterReadings' => fn ($readings) => $readings->chaperone()->withLaterReadingsCount()->with('recordedBy')])
             ->with(['profile' => fn ($query) => $query->withCount(['subscriptions' => fn ($subscriptions) => $subscriptions->readableTo($actor)])])
             ->withSum('transactions as outstanding_balance', 'amount')
@@ -243,8 +243,6 @@ class SubscriptionController extends Controller
         return [
             ...$this->subscriptionEditableFields($subscription),
             'branchName' => $subscription->branch->name,
-            'governorateName' => $subscription->branch->governorate?->name,
-            'areaName' => $subscription->branch->area?->name,
             'meterBoxNumber' => $subscription->meterBox?->box_number,
             'meterBoxName' => $subscription->meterBox?->displayName(),
             'subAreaId' => $subscription->meterBox?->sub_area_id,

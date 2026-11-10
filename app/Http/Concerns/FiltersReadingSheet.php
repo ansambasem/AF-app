@@ -194,17 +194,13 @@ trait FiltersReadingSheet
     }
 
     /**
-     * Filters that need a join rather than a plain column match: the
-     * area/sub-area a subscription's meter box sits in, whether this week's
+     * Filters that need a join rather than a plain column match: the area
+     * a subscription's meter box sits in, whether this week's
      * reading has been entered yet, and whether it has been approved.
      */
     protected function applySheetFilters(Builder $query, Request $request, string $week, bool $includeStatus = true): void
     {
         $filters = (array) $request->input('filter', []);
-
-        if (filled($filters['area_id'] ?? null)) {
-            $query->whereHas('branch', fn (Builder $q) => $q->where('area_id', $filters['area_id']));
-        }
 
         if (filled($filters['sub_area_id'] ?? null)) {
             $query->whereHas('meterBox', fn (Builder $q) => $q->where('sub_area_id', $filters['sub_area_id']));

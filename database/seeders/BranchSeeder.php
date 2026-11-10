@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Area;
 use App\Models\Branch;
-use App\Models\Governorate;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -14,14 +13,14 @@ class BranchSeeder extends Seeder
     /**
      * Keep each key unchanged when renaming a branch.
      *
-     * @var list<array{key: string, name: string, governorate: string, area: string}>
+     * @var list<array{key: string, name: string, area: string}>
      */
     private const BRANCHES = [
-        ['key' => 'camp-two', 'name' => 'مكتب مخيم 2', 'governorate' => 'الوسطى', 'area' => 'مخيم 2'],
-        ['key' => 'bureij-office', 'name' => 'مكتب البريج', 'governorate' => 'الوسطى', 'area' => 'البريج'],
-        ['key' => 'new-camp-office', 'name' => 'مكتب المخيم الجديد', 'governorate' => 'الوسطى', 'area' => 'المخيم الجديد'],
-        ['key' => 'nuseirat-office', 'name' => 'مكتب النصيرات', 'governorate' => 'الوسطى', 'area' => 'النصيرات'],
-        ['key' => 'zawaida-office', 'name' => 'مكتب الزوايدة', 'governorate' => 'الوسطى', 'area' => 'الزوايدة'],
+        ['key' => 'camp-two', 'name' => 'مكتب مخيم 2', 'area' => 'مخيم 2'],
+        ['key' => 'bureij-office', 'name' => 'مكتب البريج', 'area' => 'البريج'],
+        ['key' => 'new-camp-office', 'name' => 'مكتب المخيم الجديد', 'area' => 'المخيم الجديد'],
+        ['key' => 'nuseirat-office', 'name' => 'مكتب النصيرات', 'area' => 'النصيرات'],
+        ['key' => 'zawaida-office', 'name' => 'مكتب الزوايدة', 'area' => 'الزوايدة'],
     ];
 
     /** Seed the agreed branch names and locations without replacing existing records. */
@@ -31,11 +30,8 @@ class BranchSeeder extends Seeder
             $this->call(LocationSeeder::class);
 
             foreach (self::BRANCHES as $definition) {
-                $governorate = Governorate::firstOrCreate(['name' => $definition['governorate']]);
-                $area = Area::updateOrCreate(
-                    ['name' => $definition['area']],
-                    ['governorate_id' => $governorate->id],
-                );
+                // The branch's area container (the former «المنطقة» level); no governorate any more.
+                $area = Area::query()->firstOrCreate(['name' => $definition['area']]);
 
                 $branch = Branch::query()->where('seed_key', $definition['key'])->first();
 
@@ -51,7 +47,7 @@ class BranchSeeder extends Seeder
                 }
 
                 $branch->seed_key = $definition['key'];
-                $branch->fill(['name' => trim($definition['name']), 'governorate_id' => $governorate->id, 'area_id' => $area->id]);
+                $branch->fill(['name' => trim($definition['name']), 'area_id' => $area->id]);
                 $branch->save();
             }
         });

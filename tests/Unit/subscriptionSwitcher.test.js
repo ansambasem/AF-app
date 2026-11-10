@@ -25,10 +25,11 @@ before(async () => {
 const subscription = { id: 1, accountNumber: '202600021', fullName: 'أحمد', meterBoxName: 'طبلون السوق أ', meterBoxNumber: '110303', areaName: 'المخيم', subAreaName: 'الحي الشرقي', tariffCategoryLabel: 'تجاري', status: 'active', statusLabel: 'نشط', balance: '-183' };
 const render = (overrides = {}) => renderToStaticMarkup(createElement(SubscriptionSwitcher, { currentId: 1, onSelect() {}, subscriptions: [{ ...subscription, ...overrides }, { ...subscription, id: 2, accountNumber: '202600022', balance: '0' }] }));
 
-test('subscription cards show the meter box name and suffix before its number, with both area levels', () => {
+test('subscription cards show the meter box name and suffix before its number, with its area and not the former area level', () => {
     const html = render();
     assert.match(html, /طبلون السوق أ<\/span><bdi[^>]*>\(110303\)/);
-    assert.match(html, /المخيم \/ الحي الشرقي/);
+    assert.match(html, /الحي الشرقي/);
+    assert.doesNotMatch(html, /المخيم/);
     assert.match(html, /تجاري/);
     assert.match(html, /aria-current="true"/);
 });

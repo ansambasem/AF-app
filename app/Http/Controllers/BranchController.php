@@ -9,9 +9,7 @@ use App\Http\Concerns\ProvidesFormOptions;
 use App\Http\Concerns\ReturnsToDashboard;
 use App\Http\Requests\StoreBranchRequest;
 use App\Http\Requests\UpdateBranchRequest;
-use App\Models\Area;
 use App\Models\Branch;
-use App\Models\Governorate;
 use App\Notifications\ActionCompleted;
 use App\Support\BranchDomainContext;
 use Illuminate\Http\RedirectResponse;
@@ -33,9 +31,9 @@ class BranchController extends Controller
         $this->authorize('viewAny', Branch::class);
 
         $actor = $request->user();
-        $query = Branch::query()->with(['governorate', 'area']);
+        $query = Branch::query()->withCount('subAreas');
         $this->applyDataTableFilters($query, $request, ['name', 'location', 'phone'], self::SORTABLE, 'name');
-        $this->applyDataTableFilterSelects($query, $request, ['is_active', 'governorate_id', 'area_id']);
+        $this->applyDataTableFilterSelects($query, $request, ['is_active']);
 
         $branches = $query->paginate($this->dataTablePerPage($request))
             ->withQueryString()
@@ -119,8 +117,6 @@ class BranchController extends Controller
     {
         return [
             $this->activeStatusFilterGroup(),
-            $this->filterGroup('governorate_id', 'المحافظة', $this->modelOptions(Governorate::orderBy('name')->get())),
-            $this->areaFilterGroup(Area::orderBy('name')->get()),
         ];
     }
 }

@@ -1,4 +1,4 @@
-// The hues a منطقة 2 is shown in: spread around the wheel and clear of the brand's burgundy and the status reds.
+// The hues a المنطقة is shown in: spread around the wheel and clear of the brand's burgundy and the status reds.
 const AREA_HUES = [210, 150, 30, 280, 305, 185, 100, 55];
 
 /**

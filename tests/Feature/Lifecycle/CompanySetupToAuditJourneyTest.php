@@ -9,7 +9,6 @@ use App\Models\Branch;
 use App\Models\CashBox;
 use App\Models\CircuitBreaker;
 use App\Models\CurrencyRate;
-use App\Models\Governorate;
 use App\Models\MeterBox;
 use App\Models\MeterReading;
 use App\Models\Permission;
@@ -49,15 +48,13 @@ class CompanySetupToAuditJourneyTest extends TestCase
     {
         $this->actingAs($this->superAdmin);
 
-        $this->post(route('governorates.store'), ['name' => 'المحافظة الوسطى'])->assertSessionHasNoErrors();
-        $this->post(route('governorates.store'), ['name' => 'المحافظة الوسطى'])->assertSessionHasErrors('name');
-        $governorate = Governorate::sole();
-        $this->post(route('areas.store'), ['name' => 'مخيم النصيرات', 'governorate_id' => $governorate->id])->assertSessionHasNoErrors();
-        $area = Area::sole();
-        $this->post(route('sub-areas.store'), ['name' => 'البلوك أ', 'area_id' => $area->id])->assertSessionHasNoErrors();
-        $this->post(route('sub-areas.store'), ['name' => 'البلوك ب', 'area_id' => $area->id])->assertSessionHasNoErrors();
-        $this->post(route('sub-areas.store'), ['name' => 'البلوك أ', 'area_id' => $area->id])->assertSessionHasErrors('name');
-        $this->assertSame(['البلوك أ', 'البلوك ب'], SubArea::query()->where('area_id', $area->id)->orderBy('id')->pluck('name')->all());
+        // A branch and its areas: a name is used once in a branch.
+        $this->post(route('branches.store'), ['name' => 'فرع النصيرات', 'is_active' => true])->assertSessionHasNoErrors();
+        $branch = Branch::sole();
+        $this->post(route('sub-areas.store'), ['name' => 'البلوك أ', 'branch_id' => $branch->id])->assertSessionHasNoErrors();
+        $this->post(route('sub-areas.store'), ['name' => 'البلوك ب', 'branch_id' => $branch->id])->assertSessionHasNoErrors();
+        $this->post(route('sub-areas.store'), ['name' => 'البلوك أ', 'branch_id' => $branch->id])->assertSessionHasErrors('name');
+        $this->assertSame(['البلوك أ', 'البلوك ب'], $branch->fresh()->subAreas()->orderBy('id')->pluck('name')->all());
 
         // The deployment comes with the banks of config('powercollect.transfer_banks'); the company adds its own and retires one.
         $this->post(route('settings.banks.store'), ['name' => 'بنك الاستثمار الفلسطيني', 'is_receiver' => true, 'is_sender' => true, 'is_active' => true])->assertSessionHasNoErrors();
@@ -91,7 +88,7 @@ class CompanySetupToAuditJourneyTest extends TestCase
         $company = $this->setUpCompany();
         ['branch' => $branch, 'manager' => $manager, 'collector' => $collector, 'reader' => $reader, 'auditor' => $auditor] = $company;
 
-        $this->assertSame([$company['governorate']->id, $company['area']->id], [$branch->governorate_id, $branch->area_id]);
+        $this->assertSame([$company['blockA']->id, $company['blockB']->id], $branch->subAreas()->orderBy('id')->pluck('id')->all());
         $this->assertSame(['المدارس 1', 'المدارس 2', 'السوق'], $branch->meterBoxes()->orderBy('id')->get()->map->displayName()->all());
         $this->assertSame([$company['blockA']->id, $company['blockB']->id, $company['blockA']->id], $branch->meterBoxes()->orderBy('id')->pluck('sub_area_id')->all());
         $this->assertSame(
@@ -101,7 +98,7 @@ class CompanySetupToAuditJourneyTest extends TestCase
         $this->assertSame([$branch->id, $branch->id, $branch->id], [$manager->branch_id, $collector->branch_id, $reader->branch_id]);
 
         // What each one may not do.
-        $this->actingAs($collector)->post(route('governorates.store'), ['name' => 'محافظة أخرى'])->assertForbidden();
+        $this->actingAs($collector)->post(route('sub-areas.store'), ['name' => 'منطقة أخرى', 'branch_id' => $branch->id])->assertForbidden();
         $this->actingAs($collector)->post(route('subscriptions.store'), $this->subscriberForm($company, ['national_id' => '407777777']))->assertForbidden();
         $this->actingAs($reader)->post(route('settings.banks.store'), ['name' => 'بنك جديد', 'is_receiver' => true, 'is_sender' => true, 'is_active' => true])->assertForbidden();
         $this->actingAs($manager)->post(route('branches.store'), ['name' => 'فرع آخر'])->assertForbidden();
@@ -110,7 +107,7 @@ class CompanySetupToAuditJourneyTest extends TestCase
             'name' => 'متسلل', 'username' => 'sneaky', 'password' => self::PASSWORD, 'password_confirmation' => self::PASSWORD, 'role' => 'super_admin',
         ])->assertSessionHasErrors('role');
         $this->assertSame(5, User::query()->count());
-        $this->assertSame(['المحافظة الوسطى'], Governorate::query()->pluck('name')->all());
+        $this->assertSame(2, SubArea::query()->count());
 
         // The branch manager adds a tablon to their own branch only, and only in their own area.
         $otherArea = Area::factory()->create();
@@ -121,9 +118,9 @@ class CompanySetupToAuditJourneyTest extends TestCase
         $this->assertSame($branch->id, MeterBox::query()->where('box_number', 'T-104')->sole()->branch_id);
 
         // Locations in use cannot be removed out from under the branch.
-        $this->actingAs($this->superAdmin)->delete(route('governorates.destroy', $company['governorate']))->assertSessionHasErrors();
+        $this->actingAs($this->superAdmin)->delete(route('branches.destroy', $branch))->assertSessionHasErrors();
         $this->actingAs($this->superAdmin)->delete(route('sub-areas.destroy', $company['blockA']))->assertSessionHasErrors();
-        $this->assertModelExists($company['governorate']);
+        $this->assertModelExists($branch);
         $this->assertModelExists($company['blockA']);
     }
 
@@ -309,7 +306,7 @@ class CompanySetupToAuditJourneyTest extends TestCase
         $salem = Subscription::sole();
         $cash = $this->pay($company['collector'], $salem, ['amount' => '30', 'payment_method' => 'cash']);
 
-        $this->actingAs($this->superAdmin)->post(route('branches.store'), ['name' => 'فرع دير البلح', 'is_active' => true, 'governorate_id' => $company['governorate']->id])->assertSessionHasNoErrors();
+        $this->actingAs($this->superAdmin)->post(route('branches.store'), ['name' => 'فرع دير البلح', 'is_active' => true])->assertSessionHasNoErrors();
         $otherBranch = Branch::query()->where('name', 'فرع دير البلح')->sole();
         $this->actingAs($this->superAdmin)->post(route('users.store'), [
             'name' => 'مدير دير البلح', 'username' => 'other-manager', 'password' => self::PASSWORD, 'password_confirmation' => self::PASSWORD, 'branch_id' => $otherBranch->id,

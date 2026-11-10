@@ -40,7 +40,7 @@ export default function DistributionTable({ boxes, allBoxes = boxes, readers, se
                             <tr className="bg-gray-50">
                                 <td colSpan={canSelect ? 6 : 5}>
                                     <div className="flex flex-wrap items-center justify-between gap-3 py-1">
-                                        <span className="font-bold text-gray-900">{group[0].subAreaName ?? 'بدون منطقة 2'} <span className="font-normal text-gray-500">({formatNumber(matchingArea.length)} طبلون ضمن النتائج)</span></span>
+                                        <span className="font-bold text-gray-900">{group[0].subAreaName ?? 'بدون منطقة'} <span className="font-normal text-gray-500">({formatNumber(matchingArea.length)} طبلون ضمن النتائج)</span></span>
                                         {canSelect && <button type="button" disabled={busy} onClick={() => onToggleGroup(matchingArea)} className="text-xs font-semibold text-brand-600 hover:underline">{matchingArea.every((box) => selected.has(box.id)) ? 'إلغاء تحديد المنطقة' : 'تحديد المنطقة كاملة'}</button>}
                                     </div>
                                 </td>

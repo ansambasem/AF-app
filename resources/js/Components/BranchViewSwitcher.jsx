@@ -5,7 +5,7 @@ import Icon from '@/Components/Icon';
 export default function BranchViewSwitcher() {
     const { branchView, branchScope, scope } = usePage().props;
     const [switching, setSwitching] = useState(false);
-    if (!branchView || branchScope || ['branch', 'all', 'governorate'].includes(scope?.level)) {
+    if (!branchView || branchScope || ['branch', 'all'].includes(scope?.level)) {
         return null;
     }
 

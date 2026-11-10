@@ -23,33 +23,24 @@ class BranchSeederTest extends TestCase
         $this->seed(BranchSeeder::class);
 
         $bureij = Branch::query()->where('name', 'مكتب البريج')->sole();
-        $this->assertSame('الوسطى', $bureij->governorate->name);
         $this->assertSame('البريج', $bureij->area->name);
-        $this->assertSame($bureij->governorate_id, $bureij->area->governorate_id);
 
         $newCamp = Branch::query()->where('name', 'مكتب المخيم الجديد')->sole();
         $campTwo = Branch::query()->where('name', 'مكتب مخيم 2')->sole();
-        $this->assertSame('الوسطى', $campTwo->governorate->name);
         $this->assertSame('مخيم 2', $campTwo->area->name);
-        $this->assertSame('الوسطى', $newCamp->governorate->name);
         $this->assertSame('المخيم الجديد', $newCamp->area->name);
-        $this->assertSame($campTwo->governorate_id, $newCamp->governorate_id);
         $this->assertNotSame($campTwo->area_id, $newCamp->area_id);
-        $this->assertSame($newCamp->governorate_id, $newCamp->area->governorate_id);
 
         $nuseirat = Branch::query()->where('name', 'مكتب النصيرات')->sole();
-        $this->assertSame('الوسطى', $nuseirat->governorate->name);
         $this->assertSame('النصيرات', $nuseirat->area->name);
-        $this->assertSame($campTwo->governorate_id, $nuseirat->governorate_id);
-        $this->assertSame($nuseirat->governorate_id, $nuseirat->area->governorate_id);
         $this->assertNotSame($newCamp->area_id, $nuseirat->area_id);
 
         $zawaida = Branch::query()->where('name', 'مكتب الزوايدة')->sole();
-        $this->assertSame('الوسطى', $zawaida->governorate->name);
         $this->assertSame('الزوايدة', $zawaida->area->name);
 
         $this->assertDatabaseCount('branches', 5);
-        $this->assertDatabaseCount('governorates', 1);
+        // No governorate is made: a branch is placed by its area container only.
+        $this->assertDatabaseCount('governorates', 0);
         $this->assertDatabaseCount('areas', 5);
         $this->assertDatabaseCount('sub_areas', 35);
         $this->assertDatabaseCount('users', 0);
@@ -71,7 +62,7 @@ class BranchSeederTest extends TestCase
         $this->seed(BranchSeeder::class);
 
         $this->assertDatabaseCount('branches', 5);
-        $this->assertDatabaseCount('governorates', 1);
+        $this->assertDatabaseCount('governorates', 0);
         $this->assertDatabaseCount('areas', 5);
         $this->assertDatabaseCount('sub_areas', 35);
         $this->assertSame($branchAttributes, $branch->fresh()->getAttributes());
@@ -81,7 +72,7 @@ class BranchSeederTest extends TestCase
         $this->assertModelExists($meterBox);
     }
 
-    public function test_corrects_the_existing_camp_name_and_governorate_without_replacing_its_boxes_or_sub_areas(): void
+    public function test_corrects_the_existing_camp_name_and_leaves_its_governorate_boxes_and_sub_areas_as_they_are(): void
     {
         $governorate = Governorate::factory()->create(['name' => 'النصيرات']);
         $area = Area::factory()->for($governorate)->create(['name' => 'مخيم 2']);
@@ -94,8 +85,9 @@ class BranchSeederTest extends TestCase
         $this->seed(BranchSeeder::class);
 
         $this->assertDatabaseHas('branches', ['id' => $branch->id, 'name' => 'مكتب مخيم 2', 'area_id' => $area->id]);
-        $this->assertSame('الوسطى', $branch->fresh()->governorate->name);
-        $this->assertSame($branch->fresh()->governorate_id, $area->fresh()->governorate_id);
+        // The governorate is no longer used: what is there is left as it was.
+        $this->assertSame($governorate->id, $area->fresh()->governorate_id);
+        $this->assertSame('النصيرات', $governorate->fresh()->name);
         $this->assertSame($boxAttributes, $meterBox->fresh()->getAttributes());
         $this->assertSame($subAreaAttributes, $subArea->fresh()->getAttributes());
         $this->assertDatabaseCount('branches', 5);

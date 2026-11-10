@@ -54,7 +54,7 @@ const PRINT_FIELDS = [
     { key: 'fullName', label: 'اسم المشترك' },
     { key: 'phone', label: 'رقم الجوال' },
     { key: 'accountNumber', label: 'رقم الاشتراك' },
-    { key: 'subAreaName', label: 'منطقة 2' },
+    { key: 'subAreaName', label: 'المنطقة' },
 ];
 
 const STATUS_TABS = [

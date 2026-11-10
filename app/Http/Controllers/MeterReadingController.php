@@ -489,7 +489,6 @@ class MeterReadingController extends Controller
 
         if ($actor->isSuperAdmin()) {
             $groups[] = $this->branchFilterGroup();
-            $groups[] = $this->areaFilterGroup(Area::orderBy('name')->get());
         }
 
         $groups[] = $this->subAreaFilterGroup(SubArea::visibleTo($actor)->orderBy('name')->get());

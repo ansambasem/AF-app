@@ -729,7 +729,7 @@ class MeterReadingTest extends TestCase
                 ->where('rows.data.0.id', $inCampOne->id));
     }
 
-    public function test_the_reading_sheets_filters_name_the_branch_area_and_sub_area_each_option_belongs_to(): void
+    public function test_the_reading_sheets_filters_name_the_branch_each_area_and_box_belongs_to(): void
     {
         $area = Area::factory()->create();
         $otherArea = Area::factory()->create();
@@ -740,13 +740,13 @@ class MeterReadingTest extends TestCase
 
         $this->actingAs(User::factory()->superAdmin()->create())
             ->get(route('meter-readings.index', ['filter' => ['meter_box_name' => 'camp']]))
-            ->assertInertia(fn ($page) => $page->where('filterOptions', function ($groups) use ($area, $north, $south, $subArea, $box): bool {
+            ->assertInertia(fn ($page) => $page->where('filterOptions', function ($groups) use ($north, $subArea, $box): bool {
                 $option = fn (string $key, int|string $value): array => collect(collect($groups)->firstWhere('key', $key)['options'])->firstWhere('value', (string) $value);
 
-                return $option('area_id', $area->id)['scope']['branch_id'] === [(string) $north->id]
-                    && ! in_array((string) $south->id, $option('area_id', $area->id)['scope']['branch_id'], true)
-                    && $option('sub_area_id', $subArea->id)['scope'] === ['area_id' => (string) $area->id, 'branch_id' => [(string) $north->id]]
-                    && $option('meter_box_id', $box->id)['scope'] === ['branch_id' => (string) $north->id, 'sub_area_id' => (string) $subArea->id, 'area_id' => (string) $area->id]
+                // No governorate or former area level to filter by: an area is its branch's.
+                return collect($groups)->firstWhere('key', 'area_id') === null
+                    && $option('sub_area_id', $subArea->id)['scope'] === ['branch_id' => [(string) $north->id]]
+                    && $option('meter_box_id', $box->id)['scope'] === ['branch_id' => (string) $north->id, 'sub_area_id' => (string) $subArea->id]
                     && $option('meter_box_name', 'camp')['scope']['branch_id'] === [(string) $north->id];
             }));
     }

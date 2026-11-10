@@ -41,7 +41,7 @@ const expect = browserExpect.configure({ timeout: 15_000 });
         await page.locator('ul button').filter({ hasText: /^من ي إلى أ$/ }).click();
         await expect(table.locator('tbody > tr').first()).toContainText('ياء');
         await expect(sorting.getByLabel('ترتيب حسب', { exact: true })).toContainText('اسم الطبلون');
-        const regionSelect = page.locator('.data-table-toolbar').getByText('منطقة 2', { exact: true }).locator('..').getByRole('button');
+        const regionSelect = page.locator('.data-table-toolbar').getByText('المنطقة', { exact: true }).locator('..').getByRole('button');
         const regionSize = await regionSelect.boundingBox();
         const sortSize = await sorting.getByLabel('ترتيب حسب', { exact: true }).boundingBox();
         assert.equal(sortSize.height, regionSize.height);

@@ -272,7 +272,7 @@ class _ReadingReviewState extends State<ReadingReview> {
                             const SizedBox(height: 12),
                             AppSearchField(
                                 controller: search,
-                                hint: 'ابحث بالمشترك أو الطبلون أو منطقة 2',
+                                hint: 'ابحث بالمشترك أو الطبلون أو المنطقة',
                                 onChanged: (_) => setState(() {}),
                                 onClear: () => setState(search.clear)),
                             const SizedBox(height: 10),

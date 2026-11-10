@@ -317,7 +317,7 @@ class _ReadingDistributionPageState extends State<ReadingDistributionPage> {
                               if (!busy) setState(() => status = option.$1);
                             })
                         ]),
-                        const AppSection('منطقة 2'),
+                        const AppSection('المنطقة'),
                         Wrap(spacing: 6, runSpacing: 6, children: [
                           AppChip('كل المناطق', selected: areas.isEmpty,
                               onTap: () {

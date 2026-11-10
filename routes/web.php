@@ -1,11 +1,11 @@
 <?php
 
-use App\Http\Controllers\AreaController;
 use App\Http\Controllers\BankController;
 use App\Http\Controllers\BankTransferAuditController;
 use App\Http\Controllers\BillingPeriodController;
 use App\Http\Controllers\BranchAccessController;
 use App\Http\Controllers\BranchClosingController;
+use App\Http\Controllers\BranchAreaController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchDomainController;
 use App\Http\Controllers\BranchPerformanceController;
@@ -21,7 +21,6 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DisconnectionItemController;
 use App\Http\Controllers\DisconnectionListController;
 use App\Http\Controllers\ExcelTemplateController;
-use App\Http\Controllers\GovernorateController;
 use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MessageTemplateController;
@@ -188,9 +187,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/subscriptions/{subscription}/reading-baseline/preview', [SubscriptionReadingBaselineController::class, 'preview'])->name('subscriptions.reading-baseline.preview');
     Route::put('/subscriptions/{subscription}/reading-baseline', [SubscriptionReadingBaselineController::class, 'update'])->name('subscriptions.reading-baseline.update');
     Route::put('/meter-readings/{meter_reading}/pricing', [MeterReadingAdjustmentController::class, 'updatePricing'])->name('meter-readings.pricing');
-    Route::resource('areas', AreaController::class)->only(['create', 'store', 'edit', 'update', 'destroy']);
+    Route::get('branch-areas', [BranchAreaController::class, 'index'])->name('branch-areas.index');
     Route::resource('sub-areas', SubAreaController::class)->only(['create', 'store', 'edit', 'update', 'destroy']);
-    Route::resource('governorates', GovernorateController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
 
     Route::get('/settings/permissions', [PermissionController::class, 'edit'])->name('settings.permissions.edit');
     Route::put('/settings/permissions', [PermissionController::class, 'update'])->name('settings.permissions.update');

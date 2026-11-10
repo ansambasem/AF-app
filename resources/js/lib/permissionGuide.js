@@ -6,7 +6,7 @@ export const CATEGORIES = [
     { key:'finance', label:'المال والتقارير', icon:'wallet', sections:['collections','reports','disconnections'] },
     { key:'audit', label:'التدقيق المالي', icon:'shield', sections:['financial_audit'] },
     { key:'communication', label:'التواصل والطباعة', icon:'messages', sections:['messages','print_templates'] },
-    { key:'administration', label:'الإدارة والمواقع', icon:'shield', sections:['users','user_types','branches','governorates','areas','sub_areas'] },
+    { key:'administration', label:'الإدارة والمواقع', icon:'shield', sections:['users','user_types','branches','sub_areas'] },
 ];
 export const ICONS = { financial_audit:'shield', subscriptions:'users',meter_boxes:'table',circuit_breakers:'bolt',tariffs:'dollar',meter_readings:'gauge',reading_assignments:'layers',collections:'wallet',reports:'trend',disconnections:'power',messages:'messages',print_templates:'printer',users:'user',user_types:'badge',branches:'building',governorates:'map',areas:'map',sub_areas:'pin' };
 const NAMES = { 'collections.view':'عرض السجل المالي', 'collections.record_cash':'تسجيل دفعات نقدية','collections.record_transfer':'تسجيل حوالات ودفعات مقسّمة','collections.charge':'إضافة تحميل','collections.discount':'إضافة خصم','collections.clearing':'إضافة مقاصة','reports.view':'عرض التقارير المالية','reports.view_all':'عرض تقارير جميع الفروع','reports.export':'تنزيل التقارير المالية' };

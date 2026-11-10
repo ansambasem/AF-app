@@ -10,8 +10,7 @@ export default function Edit({
     circuitBreakers,
     subAreas,
     canChooseBranch,
-    currentBranchAreaId,
-    currentBranchAreaName,
+    currentBranchId,
     canEditMinimumCharge,
     canEditKilowattPrice,
 }) {
@@ -31,8 +30,7 @@ export default function Edit({
                 circuitBreakers={circuitBreakers}
                 subAreas={subAreas}
                 canChooseBranch={canChooseBranch}
-                currentBranchAreaId={currentBranchAreaId}
-                currentBranchAreaName={currentBranchAreaName}
+                currentBranchId={currentBranchId}
                 canEditMinimumCharge={canEditMinimumCharge}
                 canEditKilowattPrice={canEditKilowattPrice}
                 subscriptionCount={subscription.subscriptionCount}

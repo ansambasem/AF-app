@@ -9,8 +9,7 @@ export default function Create({
     circuitBreakers,
     subAreas,
     canChooseBranch,
-    currentBranchAreaId,
-    currentBranchAreaName,
+    currentBranchId,
     canEditMinimumCharge,
     canEditKilowattPrice,
 }) {
@@ -29,8 +28,7 @@ export default function Create({
                 circuitBreakers={circuitBreakers}
                 subAreas={subAreas}
                 canChooseBranch={canChooseBranch}
-                currentBranchAreaId={currentBranchAreaId}
-                currentBranchAreaName={currentBranchAreaName}
+                currentBranchId={currentBranchId}
                 canEditMinimumCharge={canEditMinimumCharge}
                 canEditKilowattPrice={canEditKilowattPrice}
             />

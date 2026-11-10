@@ -6,11 +6,15 @@ use App\Http\Concerns\DeletesRecords;
 use App\Http\Requests\StoreSubAreaRequest;
 use App\Http\Requests\UpdateSubAreaRequest;
 use App\Models\Area;
+use App\Models\Branch;
 use App\Models\SubArea;
 use App\Notifications\ActionCompleted;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
@@ -19,35 +23,44 @@ class SubAreaController extends Controller
     use DeletesRecords;
 
     /**
-     * Show the form for creating a new resource. Anyone but a Super Admin
-     * can only pick their own branch's area.
+     * The form for a new area: the Super Admin picks its branch; anyone
+     * else adds to the branch they work in.
      */
     public function create(Request $request): InertiaResponse
     {
         $this->authorize('create', SubArea::class);
 
-        return Inertia::render('SubAreas/Create', [
-            'areas' => Area::visibleTo($request->user())->orderBy('name')->get(),
-            'allowNoArea' => $request->user()->isSuperAdmin(),
-        ]);
+        return Inertia::render('SubAreas/Create', $this->branchChoices($request));
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Add an area to the branch: into the branch's area container, the one
+     * the branch already has. A branch that has none yet gets its own, made
+     * now for it alone; a container another branch shares is refused, so no
+     * area is ever put under two branches.
      */
     public function store(StoreSubAreaRequest $request): JsonResponse|RedirectResponse
     {
-        $subArea = SubArea::create($request->validated());
+        $branch = Branch::query()->findOrFail($request->integer('branch_id'));
+
+        if ($branch->area_id !== null && Branch::query()->withoutGlobalScopes()->where('area_id', $branch->area_id)->count() > 1) {
+            throw ValidationException::withMessages(['branch_id' => 'مناطق هذا الفرع مسجّلة مع فرع آخر في النظام القديم؛ راجع «مناطق الفروع» قبل إضافة منطقة.']);
+        }
+
+        $subArea = DB::transaction(function () use ($branch, $request): SubArea {
+            if ($branch->area_id === null) {
+                $branch->area()->associate(Area::query()->create(['name' => $branch->name]))->save();
+            }
+
+            return SubArea::query()->create(['name' => $request->validated('name'), 'area_id' => $branch->area_id]);
+        });
         $request->user()->notify(new ActionCompleted('sub-area-created', $subArea->name));
 
         if ($request->expectsJson()) {
-            return response()->json($subArea->only(['id', 'name', 'area_id']), 201);
+            return response()->json([...$subArea->only(['id', 'name', 'area_id']), 'branch_ids' => [$branch->id]], 201);
         }
 
-        return redirect()->route('governorates.index', array_filter([
-            'selected' => $subArea->area?->governorate_id,
-            'selectedArea' => $subArea->area_id,
-        ]))->with('status', 'sub-area-created');
+        return redirect()->route('branch-areas.index', ['selected' => $branch->id])->with('status', 'sub-area-created');
     }
 
     /**
@@ -59,24 +72,19 @@ class SubAreaController extends Controller
 
         return Inertia::render('SubAreas/Edit', [
             'subArea' => $this->editableFields($subArea),
-            'areas' => Area::visibleTo($request->user())->orderBy('name')->get(),
-            'allowNoArea' => $request->user()->isSuperAdmin(),
+            ...$this->branchChoices($request),
         ]);
     }
 
     /**
-     * Update the specified resource in storage.
+     * Rename the area; it stays with its branch.
      */
     public function update(UpdateSubAreaRequest $request, SubArea $subArea): RedirectResponse
     {
-        $subArea->update($request->validated());
-        $subArea->refresh();
+        $subArea->update(['name' => $request->validated('name')]);
         $request->user()->notify(new ActionCompleted('sub-area-updated', $subArea->name));
 
-        return redirect()->route('governorates.index', array_filter([
-            'selected' => $subArea->area?->governorate_id,
-            'selectedArea' => $subArea->area_id,
-        ]))->with('status', 'sub-area-updated');
+        return redirect()->route('branch-areas.index', array_filter(['selected' => $this->branchOf($subArea)]))->with('status', 'sub-area-updated');
     }
 
     /**
@@ -88,18 +96,41 @@ class SubAreaController extends Controller
     }
 
     /**
-     * A sub-area's editable fields — used for the dedicated edit page and
-     * for the edit modal's initial form data on the combined governorates
-     * page.
+     * An area's editable fields, for its edit page and the edit modal.
      *
-     * @return array<string, mixed>
+     * @return array{id: int, name: string, branch_id: ?int}
      */
     private function editableFields(SubArea $subArea): array
     {
         return [
             'id' => $subArea->id,
             'name' => $subArea->name,
-            'area_id' => $subArea->area_id,
+            'branch_id' => $this->branchOf($subArea),
+        ];
+    }
+
+    /** The branch the area belongs to: the one whose area container holds it, or null when no single branch does. */
+    private function branchOf(SubArea $subArea): ?int
+    {
+        $branches = $subArea->area_id === null ? collect() : Branch::query()->withoutGlobalScopes()->where('area_id', $subArea->area_id)->pluck('id');
+
+        return $branches->count() === 1 ? $branches->first() : null;
+    }
+
+    /**
+     * The branches an area can belong to: every branch for the Super Admin,
+     * otherwise none to pick (theirs is used).
+     *
+     * @return array{branches: Collection<int, Branch>, canChooseBranch: bool, currentBranchId: ?int}
+     */
+    private function branchChoices(Request $request): array
+    {
+        $actor = $request->user();
+
+        return [
+            'branches' => $actor->isSuperAdmin() ? Branch::query()->orderBy('name')->get(['id', 'name']) : collect(),
+            'canChooseBranch' => $actor->isSuperAdmin(),
+            'currentBranchId' => $actor->workBranchId(),
         ];
     }
 }

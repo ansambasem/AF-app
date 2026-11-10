@@ -52,8 +52,8 @@ test('paper sheets group all boxes by area and keep phone under the subscriber w
     const boxes = [1,2,3].map((id) => ({id,label:`طبلون (${900+id})`,subAreaName:id===3?'جنوب':'شمال',subscriptions:[{id,name:`مشترك ${id}`,phone:'0599000001',accountNumber:`A${id}`,previousReading:38}]}));
     const html = renderToStaticMarkup(createElement(Paper, {sheet:{id:1,number:'S-1',printCount:0},cycle:{id:1,branchName:'الفرع',readingDate:'2026-10-29',weekStart:'2026-10-23',weekEnd:'2026-10-29'},boxes}));
     assert.equal((html.match(/<table/g)??[]).length, 1);
-    assert.equal((html.match(/منطقة 2: شمال/g)??[]).length, 1);
-    assert.equal((html.match(/منطقة 2: جنوب/g)??[]).length, 1);
+    assert.equal((html.match(/المنطقة: شمال/g)??[]).length, 1);
+    assert.equal((html.match(/المنطقة: جنوب/g)??[]).length, 1);
     for (const id of [1,2,3]) {
         const row = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].find((match)=>match[1].includes(`مشترك ${id}`))[1];
         const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((match)=>match[1]);

@@ -37,13 +37,13 @@ export function boxMatches(box, search, subAreaIds, boxId = '') {
     const ids = Array.isArray(subAreaIds) ? subAreaIds : subAreaIds ? [subAreaIds] : [];
     const inSubArea = ids.length === 0 || ids.map(String).includes(String(box.subAreaId ?? 'none'));
 
-    return inSubArea && (!boxId || String(box.id) === String(boxId)) && readingSearchMatches(`${box.number} ${box.name} ${box.subAreaName ?? 'بدون منطقة 2'}`, search);
+    return inSubArea && (!boxId || String(box.id) === String(boxId)) && readingSearchMatches(`${box.number} ${box.name} ${box.subAreaName ?? 'بدون منطقة'}`, search);
 }
 
 /** Box choices follow the selected areas and distribution status. */
 export function distributionBoxOptions(boxes, subAreaIds = [], assignmentFilter = '') {
     return boxes.filter((box) => boxMatches(box, '', subAreaIds) && assignmentMatches(box, assignmentFilter))
-        .map((box) => ({ value: String(box.id), label: `${box.name || 'طبلون'} (${box.number})`, hint: box.subAreaName ?? 'بدون منطقة 2' }))
+        .map((box) => ({ value: String(box.id), label: `${box.name || 'طبلون'} (${box.number})`, hint: box.subAreaName ?? 'بدون منطقة' }))
         .sort((first, second) => first.label.localeCompare(second.label, 'ar', { numeric: true }));
 }
 
@@ -64,7 +64,7 @@ export function distributionAreas(boxes, assignmentFilter = '') {
     const areas = new Map();
     boxes.forEach((box) => {
         const id = String(box.subAreaId ?? 'none');
-        if (!areas.has(id)) areas.set(id, { id, name: box.subAreaName ?? 'بدون منطقة 2', boxes: 0, subscribers: 0, assigned: 0, unassigned: 0, matchingBoxes: 0, matchingSubscribers: 0 });
+        if (!areas.has(id)) areas.set(id, { id, name: box.subAreaName ?? 'بدون منطقة', boxes: 0, subscribers: 0, assigned: 0, unassigned: 0, matchingBoxes: 0, matchingSubscribers: 0 });
         const area = areas.get(id);
         area.boxes++;
         area.subscribers += box.subscribers;
@@ -96,7 +96,7 @@ export function distributionAreaBreakdown(boards, boxes) {
     const groups = new Map();
     boxes.forEach((box) => {
         const id = String(box.subAreaId ?? 'none');
-        if (!groups.has(id)) groups.set(id, { id, name: box.subAreaName ?? 'بدون منطقة 2', items: [], total: totals.get(id) ?? 0 });
+        if (!groups.has(id)) groups.set(id, { id, name: box.subAreaName ?? 'بدون منطقة', items: [], total: totals.get(id) ?? 0 });
         groups.get(id).items.push(box);
     });
     return [...groups.values()].map((area) => ({

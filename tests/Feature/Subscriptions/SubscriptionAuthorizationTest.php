@@ -5,7 +5,6 @@ namespace Tests\Feature\Subscriptions;
 use App\Enums\SubscriptionStatus;
 use App\Models\Area;
 use App\Models\Branch;
-use App\Models\Governorate;
 use App\Models\MeterBox;
 use App\Models\SubArea;
 use App\Models\Subscription;
@@ -116,8 +115,8 @@ class SubscriptionAuthorizationTest extends TestCase
         $this->actingAs($dataEntry)
             ->get(route('subscriptions.create'))
             ->assertInertia(fn ($page) => $page
-                ->where('currentBranchAreaId', $area->id)
-                ->where('currentBranchAreaName', $area->name)
+                ->where('currentBranchId', $branch->id)
+                ->missing('currentBranchAreaName')
                 ->has('subAreas', 1)
                 ->where('subAreas.0.id', $subArea->id)
                 // The form finds boxes as the user types, so the page never carries them all.
@@ -283,9 +282,7 @@ class SubscriptionAuthorizationTest extends TestCase
     public function test_subscriptions_index_carries_the_detail_fields_the_view_modal_needs(): void
     {
         $superAdmin = User::factory()->superAdmin()->create();
-        $branch = Branch::factory()->create();
-        $governorate = Governorate::factory()->create();
-        $branch->update(['governorate_id' => $governorate->id]);
+        $branch = Branch::factory()->create(['name' => 'North']);
         $tariff = Tariff::factory()->residential()->create();
         Subscription::factory()->create(['branch_id' => $branch->id, 'tariff_id' => $tariff->id, 'full_name' => 'Detail Fields Subscription']);
 
@@ -295,6 +292,7 @@ class SubscriptionAuthorizationTest extends TestCase
         $response->assertInertia(fn ($page) => $page->has('subscriptions.data', 1)
             ->where('subscriptions.data.0.full_name', 'Detail Fields Subscription')
             ->where('subscriptions.data.0.tariffRate', (string) $tariff->rate)
-            ->where('subscriptions.data.0.governorateName', $governorate->name));
+            ->where('subscriptions.data.0.branchName', 'North')
+            ->missing('subscriptions.data.0.governorateName'));
     }
 }

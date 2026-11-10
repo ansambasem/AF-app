@@ -5,11 +5,9 @@ namespace Tests\Feature\Lifecycle;
 use App\Enums\AuditAction;
 use App\Enums\PermissionKey;
 use App\Enums\UserRole;
-use App\Models\Area;
 use App\Models\Branch;
 use App\Models\CircuitBreaker;
 use App\Models\CurrencyRate;
-use App\Models\Governorate;
 use App\Models\MeterBox;
 use App\Models\Permission;
 use App\Models\SubArea;
@@ -40,26 +38,24 @@ trait SetsUpCompanyThroughTheWebsite
     /**
      * Everything a company needs before its first subscriber, set up through the website by the Super Admin.
      *
-     * @return array{governorate: Governorate, area: Area, blockA: SubArea, blockB: SubArea, branch: Branch, residential: Tariff, commercial: Tariff, segment: TariffSegment, breaker: CircuitBreaker, schools1: MeterBox, schools2: MeterBox, market: MeterBox, manager: User, collector: User, reader: User, auditor: User}
+     * @return array{blockA: SubArea, blockB: SubArea, branch: Branch, residential: Tariff, commercial: Tariff, segment: TariffSegment, breaker: CircuitBreaker, schools1: MeterBox, schools2: MeterBox, market: MeterBox, manager: User, collector: User, reader: User, auditor: User}
      */
     private function setUpCompany(): array
     {
         $this->actingAs($this->superAdmin);
-        $this->post(route('governorates.store'), ['name' => 'المحافظة الوسطى'])->assertSessionHasNoErrors();
-        $governorate = Governorate::query()->where('name', 'المحافظة الوسطى')->sole();
-        $this->post(route('areas.store'), ['name' => 'مخيم النصيرات', 'governorate_id' => $governorate->id])->assertSessionHasNoErrors();
-        $area = Area::query()->where('name', 'مخيم النصيرات')->sole();
-        $this->post(route('sub-areas.store'), ['name' => 'البلوك أ', 'area_id' => $area->id])->assertSessionHasNoErrors();
-        $this->post(route('sub-areas.store'), ['name' => 'البلوك ب', 'area_id' => $area->id])->assertSessionHasNoErrors();
-        [$blockA, $blockB] = SubArea::query()->where('area_id', $area->id)->orderBy('id')->get()->all();
+        // The branch first, then its areas (added from the branch), then their meter boxes.
+        $this->post(route('branches.store'), ['name' => 'فرع النصيرات', 'phone' => '0599000000', 'is_active' => true])->assertSessionHasNoErrors();
+        $branch = Branch::query()->where('name', 'فرع النصيرات')->sole();
+        $this->post(route('sub-areas.store'), ['name' => 'البلوك أ', 'branch_id' => $branch->id])->assertSessionHasNoErrors();
+        $this->post(route('sub-areas.store'), ['name' => 'البلوك ب', 'branch_id' => $branch->id])->assertSessionHasNoErrors();
+        [$blockA, $blockB] = $branch->fresh()->subAreas()->orderBy('id')->get()->all();
         $this->put(route('settings.currencies.update', CurrencyRate::query()->where('currency', 'USD')->sole()), ['rate' => '3.7'])->assertSessionHasNoErrors();
         $this->post(route('tariffs.store'), ['category' => 'residential', 'rate' => '0.50'])->assertSessionHasNoErrors();
         $this->post(route('tariffs.store'), ['category' => 'commercial', 'rate' => '0.80'])->assertSessionHasNoErrors();
         $this->post(route('tariff-segments.store'), ['name' => 'أسر محتاجة'])->assertSessionHasNoErrors();
         $this->post(route('circuit-breakers.store'), ['ampere' => 10, 'minimum_payment' => '10'])->assertSessionHasNoErrors();
 
-        $this->post(route('branches.store'), ['name' => 'فرع النصيرات', 'phone' => '0599000000', 'is_active' => true, 'governorate_id' => $governorate->id, 'area_id' => $area->id])->assertSessionHasNoErrors();
-        $branch = Branch::query()->where('name', 'فرع النصيرات')->sole();
+        $branch = $branch->fresh();
         foreach ([['المدارس', '1', 'T-101', $blockA], ['المدارس', '2', 'T-102', $blockB], ['السوق', null, 'T-103', $blockA]] as [$name, $suffix, $number, $block]) {
             $this->post(route('meter-boxes.store'), ['name' => $name, 'name_suffix' => $suffix, 'box_number' => $number, 'sub_area_id' => $block->id, 'branch_id' => $branch->id, 'location' => 'قرب '.$name])->assertSessionHasNoErrors();
         }
@@ -85,7 +81,7 @@ trait SetsUpCompanyThroughTheWebsite
         ])->assertSessionHasNoErrors();
 
         return [
-            'governorate' => $governorate, 'area' => $area, 'blockA' => $blockA, 'blockB' => $blockB, 'branch' => $branch,
+            'blockA' => $blockA, 'blockB' => $blockB, 'branch' => $branch,
             'residential' => Tariff::query()->where('category', 'residential')->sole(), 'commercial' => Tariff::query()->where('category', 'commercial')->sole(),
             'segment' => TariffSegment::sole(), 'breaker' => CircuitBreaker::sole(), 'schools1' => $schools1, 'schools2' => $schools2, 'market' => $market,
             ...array_map(fn (User $user): User => $user->fresh(), $staff),
