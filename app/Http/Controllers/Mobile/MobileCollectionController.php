@@ -353,7 +353,7 @@ class MobileCollectionController extends Controller
             'sender_bank_name' => $transaction->sender_bank_name,
             'status' => 'recorded',
             'recorded_at' => $transaction->created_at->toIso8601String(),
-            'voucher_number' => $transaction->printedVoucherNumber(),
+            'voucher_number' => $transaction->receiptVoucherNumber(),
             'reference_number' => $transaction->reference_number,
             'sender_name' => $transaction->sender_name,
             'notes' => $transaction->notes,

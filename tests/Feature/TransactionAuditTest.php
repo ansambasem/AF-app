@@ -73,7 +73,7 @@ class TransactionAuditTest extends TestCase
                 ->where('events.data.0.reason', 'سُجّلت بالخطأ')
                 ->where('events.data.1.kind', 'refund')
                 ->where('events.data.1.kindNote', 'كامل')
-                ->where('events.data.1.lines.0', ['label' => 'دفعة', 'amount' => '100', 'voucherNumber' => '000001'])
+                ->where('events.data.1.lines.0', ['label' => 'دفعة', 'amount' => '100', 'voucherNumber' => null])
                 ->where('events.data.1.lines.1.amount', '100')
                 ->where('events.data.1.reason', __(CorrectionReason::PaymentRefunded->label()))
                 ->where('events.data.1.notes', 'سُجّلت بمبلغ خطأ')

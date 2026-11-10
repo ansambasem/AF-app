@@ -257,7 +257,7 @@ class CompanySetupToAuditJourneyTest extends TestCase
         $missingTransfer = $this->pay($collector, $khaled, ['amount' => '100', 'payment_method' => 'bank_transfer', 'bank_name' => 'جوال باي', 'sender_name' => 'خالد يوسف', 'reference_number' => 'TRF-2']);
         $dollars = $this->pay($collector, $khaled, ['amount' => '50', 'currency' => 'USD', 'exchange_rate' => '3.7', 'payment_method' => 'cash']);
         $this->assertSame([200.0, 115.0], [$salem->balance(), $khaled->balance()]);
-        $this->assertSame([1, null, null, 2], [$cash->voucher_number, $transfer->voucher_number, $missingTransfer->voucher_number, $dollars->voucher_number]);
+        $this->assertSame([null, null, null, null], [$cash->voucher_number, $transfer->voucher_number, $missingTransfer->voucher_number, $dollars->voucher_number]);
         $this->actingAs($collector)->get(route('subscriptions.payments.receipt', [$salem, $cash]))->assertOk();
         $this->actingAs($collector)->get(route('subscriptions.payments.receipt', [$khaled, $cash]))->assertNotFound();
 

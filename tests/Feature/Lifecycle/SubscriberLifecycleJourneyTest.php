@@ -124,7 +124,7 @@ class SubscriberLifecycleJourneyTest extends TestCase
             ->where('entries', function ($entries): bool {
                 $this->assertSame(['subscription_fee', 'meter_reading', 'payment', 'disconnection_fee', 'meter_reading', 'payment'], $entries->pluck('type')->all());
                 $this->assertSame(['100.00', '140.00', '50.00', '70.00', '80.00', '0.00'], $entries->pluck('balance')->all());
-                $this->assertSame('000001', $entries[2]['voucherNumber']);
+                $this->assertNull($entries[2]['voucherNumber']);
                 $this->assertNull($entries[5]['voucherNumber']);
                 $this->assertSame('TRF-LIFE-1', $entries[5]['referenceNumber']);
 

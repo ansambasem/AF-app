@@ -54,7 +54,7 @@ class SubscriptionTransactionController extends Controller
 
         $request->user()->notify(new ActionCompleted(
             'transaction-amended',
-            sprintf('%s — دفعة%s', $subscription->displayName(), $transaction->printedVoucherNumber() ? ' · السند '.$transaction->printedVoucherNumber() : ''),
+            sprintf('%s — دفعة%s', $subscription->displayName(), $transaction->receiptVoucherNumber() ? ' · السند '.$transaction->receiptVoucherNumber() : ''),
         ));
 
         return back()->with('status', 'transaction-amended');
@@ -99,7 +99,7 @@ class SubscriptionTransactionController extends Controller
                 'amount' => $replacement->currency_amount,
                 'currency' => $replacement->currency->value,
                 'inShekels' => ltrim($replacement->amount, '-'),
-                'voucherNumber' => $replacement->printedVoucherNumber(),
+                'voucherNumber' => $replacement->receiptVoucherNumber(),
                 'balance' => number_format($subscription->balance(), 2, '.', ''),
                 'receiptUrl' => route('subscriptions.payments.receipt', [$subscription, $replacement]),
             ]);

@@ -47,7 +47,8 @@ class RemoveDuplicateTestCashVouchersTest extends TestCase
 
         $this->cleanup = require database_path('migrations/2026_11_09_090220_remove_duplicate_test_cash_vouchers.php');
         $this->index = require database_path('migrations/2026_11_09_090221_add_unique_cash_voucher_to_subscription_transactions.php');
-        // The database as it is on the server: the index not yet built, so vouchers can be shared.
+        // The database as it was on the server: the index not yet built, so vouchers can be shared.
+        (require database_path('migrations/2026_11_10_083541_scope_cash_voucher_uniqueness_to_branch.php'))->down();
         $this->index->down();
         File::deleteDirectory(storage_path('app/private/voucher-cleanup'));
     }
