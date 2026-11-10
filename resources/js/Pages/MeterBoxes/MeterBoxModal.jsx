@@ -2,7 +2,7 @@ import FormModal from '@/Components/FormModal';
 import { useResourceForm } from '@/hooks/useResourceForm';
 import MeterBoxForm, { meterBoxFormData } from './MeterBoxForm';
 
-export default function MeterBoxModal({ show, onClose, meterBox, branches, canChooseBranch, canCreateSubArea, governorates, areas, subAreas, currentBranchAreaId, branchId }) {
+export default function MeterBoxModal({ show, onClose, meterBox, branches, canChooseBranch, canCreateSubArea, subAreas, currentBranchId, branchId }) {
     const form = useResourceForm('/meter-boxes', meterBox, { ...meterBoxFormData(meterBox), branch_id: meterBox?.branch_id ?? branchId ?? '' });
 
     return (
@@ -14,10 +14,8 @@ export default function MeterBoxModal({ show, onClose, meterBox, branches, canCh
                 branches={branches}
                 canChooseBranch={canChooseBranch}
                 canCreateSubArea={canCreateSubArea}
-                governorates={governorates}
-                areas={areas}
                 subAreas={subAreas}
-                currentBranchAreaId={currentBranchAreaId}
+                currentBranchId={currentBranchId}
             />
         </FormModal>
     );

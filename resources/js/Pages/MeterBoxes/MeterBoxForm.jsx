@@ -21,39 +21,17 @@ export function meterBoxFormData(meterBox) {
     };
 }
 
-export default function MeterBoxForm({ data, setData, errors, branches, canChooseBranch, canCreateSubArea, governorates, areas, subAreas, currentBranchAreaId }) {
-    const selectedBranch = canChooseBranch ? branches.find((branch) => String(branch.id) === String(data.branch_id)) : null;
-
-    const [governorateId, setGovernorateId] = useState(selectedBranch?.governorate_id ?? '');
-    const [areaId, setAreaId] = useState(selectedBranch?.area_id ?? '');
+export default function MeterBoxForm({ data, setData, errors, branches, canChooseBranch, canCreateSubArea, subAreas, currentBranchId }) {
     const [createdSubAreas, setCreatedSubAreas] = useState([]);
 
-    // The area whose sub-areas ("منطقة 2") are selectable: the cascading
-    // selected branch's area for a Super Admin, or the actor's own
-    // (fixed) branch's area for everyone else.
-    const effectiveAreaId = canChooseBranch ? selectedBranch?.area_id : currentBranchAreaId;
-
-    const areasInGovernorate = governorateId ? areas.filter((area) => String(area.governorate_id) === String(governorateId)) : [];
-
-    const branchesInArea = areaId ? branches.filter((branch) => String(branch.area_id) === String(areaId)) : [];
-
+    // A box belongs to one area of its branch: the branch the Super Admin picks, or the actor's own.
+    const branchId = canChooseBranch ? data.branch_id : currentBranchId;
     const availableSubAreas = [...new Map([...subAreas, ...createdSubAreas].map((item) => [String(item.id), item])).values()];
-    const subAreasInArea = effectiveAreaId ? availableSubAreas.filter((subArea) => String(subArea.area_id) === String(effectiveAreaId)) : [];
+    const subAreasInArea = branchId ? availableSubAreas.filter((subArea) => String(subArea.branch_id) === String(branchId)) : [];
 
     const displayName = [data.name.trim(), data.name_suffix.trim()].filter(Boolean).join(' ');
     const subArea = subAreasInArea.find((option) => String(option.id) === String(data.sub_area_id));
-    const requiredFields = ['name', 'box_number', ...(canChooseBranch ? ['branch_id'] : [])];
-
-    function onGovernorateChange(value) {
-        setGovernorateId(value);
-        setAreaId('');
-        setData((current) => ({ ...current, branch_id: '', sub_area_id: '' }));
-    }
-
-    function onAreaChange(value) {
-        setAreaId(value);
-        setData((current) => ({ ...current, branch_id: '', sub_area_id: '' }));
-    }
+    const requiredFields = ['name', 'box_number', 'sub_area_id', ...(canChooseBranch ? ['branch_id'] : [])];
 
     return (
         <div className="space-y-4">
@@ -109,45 +87,23 @@ export default function MeterBoxForm({ data, setData, errors, branches, canChoos
                 columns={2}
             >
                 {canChooseBranch ? (
-                    <>
-                        <FormSelect
-                            id="governorate_id"
-                            label="المحافظة"
-                            value={governorateId}
-                            onChange={onGovernorateChange}
-                            options={namedOptions(governorates)}
-                            placeholder="— اختر محافظة —"
-                            emptyMessage="لا توجد محافظات بعد"
-                        />
-                        <FormSelect
-                            id="area_id"
-                            label="المنطقة"
-                            value={areaId}
-                            onChange={onAreaChange}
-                            options={namedOptions(areasInGovernorate)}
-                            placeholder="— اختر منطقة —"
-                            blockedMessage={governorateId ? null : 'اختر محافظة أولاً'}
-                            emptyMessage="لا توجد مناطق في هذه المحافظة بعد"
-                        />
-                        <FormSelect
-                            id="branch_id"
-                            label="الفرع"
-                            required
-                            value={data.branch_id}
-                            onChange={(value) => setData((current) => ({ ...current, branch_id: value, sub_area_id: '' }))}
-                            options={namedOptions(branchesInArea)}
-                            placeholder="— اختر فرعًا —"
-                            blockedMessage={areaId ? null : 'اختر منطقة أولاً'}
-                            emptyMessage="لا توجد فروع في هذه المنطقة بعد"
-                            error={errors.branch_id}
-                        />
-                    </>
+                    <FormSelect
+                        id="branch_id"
+                        label="الفرع"
+                        required
+                        value={data.branch_id}
+                        onChange={(value) => setData((current) => ({ ...current, branch_id: value, sub_area_id: '' }))}
+                        options={namedOptions(branches)}
+                        placeholder="— اختر فرعًا —"
+                        emptyMessage="لا توجد فروع بعد"
+                        error={errors.branch_id}
+                    />
                 ) : (
                     <p className="text-sm text-gray-500 sm:col-span-2">سينتمي هذا الطبلون إلى فرعك.</p>
                 )}
 
                 <MeterBoxSubAreaSelect
-                    key={`${data.branch_id}-${effectiveAreaId}`}
+                    key={String(branchId ?? '')}
                     id="sub_area_id"
                     value={data.sub_area_id}
                     onChange={(value) => setData('sub_area_id', value)}
@@ -156,9 +112,9 @@ export default function MeterBoxForm({ data, setData, errors, branches, canChoos
                         setData('sub_area_id', String(subArea.id));
                     }}
                     subAreas={subAreasInArea}
-                    areaId={effectiveAreaId}
+                    branchId={branchId}
                     canCreate={canCreateSubArea}
-                    blockedMessage={effectiveAreaId ? null : canChooseBranch && !selectedBranch ? 'اختر الفرع أولاً' : 'الفرع غير مرتبط بمنطقة بعد'}
+                    blockedMessage={branchId ? null : 'اختر الفرع أولاً'}
                     error={errors.sub_area_id}
                 />
             </FormSection>

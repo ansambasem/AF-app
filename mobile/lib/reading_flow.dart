@@ -685,10 +685,10 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
     final areas = <String, String>{
       for (final box in previews)
         '${box['sub_area_id'] ?? 'none'}':
-            '${box['sub_area_name'] ?? 'بدون منطقة 2'}',
+            '${box['sub_area_name'] ?? 'بدون منطقة'}',
       for (final subscriber in widget.store.subscribers)
         '${subscriber['sub_area_id'] ?? 'none'}':
-            '${subscriber['sub_area_name'] ?? 'بدون منطقة 2'}'
+            '${subscriber['sub_area_name'] ?? 'بدون منطقة'}'
     };
     bool inArea(Map<String, dynamic> subscriber) =>
         subArea == null || '${subscriber['sub_area_id'] ?? 'none'}' == subArea;
@@ -762,7 +762,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
           AppSearchField(
               key: const ValueKey('reading-box-search'),
               controller: search,
-              hint: 'منطقة 2 أو الطبلون أو المشترك',
+              hint: 'المنطقة أو الطبلون أو المشترك',
               onChanged: (_) => setState(() {}),
               onClear: () => setState(search.clear)),
           if (areas.isNotEmpty)
@@ -917,7 +917,7 @@ class _ReadingFlowState extends State<ReadingFlow> with WidgetsBindingObserver {
       leading: _boxBadge('${box['number']}', complete: false),
       title: AppRowTitle('${box['name']} (${box['number']})'),
       subtitle: AppRowNote([
-        '${box['sub_area_name'] ?? 'بدون منطقة 2'}',
+        '${box['sub_area_name'] ?? 'بدون منطقة'}',
         '${box['subscribers']} مشترك',
       ].join(' · ')),
       trailing: const AppTag('عرض فقط', AppTone.muted),

@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Branch;
 use App\Models\MeterBox;
 use App\Models\SubArea;
 use Closure;
@@ -44,7 +43,7 @@ class StoreMeterBoxRequest extends FormRequest
                     ->ignore($this->route('meter_box')),
             ],
             'box_number' => ['required', 'string', 'max:255', Rule::unique('meter_boxes', 'box_number')->ignore($this->route('meter_box'))],
-            'sub_area_id' => ['nullable', Rule::exists('sub_areas', 'id'), $this->subAreaBelongsToBranchArea()],
+            'sub_area_id' => ['required', 'integer', Rule::exists('sub_areas', 'id'), $this->areaOfTheBoxBranch()],
             'location' => ['nullable', 'string', 'max:255'],
         ];
 
@@ -60,29 +59,25 @@ class StoreMeterBoxRequest extends FormRequest
      */
     public function messages(): array
     {
-        return ['name_suffix.unique' => 'هذه اللاحقة مستخدمة مع اسم الطبلون نفسه.'];
+        return [
+            'name_suffix.unique' => 'هذه اللاحقة مستخدمة مع اسم الطبلون نفسه.',
+            'sub_area_id.required' => 'اختر المنطقة التي يتبعها الطبلون.',
+        ];
     }
 
     /**
-     * A chosen sub-area must belong to the meter box's branch's own area —
-     * the branch itself is either the request's own `branch_id` (Super
-     * Admin) or the actor's own branch (everyone else). On update that is
-     * also the meter box's own branch, since the policy only lets them
-     * edit meter boxes in it.
+     * The box's area must be one of its own branch's: the request's
+     * `branch_id` for a Super Admin, the branch the actor works in for
+     * everyone else (on update also the box's own, since the policy lets
+     * them edit only its boxes).
      */
-    private function subAreaBelongsToBranchArea(): Closure
+    private function areaOfTheBoxBranch(): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail): void {
-            if (! $value) {
-                return;
-            }
+            $branchId = (int) ($this->user()->isSuperAdmin() ? $this->input('branch_id') : $this->user()->workBranchId());
 
-            $branchId = $this->user()->isSuperAdmin() ? $this->input('branch_id') : $this->user()->workBranchId();
-            $branch = Branch::find($branchId);
-            $subArea = SubArea::find($value);
-
-            if ($branch?->area_id && $subArea && $subArea->area_id !== $branch->area_id) {
-                $fail('منطقة 2 المختارة لا تتبع منطقة الفرع.');
+            if ((int) SubArea::query()->whereKey($value)->value('branch_id') !== $branchId) {
+                $fail('المنطقة المختارة لا تتبع فرع الطبلون.');
             }
         };
     }

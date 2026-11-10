@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\PermissionKey;
-use App\Models\Area;
 use App\Models\Branch;
 use App\Models\CircuitBreaker;
 use App\Models\MeterBox;
@@ -986,11 +985,10 @@ class MobileApiTest extends TestCase
 
     public function test_mobile_subscriber_summary_includes_the_address_area_and_meter_box_location(): void
     {
-        $area = Area::factory()->create(['name' => 'مخيم 2']);
-        $branch = Branch::factory()->inArea($area)->create();
+        $branch = Branch::factory()->create(['name' => 'مخيم 2']);
         $viewer = $this->collectorWithPermission(PermissionKey::ViewSubscriptions);
         $viewer->update(['branch_id' => $branch->id]);
-        $subArea = SubArea::factory()->create(['name' => 'الحي الشرقي']);
+        $subArea = SubArea::factory()->for($branch)->create(['name' => 'الحي الشرقي']);
         $box = MeterBox::factory()->create([
             'branch_id' => $branch->id, 'sub_area_id' => $subArea->id,
             'name' => 'أبو ذر', 'name_suffix' => '8', 'box_number' => 'B-42',
@@ -1002,7 +1000,8 @@ class MobileApiTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.MobileAccessToken::issue($viewer))
             ->getJson(route('mobile.collections.subscriptions.show', $subscription))->assertOk()
             ->assertJsonPath('subscription.address', 'بجانب المدرسة')
-            ->assertJsonPath('subscription.area_name', 'مخيم 2')
+            // The area is the meter box's area of the branch.
+            ->assertJsonPath('subscription.area_name', 'الحي الشرقي')
             ->assertJsonPath('subscription.sub_area_name', 'الحي الشرقي')
             ->assertJsonPath('subscription.meter_box_name', 'أبو ذر 8')
             ->assertJsonPath('subscription.meter_box_number', 'B-42');

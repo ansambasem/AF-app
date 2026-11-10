@@ -218,7 +218,7 @@ class PaymentController extends Controller
 
     /**
      * The Filter menu's dropdowns: what they owe, status, subscription type,
-     * منطقة 2 and meter box — and the branch, for the Super Admin.
+     * المنطقة and meter box — and the branch, for the Super Admin.
      *
      * @return array<int, array{key: string, label: string, options: array<int, array<string, mixed>>}>
      */

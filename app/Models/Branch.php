@@ -7,11 +7,10 @@ use Database\Factories\BranchFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
-#[Fillable(['name', 'location', 'phone', 'is_active', 'governorate_id', 'area_id'])]
+#[Fillable(['name', 'location', 'phone', 'is_active'])]
 class Branch extends Model
 {
     /** @use HasFactory<BranchFactory> */
@@ -25,14 +24,10 @@ class Branch extends Model
         ];
     }
 
-    public function governorate(): BelongsTo
+    /** The branch's areas (formerly «منطقة 2»), each holding its meter boxes. */
+    public function subAreas(): HasMany
     {
-        return $this->belongsTo(Governorate::class);
-    }
-
-    public function area(): BelongsTo
-    {
-        return $this->belongsTo(Area::class);
+        return $this->hasMany(SubArea::class);
     }
 
     public function users(): HasMany
@@ -73,6 +68,7 @@ class Branch extends Model
             'المشتركون' => $this->subscriptions()->count(),
             'المستخدمون' => $this->users()->count(),
             'الطبلونات' => $this->meterBoxes()->count(),
+            'المناطق' => $this->subAreas()->count(),
             'القراءات' => $this->meterReadings()->count(),
         ]);
     }

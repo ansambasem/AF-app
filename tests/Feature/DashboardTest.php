@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Enums\PermissionKey;
 use App\Models\Branch;
-use App\Models\Governorate;
 use App\Models\MeterReading;
 use App\Models\Permission;
 use App\Models\Subscription;
@@ -19,26 +18,19 @@ class DashboardTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_banner_names_the_governorate_the_super_admin_narrowed_to(): void
+    public function test_the_super_admin_narrows_the_dashboard_to_a_branch_with_no_governorate_level(): void
     {
         $superAdmin = User::factory()->superAdmin()->create();
-        $governorate = Governorate::create(['name' => 'محافظة الوسطى']);
-        [, $second] = Branch::factory()->count(2)->create(['governorate_id' => $governorate->id]);
-        Branch::factory()->create();
+        [, $second] = Branch::factory()->count(2)->create();
 
-        $this->actingAs($superAdmin)->get(route('dashboard', ['governorate' => $governorate->id]))->assertInertia(fn ($page) => $page
-            ->where('branchScope.level', 'governorate')
-            ->where('branchScope.name', 'محافظة الوسطى')
-            ->where('branchScope.branches', 2));
-        $this->get(route('dashboard', ['governorate' => $governorate->id, 'branch' => $second->id]))->assertInertia(fn ($page) => $page
+        $this->actingAs($superAdmin)->get(route('dashboard', ['governorate' => 1]))->assertInertia(fn ($page) => $page
+            ->where('branchScope.level', 'all')
+            ->where('branchScope.branches', 2)
+            ->missing('governorateOptions')
+            ->missing('scope.governorates'));
+        $this->get(route('dashboard', ['branch' => $second->id]))->assertInertia(fn ($page) => $page
             ->where('branchScope.level', 'branch')
             ->where('branchScope.name', $second->name));
-        // A governorate with no branch yet still names itself, so the banner and its pickers stay to choose another.
-        $empty = Governorate::create(['name' => 'محافظة الشمال']);
-        $this->get(route('dashboard', ['governorate' => $empty->id]))->assertInertia(fn ($page) => $page
-            ->where('branchScope.level', 'governorate')
-            ->where('branchScope.name', 'محافظة الشمال')
-            ->where('branchScope.branches', 0));
     }
 
     /**
@@ -178,15 +170,15 @@ class DashboardTest extends TestCase
 
     public function test_the_new_branch_pop_up_loads_its_options_only_when_opened(): void
     {
-        Governorate::factory()->create(['name' => 'Baghdad']);
         $superAdmin = User::factory()->superAdmin()->create();
 
         $response = $this->actingAs($superAdmin)->get(route('dashboard'));
 
+        // The branch form has no governorate or area to pick any more: its options are empty.
         $response->assertInertia(fn ($page) => $page
             ->where('canCreateBranch', true)
             ->missing('branchForm')
-            ->reloadOnly('branchForm', fn ($reload) => $reload->where('branchForm.governorates.0.name', 'Baghdad')));
+            ->reloadOnly('branchForm', fn ($reload) => $reload->where('branchForm', [])));
     }
 
     public function test_the_new_user_pop_up_keeps_the_branch_fixed_without_a_system_role_selector(): void

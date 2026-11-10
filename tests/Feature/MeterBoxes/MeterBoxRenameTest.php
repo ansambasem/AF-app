@@ -3,6 +3,7 @@
 namespace Tests\Feature\MeterBoxes;
 
 use App\Models\MeterBox;
+use App\Models\SubArea;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,6 +24,7 @@ class MeterBoxRenameTest extends TestCase
             'name_suffix' => '3',
             'box_number' => '23245',
             'branch_id' => $box->branch_id,
+            'sub_area_id' => SubArea::factory()->create(['branch_id' => $box->branch_id])->id,
         ])->assertSessionHasNoErrors();
 
         $this->assertSame($box->id, $subscription->fresh()->meter_box_id);

@@ -5,7 +5,6 @@ namespace App\Http\Requests;
 use App\Models\Branch;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreBranchRequest extends FormRequest
 {
@@ -28,8 +27,6 @@ class StoreBranchRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'is_active' => ['boolean'],
-            'governorate_id' => ['nullable', Rule::exists('governorates', 'id')],
-            'area_id' => ['nullable', Rule::exists('areas', 'id')],
         ];
     }
 }

@@ -31,11 +31,11 @@ class CampTwoSubscribersSeeder extends Seeder
         $subscribers = $this->sourceNames();
 
         DB::transaction(function () use ($subscribers): void {
-            $branch = Branch::query()->where('seed_key', 'camp-two')->whereNotNull('area_id')->lockForUpdate()->first()
+            $branch = Branch::query()->where('seed_key', 'camp-two')->lockForUpdate()->first()
                 ?? throw new RuntimeException('Run BranchSeeder before adding sample subscribers.');
             $boxesBySubArea = MeterBox::query()
                 ->where('branch_id', $branch->id)
-                ->whereHas('subArea', fn (Builder $query): Builder => $query->where('area_id', $branch->area_id))
+                ->whereHas('subArea', fn (Builder $query): Builder => $query->where('branch_id', $branch->id))
                 ->orderBy('sub_area_id')->orderBy('id')->get()
                 ->groupBy('sub_area_id')->take(5)
                 ->map(fn (Collection $boxes): Collection => $boxes->take(2)->values())
@@ -75,7 +75,7 @@ class CampTwoSubscribersSeeder extends Seeder
                     }
 
                     if ($existing->meterBox === null || $existing->meterBox->branch_id !== $branch->id
-                        || $existing->meterBox->subArea?->area_id !== $branch->area_id) {
+                        || $existing->meterBox->subArea?->branch_id !== $branch->id) {
                         $existing->update(['meter_box_id' => $box->id]);
                     }
 

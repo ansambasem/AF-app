@@ -10,7 +10,6 @@ use App\Models\CircuitBreaker;
 use App\Models\CompanyFormTemplate;
 use App\Models\CurrencyRate;
 use App\Models\DisconnectionList;
-use App\Models\Governorate;
 use App\Models\MessageBatch;
 use App\Models\MeterBox;
 use App\Models\MeterReading;
@@ -117,7 +116,7 @@ class HandleInertiaRequests extends Middleware
                 'sendMessages' => $user->can('create', MessageBatch::class),
                 'viewDisconnections' => $user->can('viewAny', DisconnectionList::class),
                 'viewReadingCycles' => $user->can('viewAny', ReadingCycle::class),
-                'viewGovernorates' => $user->can('viewAny', Governorate::class) || $user->can('viewAny', SubArea::class),
+                'viewBranchAreas' => $user->can('viewAny', SubArea::class),
                 'manageSettings' => $user->can('manage', Permission::class),
                 'managePrintTemplates' => $user->can('viewAny', PrintTemplate::class),
                 // Without it a printout uses the company's saved templates as they are.

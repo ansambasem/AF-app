@@ -81,17 +81,17 @@ trait ProvidesSubscriptionForm
      * The branch/tariff options for the create/edit forms, and whether the
      * actor may choose the branch themselves. The meter boxes are not sent:
      * the form finds them as the user types (MeterBoxOptionController),
-     * narrowed by branch and sub-area ("منطقة 2"), so the page does not
+     * narrowed by branch and sub-area ("المنطقة"), so the page does not
      * grow with the number of boxes.
      *
-     * @return array{branches: Collection, tariffs: Collection, segments: Collection, subAreas: Collection, circuitBreakers: Collection, canChooseBranch: bool, currentBranchAreaId: ?int, currentBranchAreaName: ?string, canEditMinimumCharge: bool, canEditKilowattPrice: bool}
+     * @return array{branches: Collection, tariffs: Collection, segments: Collection, subAreas: Collection, circuitBreakers: Collection, canChooseBranch: bool, currentBranchId: ?int, canEditMinimumCharge: bool, canEditKilowattPrice: bool}
      */
     protected function subscriptionFormOptions(): array
     {
         $actor = auth()->user();
         $canChooseBranch = $actor->isSuperAdmin();
 
-        $branches = fn () => $canChooseBranch ? Branch::with('area')->orderBy('name')->get() : collect();
+        $branches = fn () => $canChooseBranch ? Branch::query()->orderBy('name')->get(['id', 'name']) : collect();
 
         $tariffs = fn () => Tariff::orderBy('category')->get()->map(fn (Tariff $tariff) => [
             'id' => $tariff->id,
@@ -104,11 +104,10 @@ trait ProvidesSubscriptionForm
             'tariffs' => $tariffs,
             // Any subscription can be given any customer segment, whatever their tariff.
             'segments' => fn () => TariffSegment::orderBy('name')->get(['id', 'name']),
-            'subAreas' => fn () => SubArea::orderBy('name')->get(),
+            'subAreas' => fn () => SubArea::visibleTo($actor)->orderBy('name')->get(['id', 'name', 'branch_id']),
             'circuitBreakers' => fn () => CircuitBreaker::orderBy('ampere')->get(),
             'canChooseBranch' => $canChooseBranch,
-            'currentBranchAreaId' => $canChooseBranch ? null : $actor->workBranch()?->area_id,
-            'currentBranchAreaName' => $canChooseBranch ? null : $actor->workBranch()?->area?->name,
+            'currentBranchId' => $canChooseBranch ? null : $actor->workBranchId(),
             'canEditMinimumCharge' => $this->canEditMinimumCharge($actor),
             'canEditKilowattPrice' => $actor->hasPermission(PermissionKey::UpdateSubscriptionKilowattPrice),
         ];

@@ -135,7 +135,7 @@ void main() {
     expect(tester.getTopLeft(find.text('الحي الشرقي')).dy,
         lessThan(tester.getTopLeft(find.text('أبو ذر 8 (B7)')).dy));
     expect(find.text('مخيم 2'), findsNothing);
-    expect(find.text('المنطقة 2'), findsOneWidget);
+    expect(find.text('المنطقة'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

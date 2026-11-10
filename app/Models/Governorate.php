@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
-use App\Support\DeletionBlocker;
 use Database\Factories\GovernorateFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * A governorate, no longer used: the work is organised by branch, then its
+ * areas, then their meter boxes. The table is kept, unused, until it is
+ * confirmed nothing depends on it and its removal is approved.
+ */
 #[Fillable(['name'])]
 class Governorate extends Model
 {
@@ -18,17 +22,5 @@ class Governorate extends Model
     public function areas(): HasMany
     {
         return $this->hasMany(Area::class);
-    }
-
-    /**
-     * Why the governorate can't be deleted yet — what still uses it — or null
-     * when it can.
-     */
-    public function deletionBlocker(): ?string
-    {
-        return DeletionBlocker::describe('المحافظة', [
-            'المناطق' => $this->areas()->count(),
-            'الفروع' => Branch::query()->where('governorate_id', $this->id)->count(),
-        ]);
     }
 }

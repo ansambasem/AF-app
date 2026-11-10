@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Notifications;
 
+use App\Models\Branch;
 use App\Models\User;
 use App\Notifications\ActionCompleted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,7 +17,7 @@ class RecentActivityTest extends TestCase
         $superAdmin = User::factory()->superAdmin()->create();
 
         $this->actingAs($superAdmin)
-            ->post(route('governorates.store'), ['name' => 'Baghdad'])
+            ->post(route('sub-areas.store'), ['name' => 'Baghdad', 'branch_id' => Branch::factory()->create()->id])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($superAdmin)
@@ -24,7 +25,7 @@ class RecentActivityTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('activity.unreadCount', 1)
                 ->has('activity.recent', 1)
-                ->where('activity.recent.0.action', 'governorate-created')
+                ->where('activity.recent.0.action', 'sub-area-created')
                 ->where('activity.recent.0.subject', 'Baghdad')
                 ->where('activity.recent.0.read', false));
     }
@@ -63,7 +64,7 @@ class RecentActivityTest extends TestCase
         $superAdmin = User::factory()->superAdmin()->create();
 
         $this->actingAs($superAdmin)
-            ->post(route('governorates.store'), ['name' => ''])
+            ->post(route('sub-areas.store'), ['name' => '', 'branch_id' => Branch::factory()->create()->id])
             ->assertSessionHasErrors('name');
 
         $this->assertSame(0, $superAdmin->notifications()->count());

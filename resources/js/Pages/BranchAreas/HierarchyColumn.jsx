@@ -6,7 +6,7 @@ import InlineNameEditor from './InlineNameEditor';
 const SEARCHABLE_FROM = 6;
 
 /**
- * One column of the governorates → areas → sub-areas browser: a header
+ * One column of the branches → areas browser: a header
  * with the count and "إضافة", an optional search box, then the rows. A
  * row is picked by click or Enter (`onPick`); the pencil renames it in
  * place and the bin asks to delete it. Adding also happens in place, at

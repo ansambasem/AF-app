@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Area;
 use App\Models\Branch;
 use App\Models\Subscription;
 use App\Models\SubscriptionTransaction;
@@ -22,9 +21,8 @@ class SubscriptionFlowTest extends TestCase
     public function test_a_subscription_goes_from_registration_to_reading_bill_payment_statement_and_another_branch(): void
     {
         $this->travelTo('2026-09-24 10:00:00');
-        $area = Area::factory()->create();
-        $branch = Branch::factory()->inArea($area)->create();
-        $otherBranch = Branch::factory()->inArea($area)->create();
+        $branch = Branch::factory()->create();
+        $otherBranch = Branch::factory()->create();
         $tariff = Tariff::factory()->residential()->create(['rate' => '30.00']);
         $admin = User::factory()->branchAdmin()->create(['branch_id' => $branch->id]);
 
@@ -103,8 +101,7 @@ class SubscriptionFlowTest extends TestCase
 
     public function test_a_subscription_imported_from_the_old_system_opens_with_its_balance_and_can_be_collected_from(): void
     {
-        $area = Area::factory()->create();
-        $branch = Branch::factory()->inArea($area)->create();
+        $branch = Branch::factory()->create();
         $manager = User::factory()->branchAdmin()->create(['branch_id' => $branch->id]);
         Tariff::factory()->residential()->create();
         $file = tempnam(sys_get_temp_dir(), 'flow');

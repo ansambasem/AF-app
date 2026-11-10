@@ -27,9 +27,6 @@ class ResolveBranchView
         $key = BranchViewContext::sessionKey($request->user());
         $clearBranch = false;
         if ($request->isMethod('GET') && $request->header('Purpose') !== 'prefetch') {
-            if ($request->filled('governorate') && ! Arr::hasAny($request->query(), ['filter.branch_id', 'branch_id', 'branch'])) {
-                $request->session()->forget($key);
-            }
             foreach (['filter.branch_id', 'branch_id', 'branch'] as $parameter) {
                 if (! Arr::has($request->query(), $parameter)) {
                     continue;

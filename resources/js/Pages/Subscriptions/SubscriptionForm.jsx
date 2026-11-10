@@ -40,27 +40,6 @@ const STATUS_DOTS = {
  */
 const REQUIRED_FIELDS = ['full_name', 'status', 'tariff_id', 'minimum_charge'];
 
-// A value the form shows but never lets the user edit directly (it's
-// derived from another selection, like the branch's area).
-function FieldLock() {
-    return (
-        <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-gray-400" aria-hidden="true">
-            <Icon name="lock" className="h-4 w-4" />
-        </span>
-    );
-}
-
-function ReadOnlyField({ id, label, value, dir }) {
-    return (
-        <div>
-            <InputLabel htmlFor={id} value={label} />
-            <div className="relative mt-1" dir={dir}>
-                <TextInput id={id} readOnly value={value} title="للقراءة فقط" className="w-full bg-gray-50 pe-10 text-gray-600" />
-                <FieldLock />
-            </div>
-        </div>
-    );
-}
 
 /**
  * The dark card at the top of the form: the subscription as they're being
@@ -147,7 +126,7 @@ export default function SubscriptionForm({
     branches,
     subAreas,
     canChooseBranch,
-    currentBranchAreaId,
+    currentBranchId,
     canEditMinimumCharge,
     canEditKilowattPrice = false,
     sharedPersonalDetails = false,
@@ -171,11 +150,8 @@ export default function SubscriptionForm({
     }
     const selectedBranch = canChooseBranch ? branches.find((branch) => String(branch.id) === String(data.branch_id)) : null;
 
-    // The branch's area scopes the selectable sub-areas ("منطقة 2"). A Super
-    // Admin also sees the chosen branch's area as a read-only value; branch
-    // staff do not need to see or choose the area already fixed by their branch.
-    const resolvedAreaId = canChooseBranch ? (selectedBranch?.area_id ?? '') : (currentBranchAreaId ?? '');
-    const resolvedAreaName = selectedBranch?.area?.name ?? '';
+    // The branch's areas are the ones to pick from: the branch the Super Admin chose, or the actor's own.
+    const resolvedBranchId = canChooseBranch ? (selectedBranch?.id ?? '') : (currentBranchId ?? '');
 
     // The meter box chosen (the subscription's own when editing, which the page carries) and its sub-area:
     // seeding the sub-area from it shows an edited subscription's box pre-selected instead of
@@ -183,7 +159,7 @@ export default function SubscriptionForm({
     const [selectedBox, setSelectedBox] = useState(meterBox);
     const [subAreaId, setSubAreaId] = useState(() => (meterBox?.sub_area_id ? String(meterBox.sub_area_id) : ''));
 
-    const subAreasInArea = resolvedAreaId ? subAreas.filter((subArea) => String(subArea.area_id) === String(resolvedAreaId)) : [];
+    const subAreasInArea = resolvedBranchId ? subAreas.filter((subArea) => String(subArea.branch_id) === String(resolvedBranchId)) : [];
 
     // A Super Admin's boxes are those of the branch chosen; a branch's staff already get only their own.
     const boxBranchId = canChooseBranch ? data.branch_id : '';
@@ -206,7 +182,7 @@ export default function SubscriptionForm({
         if (!isEdit && !subAreaId && subAreasInArea.length === 1) {
             setSubAreaId(String(subAreasInArea[0].id));
         }
-    }, [isEdit, resolvedAreaId, subAreaId, subAreasInArea]);
+    }, [isEdit, resolvedBranchId, subAreaId, subAreasInArea]);
 
     const selectedTariff = tariffs.find((tariff) => String(tariff.id) === String(data.tariff_id));
     const selectedCircuitBreaker = circuitBreakers.find((circuitBreaker) => String(circuitBreaker.id) === String(data.circuit_breaker_id));
@@ -561,25 +537,17 @@ export default function SubscriptionForm({
                         </FormField>
                     )}
 
-                    {canChooseBranch && (
-                        <ReadOnlyField
-                            id="branch_area"
-                            label="المنطقة"
-                            value={resolvedAreaName || 'اختر فرعًا أولاً لعرض منطقته.'}
-                        />
-                    )}
-
-                    {Boolean(resolvedAreaId) && (
-                        <FormField id="sub_area_id" label="منطقة 2" error={errors.sub_area_id}>
+                    {Boolean(resolvedBranchId) && (
+                        <FormField id="sub_area_id" label="المنطقة" error={errors.sub_area_id}>
                             {subAreasInArea.length === 0 ? (
-                                <p className="text-sm text-gray-500">لا توجد منطقة 2 في هذه المنطقة بعد.</p>
+                                <p className="text-sm text-gray-500">لا توجد مناطق في هذا الفرع بعد.</p>
                             ) : (
                                 <SearchableSelect
                                     id="sub_area_id"
                                     value={subAreaId}
                                     onChange={onSubAreaChange}
                                     options={subAreasInArea.map((subArea) => ({ value: String(subArea.id), label: subArea.name }))}
-                                    placeholder={isEdit ? '— بلا منطقة 2 —' : '— اختر منطقة 2 —'}
+                                    placeholder={isEdit ? '— بلا منطقة —' : '— اختر المنطقة —'}
                                     searchPlaceholder="بحث في المناطق..."
                                     emptyLabel="لا توجد مناطق مطابقة"
                                     active={Boolean(subAreaId)}

@@ -46,7 +46,7 @@ async function snap(page, name) {
     await page.screenshot({ path: `${OUT_DIR}/${String(shot).padStart(2, '0')}-${name}.png`, fullPage: true });
 }
 
-/** Adds a name in one column of the governorates page (المحافظات، المناطق، منطقة 2). */
+/** Adds a name in one column of the governorates page (المحافظات، المناطق، المنطقة). */
 async function addInColumn(page, columnTitle, noun, name) {
     const column = page.locator('section, div').filter({ has: page.getByRole('heading', { name: columnTitle, exact: true }) }).last();
     await column.getByRole('button', { name: 'إضافة' }).click();
@@ -137,8 +137,8 @@ step('governorate, area and two sub-areas', async () => {
     await page.getByText('المحافظة الوسطى', { exact: true }).first().click();
     await addInColumn(page, 'المناطق', 'المنطقة', 'مخيم النصيرات');
     await page.getByText('مخيم النصيرات', { exact: true }).first().click();
-    await addInColumn(page, 'منطقة 2', 'منطقة 2', 'البلوك أ');
-    await addInColumn(page, 'منطقة 2', 'منطقة 2', 'البلوك ب');
+    await addInColumn(page, 'المنطقة', 'المنطقة', 'البلوك أ');
+    await addInColumn(page, 'المنطقة', 'المنطقة', 'البلوك ب');
     await snap(page, 'locations');
 });
 
@@ -172,7 +172,7 @@ step('the branch and its three tablons', async () => {
     for (const [name, suffix, number, block] of [['المدارس', '1', 'T-101', 'البلوك أ'], ['المدارس', '2', 'T-102', 'البلوك ب'], ['السوق', '', 'T-103', 'البلوك أ']]) {
         await addThroughWindow(page, '/meter-boxes', 'طبلون جديد', {
             'اسم الطبلون': name, 'لاحقة (اختياري)': suffix, 'رقم الطبلون': number,
-            'المحافظة': { select: 'المحافظة الوسطى' }, 'المنطقة': { select: 'مخيم النصيرات' }, 'الفرع': { select: 'فرع النصيرات' }, 'منطقة الطبلون (منطقة 2)': { select: block, search: block },
+            'المحافظة': { select: 'المحافظة الوسطى' }, 'المنطقة': { select: 'مخيم النصيرات' }, 'الفرع': { select: 'فرع النصيرات' }, 'منطقة الطبلون (المنطقة)': { select: block, search: block },
         });
     }
     for (const number of ['T-101', 'T-102', 'T-103']) {

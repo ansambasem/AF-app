@@ -226,15 +226,16 @@ enum PermissionKey: string
     public function isRetired(): bool
     {
         return $this === self::SendCashBoxesToAudit
+            // Governorates and the former area level are no longer used: a branch's areas are its own.
+            || in_array($this, [self::ViewGovernorates, self::CreateGovernorates, self::UpdateGovernorates, self::DeleteGovernorates, self::ViewAreas, self::CreateAreas, self::UpdateAreas, self::DeleteAreas], true)
             || (! in_array($this, [self::AuditClosings, self::ViewAllClosings], true) && str_starts_with($this->value, 'closings.'));
     }
 
     /**
-     * Whether this permission shapes the company itself — its branches and
-     * the governorate/area map they sit in — rather than work inside one
-     * branch. That is the general manager's job, so only a Super Admin may
-     * grant these. (Sub-areas stay grantable: staff add them only inside
-     * their own branch's area.) The company also controls delegation of
+     * Whether this permission shapes the company itself — its branches —
+     * rather than work inside one branch. That is the general manager's
+     * job, so only a Super Admin may grant these. (A branch's areas stay
+     * grantable: staff manage only their own branch's.) The company also controls delegation of
      * each branch's period-start setting.
      */
     /**
@@ -389,14 +390,6 @@ enum PermissionKey: string
             'branches' => [
                 'label' => 'Branches',
                 'actions' => ['view' => self::ViewBranches, 'create' => self::CreateBranches, 'update' => self::UpdateBranches, 'delete' => self::DeleteBranches, 'manage_domains' => self::ManageBranchDomains],
-            ],
-            'governorates' => [
-                'label' => 'Governorates',
-                'actions' => ['view' => self::ViewGovernorates, 'create' => self::CreateGovernorates, 'update' => self::UpdateGovernorates, 'delete' => self::DeleteGovernorates],
-            ],
-            'areas' => [
-                'label' => 'Areas',
-                'actions' => ['view' => self::ViewAreas, 'create' => self::CreateAreas, 'update' => self::UpdateAreas, 'delete' => self::DeleteAreas],
             ],
             'sub_areas' => [
                 'label' => 'Sub Areas',

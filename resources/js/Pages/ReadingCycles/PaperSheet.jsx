@@ -17,7 +17,7 @@ export default function PaperSheet({ sheet, cycle, boxes }) {
     const beforePrint = () => printing.post(`/paper-sheets/${sheet.id}/printed`);
     const grouped = new Map();
     for (const box of boxes) {
-        const area = box.subAreaName ?? 'بدون منطقة 2';
+        const area = box.subAreaName ?? 'بدون منطقة';
         if (!grouped.has(area)) grouped.set(area, []);
         grouped.get(area).push(box);
     }
@@ -65,7 +65,7 @@ export default function PaperSheet({ sheet, cycle, boxes }) {
                             {['#', 'الطبلون', 'المشترك', 'رقم الاشتراك', 'القراءة السابقة', 'القراءة الحالية', 'ملاحظات'].map((label) => <th key={label} className="border border-gray-300 px-3 py-2 text-start">{label}</th>)}
                         </tr></thead>
                         {groups.map(([area, groupBoxes]) => <tbody key={area}>
-                            <tr><td colSpan={7} className="border border-gray-300 bg-gray-100 px-3 py-3 text-base font-bold">منطقة 2: {area}</td></tr>
+                            <tr><td colSpan={7} className="border border-gray-300 bg-gray-100 px-3 py-3 text-base font-bold">المنطقة: {area}</td></tr>
                             {groupBoxes.map((box) => <Fragment key={box.id}>
                                 {box.movedOffPaper && <tr className="print:hidden"><td colSpan={7} className="border border-gray-300 px-3 py-2 text-red-700">الطبلون {box.label}: نُقل من الكشوف الورقية بعد إنشاء الكشف.</td></tr>}
                                 {box.subscriptions.map((subscription, index) => <tr key={subscription.id} className="break-inside-avoid">

@@ -58,7 +58,7 @@ class BranchPerformanceController extends Controller
         $sort = $request->query('sort');
         $sort = is_string($sort) && array_key_exists($sort, self::SORTS) ? $sort : 'revenue';
 
-        $branches = $this->withFigures(Branch::query())->with(['governorate', 'area'])->orderBy('name')->get();
+        $branches = $this->withFigures(Branch::query())->orderBy('name')->get();
         $entries = $this->entriesPerDay($branches->modelKeys(), self::SPARKLINE_DAYS);
 
         $summaries = $branches
@@ -87,7 +87,7 @@ class BranchPerformanceController extends Controller
     {
         $this->authorize('viewForBranch', [SubscriptionTransaction::class, $branch]);
 
-        $branch = $this->withFigures(Branch::query())->with(['governorate', 'area'])->findOrFail($branch->id);
+        $branch = $this->withFigures(Branch::query())->findOrFail($branch->id);
         $entries = $this->entriesPerDay([$branch->id], self::CHART_DAYS)[$branch->id] ?? [];
         $charges = fn (): Builder => SubscriptionTransaction::query()->charges()->whereHas('subscription', fn (Builder $query) => $query->where('branch_id', $branch->id));
         $statusCounts = $branch->subscriptions()->toBase()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
@@ -162,8 +162,7 @@ class BranchPerformanceController extends Controller
             'id' => $branch->id,
             'name' => $branch->name,
             'isActive' => $branch->is_active,
-            'governorateName' => $branch->governorate?->name,
-            'areaName' => $branch->area?->name,
+            'location' => $branch->location,
             'chargesTotal' => round((float) $branch->charges_total, 2),
             'subscriptions' => $branch->subscriptions_count,
             'activeSubscriptions' => $branch->active_subscriptions_count,

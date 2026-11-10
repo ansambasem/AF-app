@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Subscriptions;
 
-use App\Models\Area;
 use App\Models\Branch;
 use App\Models\MeterBox;
 use App\Models\SubArea;
@@ -27,11 +26,11 @@ class SubAreaAndMinimumChargeFilterTest extends TestCase
     {
         parent::setUp();
 
-        $area = Area::factory()->create();
-        $this->branchAdmin = User::factory()->branchAdmin()->create(['branch_id' => Branch::factory()->inArea($area)->create()->id]);
+        $area = Branch::factory()->create();
+        $this->branchAdmin = User::factory()->branchAdmin()->create(['branch_id' => $area->id]);
         $branch = ['branch_id' => $this->branchAdmin->branch_id];
-        $this->schools = SubArea::factory()->create(['name' => 'المدارس', 'area_id' => $area->id]);
-        $other = SubArea::factory()->create(['name' => 'الحاج', 'area_id' => $area->id]);
+        $this->schools = SubArea::factory()->create(['name' => 'المدارس', 'branch_id' => $area->id]);
+        $other = SubArea::factory()->create(['name' => 'الحاج', 'branch_id' => $area->id]);
         $this->inSchools = Subscription::factory()->create([
             ...$branch,
             'minimum_charge' => 20,

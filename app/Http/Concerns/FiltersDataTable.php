@@ -2,7 +2,6 @@
 
 namespace App\Http\Concerns;
 
-use App\Models\Area;
 use App\Models\Branch;
 use App\Models\CircuitBreaker;
 use App\Models\MeterBox;
@@ -183,9 +182,9 @@ trait FiltersDataTable
      * The meter box filter as two linked dropdowns: the box name, then —
      * shown under it once a name is picked — that name's boxes by suffix
      * and number, e.g. "1 (1234)". Each box option names its `parent`, so
-     * the page lists only the chosen name's boxes. Both carry the branch,
-     * sub-area and area their boxes are in (`scope`), so picking one of
-     * those lists only its boxes.
+     * the page lists only the chosen name's boxes. Both carry the branch
+     * and area their boxes are in (`scope`), so picking one of those lists
+     * only its boxes.
      *
      * This lists every box it is given, so it suits only a short list; a
      * page that reloads with each filter change uses
@@ -204,7 +203,6 @@ trait FiltersDataTable
                 'name' => $box->name,
                 'branch_id' => $box->branch_id,
                 'sub_area_id' => $box->sub_area_id,
-                'area_id' => $box->subArea?->area_id,
             ]);
 
         return $this->linkedMeterBoxGroups($this->meterBoxNameOptions($placements), $this->meterBoxNumberOptions($boxes, $context));
@@ -230,10 +228,9 @@ trait FiltersDataTable
             ->visibleTo($actor)
             ->whereNotNull('meter_boxes.name')
             ->where('meter_boxes.name', '!=', '')
-            ->leftJoin('sub_areas', 'sub_areas.id', '=', 'meter_boxes.sub_area_id')
             ->distinct()
             ->toBase()
-            ->get(['meter_boxes.name', 'meter_boxes.branch_id', 'meter_boxes.sub_area_id', 'sub_areas.area_id']);
+            ->get(['meter_boxes.name', 'meter_boxes.branch_id', 'meter_boxes.sub_area_id']);
         $pickedName = $this->pickedMeterBoxName($actor, $request);
         $boxes = $pickedName === null
             ? new EloquentCollection
@@ -282,10 +279,10 @@ trait FiltersDataTable
     }
 
     /**
-     * One option per box name, each with the branches, sub-areas and areas
-     * its boxes are in.
+     * One option per box name, each with the branches and areas its boxes
+     * are in.
      *
-     * @param  Collection<int, object{name: string, branch_id: int|null, sub_area_id: int|null, area_id: int|null}>  $placements  where each box is
+     * @param  Collection<int, object{name: string, branch_id: int|null, sub_area_id: int|null}>  $placements  where each box is
      * @return Collection<int, array<string, mixed>>
      */
     private function meterBoxNameOptions(Collection $placements): Collection
@@ -299,7 +296,6 @@ trait FiltersDataTable
                 'scope' => $this->filterScope([
                     'branch_id' => $named->pluck('branch_id')->all(),
                     'sub_area_id' => $named->pluck('sub_area_id')->all(),
-                    'area_id' => $named->pluck('area_id')->all(),
                 ]),
             ])
             ->values();
@@ -324,53 +320,24 @@ trait FiltersDataTable
                 'scope' => $this->filterScope([
                     'branch_id' => $box->branch_id,
                     'sub_area_id' => $box->sub_area_id,
-                    'area_id' => $box->subArea?->area_id,
                 ]),
             ])
             ->values();
     }
 
     /**
-     * The "Area" dropdown, each area tied to its governorate and to the
-     * branches in it, so picking a governorate or a branch lists only its
-     * areas.
-     *
-     * @param  iterable<int, Area>  $areas
-     * @return array{key: string, label: string, options: array<int, array{value: string, label: string, scope: array<string, string|array<int, string>>}>}
-     */
-    protected function areaFilterGroup(iterable $areas): array
-    {
-        $branchAreas = Branch::query()->pluck('area_id', 'id');
-
-        return $this->filterGroup('area_id', 'المنطقة', collect($areas)->map(fn (Area $area) => [
-            'value' => (string) $area->getKey(),
-            'label' => $area->name,
-            'scope' => $this->filterScope([
-                'governorate_id' => $area->governorate_id,
-                'branch_id' => $branchAreas->filter(fn ($areaId) => $areaId === $area->id)->keys()->all(),
-            ]),
-        ]));
-    }
-
-    /**
-     * The "Sub-area" dropdown (منطقة 2), each tied to its area and to the
-     * branches of that area, so picking an area or a branch lists only its
-     * sub-areas.
+     * The "Area" dropdown: each of the given areas tied to the one branch it
+     * belongs to, so picking a branch lists only its areas.
      *
      * @param  iterable<int, SubArea>  $subAreas
      * @return array{key: string, label: string, options: array<int, array{value: string, label: string, scope: array<string, string|array<int, string>>}>}
      */
     protected function subAreaFilterGroup(iterable $subAreas): array
     {
-        $branchAreas = Branch::query()->pluck('area_id', 'id');
-
-        return $this->filterGroup('sub_area_id', 'منطقة 2', collect($subAreas)->map(fn (SubArea $subArea) => [
+        return $this->filterGroup('sub_area_id', 'المنطقة', collect($subAreas)->map(fn (SubArea $subArea) => [
             'value' => (string) $subArea->getKey(),
             'label' => $subArea->name,
-            'scope' => $this->filterScope([
-                'area_id' => $subArea->area_id,
-                'branch_id' => $branchAreas->filter(fn ($areaId) => $areaId === $subArea->area_id)->keys()->all(),
-            ]),
+            'scope' => $this->filterScope(['branch_id' => $subArea->branch_id]),
         ]));
     }
 

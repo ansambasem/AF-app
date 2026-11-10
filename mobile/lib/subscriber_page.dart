@@ -432,7 +432,7 @@ class _SubscriberPageState extends State<SubscriberPage>
       if (text(subscriber['circuit_breaker_ampere']) case final ampere?)
         ('breaker', 'القاطع', '${AppIdentity.reading(ampere)} أمبير'),
       if (text(subscriber['sub_area_name']) case final area?)
-        ('pin', 'المنطقة 2', area),
+        ('pin', 'المنطقة', area),
       if (box.isNotEmpty) ('meter', 'الطبلون', box),
       if (text(subscriber['meter_box_location']) case final location?)
         ('pin', 'موقع الطبلون', location),

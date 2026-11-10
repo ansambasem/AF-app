@@ -147,7 +147,7 @@ export default function Index({
                         <tr>
                             <SortableTh column="account_number" label="رقم الاشتراك" sortState={filters} onSort={sort} />
                             <SortableTh column="display_name" label="اسم الاشتراك" sortState={filters} onSort={sort} />
-                            <th>منطقة 2</th>
+                            <th>المنطقة</th>
                             <th>الطبلون</th>
                             <SortableTh column="outstanding_balance" label="الرصيد" sortState={filters} onSort={sort} />
                             <SortableTh column="status" label="الحالة" sortState={filters} onSort={sort} />

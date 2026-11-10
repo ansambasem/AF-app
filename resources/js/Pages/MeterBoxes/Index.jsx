@@ -80,10 +80,8 @@ export default function Index({
     branches,
     canChooseBranch,
     canCreateSubArea,
-    governorates,
-    areas,
     subAreas,
-    currentBranchAreaId,
+    currentBranchId,
     filters,
     filterOptions,
     branchScope,
@@ -269,7 +267,7 @@ export default function Index({
                                     </td>
                                     <td data-label={selectedBranch ? 'منطقة الطبلون' : 'الموقع / المنطقة'}>
                                         <p className="text-sm font-semibold text-gray-700">{selectedBranch ? meterBox.subAreaName || '—' : meterBox.location || meterBox.subAreaName || '—'}</p>
-                                        {!selectedBranch && <p className="mt-0.5 text-xs text-gray-500">{[meterBox.governorateName, meterBox.areaName, meterBox.subAreaName].filter(Boolean).join(' / ') || '—'}</p>}
+                                        {!selectedBranch && <p className="mt-0.5 text-xs text-gray-500">{[meterBox.branchName, meterBox.subAreaName].filter(Boolean).join(' / ') || '—'}</p>}
                                         {selectedBranch && meterBox.location && meterBox.location !== meterBox.subAreaName && <p className="mt-0.5 text-xs text-gray-500">{meterBox.location}</p>}
                                     </td>
                                     <td data-label="الفرع" className="text-gray-600">{meterBox.branchName}</td>
@@ -315,10 +313,8 @@ export default function Index({
                 canChooseBranch={canChooseBranch && !selectedBranch}
                 canCreateSubArea={canCreateSubArea}
                 branchId={selectedBranch?.id}
-                governorates={governorates}
-                areas={areas}
                 subAreas={subAreas}
-                currentBranchAreaId={selectedBranch?.area_id ?? currentBranchAreaId}
+                currentBranchId={selectedBranch?.id ?? currentBranchId}
             />
 
             {/* Keyed by meter box id so switching who's being edited remounts
@@ -335,10 +331,8 @@ export default function Index({
                     canChooseBranch={canChooseBranch && !selectedBranch}
                     canCreateSubArea={canCreateSubArea}
                     branchId={selectedBranch?.id}
-                    governorates={governorates}
-                    areas={areas}
                     subAreas={subAreas}
-                    currentBranchAreaId={selectedBranch?.area_id ?? currentBranchAreaId}
+                    currentBranchId={selectedBranch?.id ?? currentBranchId}
                 />
             )}
 

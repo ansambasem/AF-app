@@ -1,6 +1,6 @@
 import { areaHue } from '@/lib/areaColors';
 
-/** A منطقة 2 as a soft chip in its own steady colour, so a collector picks out their area's rows at a glance. */
+/** A المنطقة as a soft chip in its own steady colour, so a collector picks out their area's rows at a glance. */
 export default function AreaChip({ id, name }) {
     if (!name) {
         return '—';

@@ -139,7 +139,7 @@ class PermissionsTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page->where('permissionGroups', fn ($groups): bool => collect($groups)->pluck('key')->all() === [
             'subscriptions', 'meter_boxes', 'circuit_breakers', 'tariffs', 'meter_readings', 'reading_assignments', 'collections', 'financial_audit', 'reports',
-            'disconnections', 'messages', 'print_templates', 'users', 'user_types', 'branches', 'governorates', 'areas', 'sub_areas',
+            'disconnections', 'messages', 'print_templates', 'users', 'user_types', 'branches', 'sub_areas',
         ]));
     }
 
@@ -271,9 +271,9 @@ class PermissionsTest extends TestCase
         $branch = Branch::factory()->create();
         $branchAdmin = User::factory()->branchAdmin()->grantingWhatTheyHold()->create(['branch_id' => $branch->id]);
         $collector = User::factory()->collector()->create(['branch_id' => $branch->id]);
-        $viewGovernorates = Permission::where('key', PermissionKey::ViewGovernorates->value)->firstOrFail();
+        $viewBranches = Permission::where('key', PermissionKey::ViewBranches->value)->firstOrFail();
         $viewSubscriptions = Permission::where('key', PermissionKey::ViewSubscriptions->value)->firstOrFail();
-        $collector->permissions()->attach($viewGovernorates);
+        $collector->permissions()->attach($viewBranches);
 
         $this->actingAs($branchAdmin)->put(route('settings.permissions.update'), [
             'permissions' => [
@@ -283,7 +283,7 @@ class PermissionsTest extends TestCase
 
         $collector = $collector->fresh();
         $this->assertTrue($collector->hasPermission(PermissionKey::ViewSubscriptions));
-        $this->assertTrue($collector->hasPermission(PermissionKey::ViewGovernorates));
+        $this->assertTrue($collector->hasPermission(PermissionKey::ViewBranches));
     }
 
     public function test_super_admin_can_take_a_default_permission_away_from_a_branch_admin(): void

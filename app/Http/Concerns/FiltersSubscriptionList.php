@@ -84,7 +84,7 @@ trait FiltersSubscriptionList
 
     /**
      * Apply `?filter[sub_area_id]=…`: the subscriptions on a meter box in
-     * that منطقة 2.
+     * that المنطقة.
      */
     protected function applySubAreaFilter(Builder $query, Request $request): Builder
     {

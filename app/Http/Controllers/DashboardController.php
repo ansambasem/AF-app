@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Enums\PermissionKey;
 use App\Http\Concerns\ProvidesFormOptions;
 use App\Models\Branch;
-use App\Models\Governorate;
 use App\Models\User;
 use App\Support\BranchScope;
 use App\Support\DailySeries;
@@ -21,8 +20,8 @@ class DashboardController extends Controller
 
     /**
      * The home page for the branches the user looks after — their own
-     * branch, or for the Super Admin the whole company, narrowed by
-     * governorate or branch from the picker at the top: the open billing
+     * branch, or for the Super Admin the whole company, narrowed to a
+     * branch from the picker at the top: the open billing
      * period's accounts, and what waits on someone (readings to approve or
      * enter, open boxes, disconnections due). Each part appears only for
      * someone who may open the page it summarizes.
@@ -32,18 +31,15 @@ class DashboardController extends Controller
         $actor = $request->user();
         $validated = $request->validate([
             'branch' => ['nullable', 'integer'],
-            'governorate' => ['nullable', 'integer'],
         ]);
         $company = BranchScope::shownTo($actor);
-        $allBranches = $company ? Branch::query()->with('governorate')->orderBy('name')->get() : collect();
-        $governorateId = $company ? ($validated['governorate'] ?? null) : null;
+        $allBranches = $company ? Branch::query()->orderBy('name')->get() : collect();
         $branchId = $company ? ($validated['branch'] ?? null) : null;
         $branches = $company
             ? $allBranches
-                ->when($governorateId, fn (Collection $branches) => $branches->where('governorate_id', $governorateId))
                 ->when($branchId, fn (Collection $branches) => $branches->where('id', $branchId))
                 ->values()
-            : Branch::query()->with('governorate')->whereKey($actor->workBranchId())->get();
+            : Branch::query()->whereKey($actor->workBranchId())->get();
         $overview = new DashboardOverview($actor, $branches);
 
         $sections = fn (): array => once(fn (): array => array_filter([
@@ -63,21 +59,16 @@ class DashboardController extends Controller
             },
             'scope' => [
                 'company' => $company,
-                'label' => $company && ! $branchId ? ($governorateId ? $allBranches->firstWhere('governorate_id', $governorateId)?->governorate?->name ?? 'كل الفروع' : 'كل الفروع') : $branches->first()?->name,
+                'label' => $company && ! $branchId ? 'كل الفروع' : $branches->first()?->name,
                 'branches' => $branches->count(),
-                'governorates' => $branches->pluck('governorate_id')->filter()->unique()->count(),
                 'today' => DailySeries::today()->toDateString(),
             ],
-            // The head of the company reads, large at the top, whose figures these are: the company, a governorate or a branch.
-            'branchScope' => fn (): ?array => $company
-                ? BranchScope::describe($branches, $governorateId && ! $branchId ? Governorate::query()->whereKey($governorateId)->value('name') : null)
-                : null,
+            // The head of the company reads, large at the top, whose figures these are: the company or a branch.
+            'branchScope' => fn (): ?array => $company ? BranchScope::describe($branches) : null,
             'filters' => [
                 'branch' => $branchId,
-                'governorate' => $governorateId,
             ],
-            'branchOptions' => $company ? $allBranches->map(fn (Branch $branch): array => ['value' => $branch->id, 'label' => $branch->name, 'governorate' => $branch->governorate_id])->values() : null,
-            'governorateOptions' => $company ? $allBranches->pluck('governorate')->filter()->unique('id')->sortBy('name')->map(fn (Governorate $governorate): array => ['value' => $governorate->id, 'label' => $governorate->name])->values() : null,
+            'branchOptions' => $company ? $allBranches->map(fn (Branch $branch): array => ['value' => $branch->id, 'label' => $branch->name])->values() : null,
             'sections' => $sections,
             // The open billing period's accounts: what the branches are owed and have collected in it.
             'periodAccounts' => $periodAccounts,

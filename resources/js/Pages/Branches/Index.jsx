@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import SettingsLayout from '@/Layouts/SettingsLayout';
 import AddButton from '@/Components/AddButton';
 import DataTableToolbar from '@/Components/DataTable/DataTableToolbar';
@@ -16,8 +16,9 @@ import { useRowClick } from '@/hooks/useRowClick';
 import BranchModal from './BranchModal';
 import DomainModal from './DomainModal';
 import PageHeader from '@/Components/PageHeader';
+import { areasCountLabel } from '@/lib/branchAreas';
 
-export default function Index({ branches, canCreate, filters, filterOptions, governorates, areas, canManageDomains = false, domainRoutingEnabled = false }) {
+export default function Index({ branches, canCreate, filters, filterOptions, canManageDomains = false, domainRoutingEnabled = false }) {
     const [domainBranch, setDomainBranch] = useState(null);
     const [modalBranch, setModalBranch] = useState(null);
     const [creating, setCreating] = useState(false);
@@ -59,8 +60,7 @@ export default function Index({ branches, canCreate, filters, filterOptions, gov
                         <tr>
                             <SortableTh column="name" label="الاسم" sortState={filters} onSort={sort} />
                             <SortableTh column="phone" label="الهاتف" sortState={filters} onSort={sort} />
-                            <th>المحافظة</th>
-                            <th>المنطقة</th>
+                            <th>المناطق</th>
                             <th>رابط الفرع</th>
                             <SortableTh column="is_active" label="الحالة" sortState={filters} onSort={sort} />
                             <ActionsTh />
@@ -69,7 +69,7 @@ export default function Index({ branches, canCreate, filters, filterOptions, gov
                     <tbody>
                         {branches.data.length === 0 ? (
                             <tr>
-                                <td className="text-gray-500" colSpan={7}>
+                                <td className="text-gray-500" colSpan={6}>
                                     لا توجد نتائج مطابقة.
                                 </td>
                             </tr>
@@ -80,15 +80,15 @@ export default function Index({ branches, canCreate, filters, filterOptions, gov
                                         <RowIdentity
                                             icon="pin"
                                             name={branch.name}
-                                            subtitle={branch.governorate?.name}
                                             status={branch.is_active ? 'green' : 'gray'}
                                         />
                                     </td>
                                     <td className="text-gray-600" dir="ltr">
                                         {branch.phone}
                                     </td>
-                                    <td className="text-gray-600">{branch.governorate?.name ?? '—'}</td>
-                                    <td className="text-gray-600">{branch.area?.name ?? '—'}</td>
+                                    <td onClick={(e) => e.stopPropagation()}>
+                                        <Link href={`/branch-areas?selected=${branch.id}`} className="font-semibold text-brand-600 hover:underline">{areasCountLabel(branch.sub_areas_count ?? 0)}</Link>
+                                    </td>
                                     <td onClick={(e) => e.stopPropagation()}><div className="space-y-2">
                                         {branch.domain ? <><p dir="ltr" className="text-start text-xs text-gray-600">{branch.domain}</p><StatusPill tone={branch.domain_enabled ? 'green' : 'gray'} label={branch.domain_enabled ? 'الرابط مفعّل' : 'الرابط متوقف'} /></> : <p className="text-gray-400">لم يُحدد رابط</p>}
                                         <div className="flex flex-wrap gap-3 text-xs font-semibold">{canManageDomains && <button type="button" onClick={() => setDomainBranch(branch)} className="text-brand-600 hover:underline">إدارة الرابط</button>}{domainRoutingEnabled && branch.url && <a href={branch.url} className="text-gray-700 hover:underline">فتح الفرع</a>}</div>
@@ -116,7 +116,7 @@ export default function Index({ branches, canCreate, filters, filterOptions, gov
             <Pagination meta={branches} filters={filters} baseUrl="/branches" />
             {domainBranch && <DomainModal key={domainBranch.id} branch={domainBranch} onClose={() => setDomainBranch(null)} routingEnabled={domainRoutingEnabled} />}
 
-            <BranchModal show={creating} onClose={() => setCreating(false)} branch={null} governorates={governorates} areas={areas} />
+            <BranchModal show={creating} onClose={() => setCreating(false)} branch={null} />
 
             {/* Keyed by branch id so switching who's being edited remounts
                 the form with fresh initial values — useForm() only captures
@@ -128,8 +128,6 @@ export default function Index({ branches, canCreate, filters, filterOptions, gov
                     show
                     onClose={() => setModalBranch(null)}
                     branch={modalBranch}
-                    governorates={governorates}
-                    areas={areas}
                 />
             )}
 

@@ -54,7 +54,7 @@ class ReadingPrintController extends Controller
             $assigned = $assignment !== null && $assignment->status !== ReadingAssignmentStatus::Unassigned;
             $column = ! $assigned ? 'available' : ($assignment->channel === ReadingAssignmentChannel::Paper ? 'paper' : 'reader:'.$assignment->user_id);
             $wanted = $filters['assignment'] ?? '';
-            $text = ArabicSearch::normalize($box->label().' '.($box->subArea?->name ?? 'بدون منطقة 2'));
+            $text = ArabicSearch::normalize($box->label().' '.($box->subArea?->name ?? 'بدون منطقة'));
 
             return ($ids === null || in_array($box->id, $ids, true))
                 && ($areas === [] || in_array((string) ($box->sub_area_id ?? 'none'), $areas, true))
@@ -70,7 +70,7 @@ class ReadingPrintController extends Controller
             $assignment = $assignments->get($box->id);
             $assigned = $assignment !== null && $assignment->status !== ReadingAssignmentStatus::Unassigned;
 
-            return ['subAreaName' => $box->subArea?->name ?? 'بدون منطقة 2', 'boxName' => $box->displayName(), 'boxNumber' => $box->box_number, 'boxLabel' => $box->label(), 'subscribers' => (int) $box->active_subscriptions_count,
+            return ['subAreaName' => $box->subArea?->name ?? 'بدون منطقة', 'boxName' => $box->displayName(), 'boxNumber' => $box->box_number, 'boxLabel' => $box->label(), 'subscribers' => (int) $box->active_subscriptions_count,
                 'readerName' => $assigned ? ($assignment->channel === ReadingAssignmentChannel::Paper ? 'كشف ورقي' : $assignment->user?->name ?? '') : 'غير موزع',
                 'channel' => $assigned ? __($assignment->channel->label()) : 'غير موزع', 'status' => $assigned ? __($assignment->status->label()) : 'غير موزع',
                 'approvedBy' => $assigned ? $assignment->approvedBy?->name : null, 'approvedAt' => $assigned ? $assignment->approved_at?->timezone(config('app.business_timezone'))->format('Y-m-d H:i') : null];

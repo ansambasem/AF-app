@@ -10,28 +10,38 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'area_id'])]
+/**
+ * An area of a branch (shown as «المنطقة»; formerly «منطقة 2»): it
+ * belongs to one branch, and holds that branch's meter boxes.
+ */
+#[Fillable(['name', 'branch_id'])]
 class SubArea extends Model
 {
     /** @use HasFactory<SubAreaFactory> */
     use HasFactory;
 
-    public function area(): BelongsTo
+    public function branch(): BelongsTo
     {
-        return $this->belongsTo(Area::class);
+        return $this->belongsTo(Branch::class);
+    }
+
+    public function meterBoxes(): HasMany
+    {
+        return $this->hasMany(MeterBox::class);
     }
 
     /**
-     * Only the sub-areas the given user works in: all of them for a Super
-     * Admin, otherwise those inside their own branch's area.
+     * Only the areas the given user works in: all of them for a Super
+     * Admin, otherwise those of their own branch.
      */
     #[Scope]
     protected function visibleTo(Builder $query, User $user): void
     {
         $query->when(
             ! $user->isSuperAdmin(),
-            fn (Builder $query) => $query->where('area_id', $user->branchAreaId()),
+            fn (Builder $query) => $query->where('branch_id', $user->workBranchId()),
         );
     }
 
@@ -41,7 +51,7 @@ class SubArea extends Model
      */
     public function deletionBlocker(): ?string
     {
-        return DeletionBlocker::describe('منطقة 2', [
+        return DeletionBlocker::describe('المنطقة', [
             'الطبلونات' => MeterBox::query()->where('sub_area_id', $this->id)->count(),
         ]);
     }

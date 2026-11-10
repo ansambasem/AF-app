@@ -21,7 +21,7 @@ test('the box filter narrows the selected area and search without including anot
 
 test('box choices follow areas and reader filters and show the name beside its number', () => {
     assert.deepEqual(distributionBoxOptions(boards, ['7'], 'available'), [
-        { value: '1', label: 'المدارس 1 (B-001)', hint: 'بدون منطقة 2' },
+        { value: '1', label: 'المدارس 1 (B-001)', hint: 'بدون منطقة' },
     ]);
     assert.deepEqual(distributionBoxOptions(boards, ['7'], 'reader:5'), []);
     assert.deepEqual(distributionBoxOptions(boards, ['8'], 'reader:5').map((option) => option.value), ['2']);
@@ -82,7 +82,7 @@ test('area choices count all their boxes and subscribers including unclassified 
         { ...boards[0], id: 4, subAreaId: null, subAreaName: null },
     ]);
     assert.deepEqual(areas.find((area) => area.id === '7'), { id: '7', name: 'الحي الشرقي', boxes: 2, subscribers: 7, assigned: 1, unassigned: 1, matchingBoxes: 2, matchingSubscribers: 7 });
-    assert.deepEqual(areas.find((area) => area.id === 'none'), { id: 'none', name: 'بدون منطقة 2', boxes: 1, subscribers: 4, assigned: 0, unassigned: 1, matchingBoxes: 1, matchingSubscribers: 4 });
+    assert.deepEqual(areas.find((area) => area.id === 'none'), { id: 'none', name: 'بدون منطقة', boxes: 1, subscribers: 4, assigned: 0, unassigned: 1, matchingBoxes: 1, matchingSubscribers: 4 });
     assert.equal(areas.length, 3);
 });
 

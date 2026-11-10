@@ -73,7 +73,7 @@ const PRINT_FIELDS = [
     { key: 'subscriber_number', label: 'رقم المشترك' },
     { key: 'meterBoxName', label: 'اسم الطبلون' },
     { key: 'meterBoxNumber', label: 'رقم الطبلون' },
-    { key: 'subAreaName', label: 'منطقة 2' },
+    { key: 'subAreaName', label: 'المنطقة' },
     { key: 'branchName', label: 'الفرع' },
 ];
 
@@ -94,8 +94,7 @@ export default function Index({
     circuitBreakers,
     subAreas,
     canChooseBranch,
-    currentBranchAreaId,
-    currentBranchAreaName,
+    currentBranchId,
     canEditMinimumCharge,
     canEditKilowattPrice,
     filters,
@@ -332,8 +331,7 @@ export default function Index({
         circuitBreakers,
         subAreas,
         canChooseBranch,
-        currentBranchAreaId,
-        currentBranchAreaName,
+        currentBranchId,
         canEditMinimumCharge,
     canEditKilowattPrice,
     };
@@ -400,7 +398,7 @@ export default function Index({
                             )}
                             <SortableTh column="account_number" label="رقم الاشتراك" sortState={filters} onSort={sort} />
                             <SortableTh column="display_name" label="اسم الاشتراك" sortState={filters} onSort={sort} />
-                            <th>منطقة 2</th>
+                            <th>المنطقة</th>
                             <th>الطبلون</th>
                             <th>نوع الاشتراك</th>
                             <th>الحد الأدنى</th>

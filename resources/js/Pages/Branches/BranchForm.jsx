@@ -1,6 +1,5 @@
 import FormField from '@/Components/Form/FormField';
 import FormPreview, { countFilled } from '@/Components/Form/FormPreview';
-import FormSelect, { namedOptions } from '@/Components/Form/FormSelect';
 import FormSection from '@/Components/Form/FormSection';
 import Icon from '@/Components/Icon';
 import InputError from '@/Components/InputError';
@@ -16,20 +15,11 @@ export function branchFormData(branch) {
         name: branch?.name ?? '',
         phone: branch?.phone ?? '',
         is_active: branch?.is_active ?? true,
-        governorate_id: branch?.governorate_id ?? '',
-        area_id: branch?.area_id ?? '',
     };
 }
 
-export default function BranchForm({ data, setData, errors, governorates, areas }) {
-    const areasInGovernorate = data.governorate_id ? areas.filter((area) => String(area.governorate_id) === String(data.governorate_id)) : [];
-    const governorate = governorates.find((option) => String(option.id) === String(data.governorate_id));
-    const area = areasInGovernorate.find((option) => String(option.id) === String(data.area_id));
-
-    function onGovernorateChange(value) {
-        setData((prev) => ({ ...prev, governorate_id: value, area_id: '' }));
-    }
-
+/** A branch's details. Its areas, and their meter boxes, are managed on the branch areas page. */
+export default function BranchForm({ data, setData, errors }) {
     return (
         <div className="space-y-4">
             <FormPreview
@@ -38,7 +28,7 @@ export default function BranchForm({ data, setData, errors, governorates, areas 
                 title={data.name.trim() || 'فرع جديد'}
                 subtitle={data.phone.trim() || null}
                 subtitleDir="ltr"
-                chips={[governorate?.name, area?.name, data.is_active ? null : 'متوقف'].filter(Boolean)}
+                chips={[data.is_active ? null : 'متوقف'].filter(Boolean)}
                 filled={countFilled(data, ['name'])}
                 total={1}
             />
@@ -58,30 +48,6 @@ export default function BranchForm({ data, setData, errors, governorates, areas 
                 </div>
             </FormSection>
 
-            <FormSection icon="pin" title="الموقع" columns={2}>
-                <FormSelect
-                    id="governorate_id"
-                    label="المحافظة"
-                    value={data.governorate_id}
-                    onChange={onGovernorateChange}
-                    options={namedOptions(governorates)}
-                    placeholder="— بلا محافظة —"
-                    emptyMessage="لا توجد محافظات بعد"
-                    error={errors.governorate_id}
-                />
-
-                <FormSelect
-                    id="area_id"
-                    label="المنطقة"
-                    value={data.area_id}
-                    onChange={(value) => setData('area_id', value)}
-                    options={namedOptions(areasInGovernorate)}
-                    placeholder="— بلا منطقة —"
-                    blockedMessage={data.governorate_id ? null : 'اختر محافظة أولاً'}
-                    emptyMessage="لا توجد مناطق في هذه المحافظة بعد"
-                    error={errors.area_id}
-                />
-            </FormSection>
         </div>
     );
 }

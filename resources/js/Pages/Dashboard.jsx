@@ -28,7 +28,6 @@ export default function Dashboard({
     branchScope,
     filters,
     branchOptions,
-    governorateOptions,
     sections,
     periodAccounts,
     fieldApp,
@@ -44,7 +43,7 @@ export default function Dashboard({
     const { readings, disconnections, boxes } = sections;
     const branchView = useBranchView();
 
-    /** Reloads the dashboard for another governorate or branch. */
+    /** Reloads the dashboard for another branch. */
     function visit(changes) {
         const query = Object.fromEntries(
             Object.entries({ ...filters, ...changes }).filter(([, value]) => value !== null && value !== undefined && value !== ''),
@@ -66,7 +65,7 @@ export default function Dashboard({
     }
 
     const scopeLine = scope.company
-        ? `${scope.label} · ${formatNumber(scope.branches)} ${scope.branches === 1 ? 'فرع' : 'فروع'} في ${formatNumber(scope.governorates)} ${scope.governorates === 1 ? 'محافظة' : 'محافظات'}`
+        ? `${scope.label} · ${formatNumber(scope.branches)} ${scope.branches === 1 ? 'فرع' : 'فروع'}`
         : scope.label;
 
     const attention = [
@@ -146,27 +145,12 @@ export default function Dashboard({
                         className=""
                         controls={
                             <>
-                                {governorateOptions.length > 0 && (
-                                    <label className="flex w-full flex-col gap-1.5 text-xs font-semibold text-white/70 sm:w-56">
-                                        المحافظة
-                                        <SearchableSelect
-                                            value={filters.governorate ?? ''}
-                                            onChange={(value) => visit({ governorate: value || null, branch: null })}
-                                            options={governorateOptions}
-                                            placeholder="كل المحافظات"
-                                            searchable={governorateOptions.length > 6}
-                                            active={Boolean(filters.governorate)}
-                                            portal
-                                            onDark
-                                        />
-                                    </label>
-                                )}
                                 <label className="flex w-full flex-col gap-1.5 text-xs font-semibold text-white/70 sm:w-56">
                                     الفرع
                                     <SearchableSelect
                                         value={branchView.available ? String(branchView.value) : filters.branch ?? ''}
                                         onChange={branchView.available ? branchView.changeBranch : (value) => visit({ branch: value || null })}
-                                        options={branchView.available ? branchView.options : branchOptions.filter((branch) => !filters.governorate || String(branch.governorate) === String(filters.governorate))}
+                                        options={branchView.available ? branchView.options : branchOptions}
                                         disabled={branchView.switching}
                                         placeholder="كل الفروع"
                                         searchPlaceholder="ابحث عن فرع..."
@@ -232,8 +216,6 @@ export default function Dashboard({
                         show
                         onClose={() => setCreating(null)}
                         branch={null}
-                        governorates={branchForm.governorates}
-                        areas={branchForm.areas}
                         visitOptions={returnHere}
                     />
                 )}
