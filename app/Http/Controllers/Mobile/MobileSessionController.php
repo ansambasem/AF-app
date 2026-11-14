@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Mobile;
 use App\Enums\PaymentMethod;
 use App\Enums\PermissionKey;
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\AuthenticateMobileToken;
 use App\Models\Bank;
 use App\Models\CurrencyRate;
 use App\Models\MessageBatch;
@@ -52,7 +53,7 @@ class MobileSessionController extends Controller
 
         return response()->json([
             'user' => $this->userData($user),
-            'token' => app(UserDeviceAccess::class)->issueMobile($user, $request->bearerToken(), $request->boolean('remember')),
+            'token' => app(UserDeviceAccess::class)->issueMobile($user, AuthenticateMobileToken::plainTextToken($request), $request->boolean('remember')),
         ]);
     }
 

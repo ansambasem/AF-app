@@ -8,6 +8,12 @@
     </FilesMatch>
 </IfModule>
 
+# Apache's CGI handler with suEXEC withholds the Authorization header from PHP;
+# pass the same value on in X-Mobile-Authorization for the app's API.
+<IfModule mod_headers.c>
+    RequestHeader set X-Mobile-Authorization "expr=%{req:Authorization}" "expr=-n %{req:Authorization}"
+</IfModule>
+
 <IfModule mod_mime.c>
     AddType font/woff2 .woff2
 </IfModule>
