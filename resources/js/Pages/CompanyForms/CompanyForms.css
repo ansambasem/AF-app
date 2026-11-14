@@ -1,0 +1,45 @@
+.cf-paper-container { min-width: 0; width: 100%; }
+.cf-page-shell { position: relative; width: 100%; margin: 0 auto 24px; }
+.cf-paper { box-sizing: border-box; position: absolute; top: 0; right: 0; transform-origin: top right; display: block; overflow: hidden; background: white; color: #17202a; box-shadow: 0 4px 22px #1018281a; font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif; line-height: 1.8; isolation: isolate; }
+.cf-paper * { box-sizing: border-box; }
+.cf-content { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; }
+.cf-letterhead-block { flex-shrink: 0; margin-bottom: 5mm; }
+.cf-heading { display: flex; align-items: center; gap: 6mm; padding-bottom: 5mm; }
+.cf-letterhead { display: grid; align-items: center; gap: 5mm; padding-bottom: 4mm; }
+.cf-letterhead-block img { object-fit: contain; max-width: 100%; justify-self: center; }
+.cf-letterhead-text { min-width: 0; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.6; }
+.cf-letterhead-text b { display: block; font-weight: 700; }
+.cf-letterhead-text p { margin: 1mm 0 0; opacity: .78; }
+.cf-heading .cf-letterhead-english { margin-inline-start: auto; }
+.cf-blocks { flex: 1; min-height: 0; }
+.cf-block { margin-bottom: 4mm; white-space: pre-wrap; overflow-wrap: anywhere; break-inside: avoid; }
+.cf-block p { margin: 0; }
+.cf-block-heading { font-size: 1.5em; padding-bottom: 2mm; }
+.cf-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3mm 7mm; margin: 0; }
+.cf-fields > div { min-width: 0; padding-bottom: 2mm; }
+.cf-fields dt { font-size: .85em; color: #5d6673; }
+.cf-fields dd { min-height: 7mm; padding: 1mm 0; margin: 0; border-bottom: 1px dotted #9aa3ad; font-weight: 600; }
+.cf-fill-line { display: block; min-height: 5mm; }
+.cf-signatures { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6mm; padding-top: 7mm; }
+.cf-signatures > div { flex: 1; min-width: 30mm; text-align: center; }
+.cf-signatures b { font-weight: 600; }
+.cf-signatures span { display: block; border-bottom: 1px dotted #7a8590; height: 14mm; }
+.cf-footer { margin-top: 4mm; padding-top: 3mm; border-top: 1px solid #d8dde4; display: flex; align-items: start; justify-content: space-between; gap: 6mm; font-size: .8em; color: #606a75; flex-shrink: 0; }
+.cf-watermark { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6mm; pointer-events: none; color: #222; font-size: 26px; z-index: 0; }
+.cf-watermark img { width: 58%; max-height: 45%; object-fit: contain; }
+.cf-source { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+.cf-overlay { position: absolute; z-index: 2; color: #111; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cf-overlay.is-editable { min-height: 20px; background: #fff8; outline: 1px dashed #a51d2680; cursor: pointer; }
+.cf-overlay.is-selected { outline: 2px solid #a51d26; background: #fff9e7b3; }
+.cf-placing { cursor: crosshair; }
+@media print {
+    body:has(.company-document-print) *:not(:has(.company-document-print)):not(.company-document-print):not(.company-document-print *) { display: none !important; }
+    html, body { background: white !important; margin: 0 !important; padding: 0 !important; color-scheme: light; }
+    .cf-print-toolbar { display: none !important; }
+    .company-document-print { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+    .cf-paper-container { width: auto !important; margin: 0 !important; }
+    .cf-page-shell { width: auto !important; height: auto !important; margin: 0 !important; break-after: page; }
+    .cf-paper-container:last-child .cf-page-shell { break-after: auto; }
+    .cf-paper { position: relative !important; transform: none !important; box-shadow: none !important; margin: 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cf-overlay { background: transparent !important; outline: 0 !important; }
+}

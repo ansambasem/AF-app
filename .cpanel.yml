@@ -1,0 +1,4 @@
+---
+deployment:
+  tasks:
+    - /bin/bash /home/abuzaedp/repositories/powercollect/.deploy/deploy.sh

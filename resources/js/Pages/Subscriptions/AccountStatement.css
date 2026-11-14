@@ -1,0 +1,211 @@
+/* Shared by the statement page and window. Chain, cancellation and focused-row
+   colours stay in app.css; these rules only fit the contents inside each row. */
+.statement-ledger-panel {
+    overflow: hidden;
+    border: 1px solid rgb(var(--gray-100));
+    border-radius: 28px;
+    background: rgb(var(--surface));
+    box-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 14px 34px -18px rgb(16 24 40 / 0.18);
+}
+
+.statement-ledger-panel > .data-table-toolbar {
+    border: 0;
+    border-radius: 0;
+}
+
+.statement-ledger-footer {
+    padding: 14px 20px;
+    border-top: 1px solid rgb(var(--gray-100));
+}
+
+.statement-date {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    direction: rtl;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.statement-date > bdi {
+    display: block;
+    width: 100%;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.statement-time {
+    color: rgb(var(--gray-500));
+    font-size: 13px;
+}
+
+.statement-reference {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    text-align: right;
+    scrollbar-width: thin;
+}
+
+.statement-reference:focus-visible {
+    outline: 2px solid rgb(var(--brand-500));
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.statement-description-title {
+    font-weight: 600;
+    line-height: 1.75;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.statement-description-details {
+    margin-top: 4px;
+    color: rgb(var(--gray-500));
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.7;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.statement-late-dates {
+    display: grid;
+    gap: 3px;
+}
+
+.statement-date-label {
+    color: rgb(var(--gray-500));
+    font-size: 12px;
+}
+
+@media screen {
+    @container (min-width: 641px) {
+        .account-statement .data-table-ledger {
+            min-width: var(--statement-table-width, 1740px);
+            table-layout: fixed;
+            border-spacing: 0 6px;
+        }
+
+        .account-statement .data-table-ledger th {
+            padding: 10px 7px 5px;
+            white-space: normal;
+            text-align: right;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .account-statement .data-table-ledger td {
+            padding: 13px 7px;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            vertical-align: top;
+            font-size: 15px;
+            line-height: 1.65;
+        }
+
+        .account-statement .data-table-ledger td:first-child,
+        .account-statement .data-table-ledger td:last-child {
+            padding-inline: 9px;
+        }
+
+        .account-statement .data-table-ledger .ledger-description {
+            width: 100%;
+            min-width: 0;
+            max-width: none;
+        }
+
+        .account-statement td[data-label='الرقم المرجعي'] {
+            overflow-wrap: normal;
+            font-size: 14px;
+        }
+
+        .account-statement td[data-label='البنك'] {
+            font-size: 14px;
+        }
+
+        .account-statement td[data-label='تاريخ الحركة'] {
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .account-statement td[data-label='المبلغ'],
+        .account-statement td[data-label='الرصيد (شيكل)'] {
+            white-space: nowrap;
+            font-weight: 700;
+        }
+
+        .account-statement td[data-label='المبلغ'] > span,
+        .account-statement td[data-label='الرصيد (شيكل)'] > span {
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+
+        .account-statement td[data-label='#'] > span,
+        .account-statement td[data-label='العملة'] {
+            white-space: nowrap;
+        }
+
+        .account-statement td[data-label='نوع الحركة'] > span {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .account-statement td[data-label='اسم المستخدم'] {
+            font-size: 14px;
+        }
+    }
+
+    @container (max-width: 640px) {
+        .account-statement .data-table-ledger colgroup {
+            display: none;
+        }
+
+        .account-statement .data-table-ledger td[data-label='البيان'] {
+            grid-column: 1 / -1;
+            min-width: 0;
+        }
+
+        .account-statement .data-table-ledger tbody tr {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .account-statement .data-table-ledger td {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+    }
+}
+
+/* Print Designer and the browser's print both retain every word and reference. */
+.print-mode .statement-reference {
+    display: block;
+    overflow: visible;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+}
+
+@media print {
+    .account-statement .data-table-ledger col {
+        width: auto !important;
+    }
+
+    .statement-reference {
+        display: block;
+        overflow: visible;
+        white-space: normal !important;
+        overflow-wrap: anywhere;
+    }
+
+    .statement-ledger-panel,
+    .statement-ledger-footer {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+}

@@ -1,0 +1,1 @@
+var e=`app:quick-message`;function t(t=[],n=null){window.dispatchEvent(new CustomEvent(e,{detail:{subscriptionIds:t,selection:n}}))}export{t as n,e as t};

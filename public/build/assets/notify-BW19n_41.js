@@ -1,0 +1,1 @@
+function e(e,t=`warning`){window.dispatchEvent(new CustomEvent(`app:notify`,{detail:{message:e,type:t}}))}export{e as t};

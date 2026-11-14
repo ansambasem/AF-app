@@ -1,0 +1,1 @@
+function e(e){return Number(e??0).toLocaleString(`en-US`,{minimumFractionDigits:2,maximumFractionDigits:2})}function t(e,t=!1){let[n,r,i]=e.split(`-`);return t?`${i}/${r}/${n}`:`${i}/${r}`}export{t as n,e as t};

@@ -1,0 +1,1 @@
+.af-login-footer{border-top:1px solid rgb(var(--gray-200));width:100%;max-width:28rem;color:rgb(var(--gray-500));text-align:start;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 16px;margin-inline:auto;padding-block:8px;font-size:12px;line-height:1.8;display:flex}.af-login-footer>p{flex:200px;margin:0}@media print{.af-login-footer{display:none!important}}

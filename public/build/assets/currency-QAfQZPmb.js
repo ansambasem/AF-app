@@ -1,0 +1,1 @@
+function e(e){return Number(e).toFixed(2).replace(/\.00$/,``)}function t(e){return Number(`${Math.round(Number(`${e}e2`))}e-2`)}function n(t){return t==null||t===``?`—`:`${e(t)} ₪`}function r(t){return t==null||t===``?`—`:`${e(t)} شيكل`}export{t as i,r as n,n as r,e as t};
