@@ -1,0 +1,1 @@
+import{r as e}from"./app-CYxYKSSB.js";var t=e();function n({message:e,className:n=``}){return e?(0,t.jsx)(`p`,{"data-input-error":!0,className:`text-sm leading-7 text-brand-600 ${n}`,children:e}):null}export{n as t};

@@ -1,7 +1,7 @@
 import BankReceivedDate from '@/Components/BankReceivedDate';
 import TableExportActions from '@/Components/DataTable/TableExportActions';
 import { BranchFilterBanner, splitBranchFilter } from '@/Components/BranchBanner';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Pagination from '@/Components/DataTable/Pagination';
@@ -17,8 +17,10 @@ import SplitPaymentBadge from '@/Pages/Payments/SplitPaymentBadge';
 import StatementModal from '@/Pages/Subscriptions/StatementModal';
 import './Ledger.css';
 import PageHeader from '@/Components/PageHeader';
-import PeriodCascade from '@/Components/PeriodCascade';
+import InfoTip from '@/Components/InfoTip';
+import DateInput from '@/Components/DateInput';
 
+const PERIODS = [['today', 'اليوم'], ['yesterday', 'أمس'], ['7', '7 أيام'], ['30', '30 يوم'], ['month', 'هذا الشهر'], ['custom', 'مخصص']];
 const BANK_LOGOS = {
     'بنك فلسطين': '/images/banks/bank-of-palestine.webp',
     'جوال باي': '/images/banks/jawwal-pay.webp',
@@ -46,6 +48,115 @@ function Money({ amount, balance = false, colored = balance, paperWord = false }
             <bdi className={`num ${colored ? `balance-${tone}` : ''}`} dir="ltr" title={BALANCE_HINTS[tone]}>{signedBalance(amount)} <span>₪</span></bdi>
             {paperWord && <span className="balance-paper-word"> {BALANCE_WORDS[tone]}</span>}
         </>
+    );
+}
+
+function shortDate(value) {
+    return value ? value.split('-').reverse().join('/') : 'البداية';
+}
+
+function DateRange({ period, range, today, onChange, errors }) {
+    const [open, setOpen] = useState(false);
+    const [from, setFrom] = useState(range.from ?? today);
+    const [to, setTo] = useState(range.to);
+    const [error, setError] = useState('');
+    const root = useRef(null);
+    const trigger = useRef(null);
+    const firstInput = useRef(null);
+
+    useEffect(() => {
+        if (!open) { return; }
+        firstInput.current?.focus();
+        function dismiss(event) {
+            if (event.type === 'keydown' && event.key === 'Escape') {
+                setOpen(false);
+                trigger.current?.focus();
+            } else if (event.type === 'pointerdown' && !root.current?.contains(event.target) && !event.target.closest?.('[data-date-picker]')) {
+                setOpen(false);
+            }
+        }
+        document.addEventListener('pointerdown', dismiss);
+        document.addEventListener('keydown', dismiss);
+        return () => {
+            document.removeEventListener('pointerdown', dismiss);
+            document.removeEventListener('keydown', dismiss);
+        };
+    }, [open]);
+
+    function toggle() {
+        if (!open) {
+            setFrom(range.from ?? today);
+            setTo(range.to);
+            setError('');
+        }
+        setOpen(!open);
+    }
+
+    function quickRange(preset) {
+        const end = new Date(`${today}T12:00:00Z`);
+        const start = new Date(end);
+        if (preset === '7') {
+            start.setUTCDate(start.getUTCDate() - 6);
+        } else if (preset === 'month') {
+            start.setUTCDate(1);
+        } else {
+            start.setUTCDate(1);
+            end.setUTCDate(0);
+            start.setUTCMonth(start.getUTCMonth() - 1);
+        }
+        setFrom(start.toISOString().slice(0, 10));
+        setTo(end.toISOString().slice(0, 10));
+        setError('');
+    }
+
+    function apply(event) {
+        event.preventDefault();
+        if (!from || !to || from > to) {
+            setError('اختر تاريخ بداية ونهاية، بحيث تكون البداية قبل النهاية أو مساوية لها.');
+            return;
+        }
+        onChange('custom', { from, to });
+        setOpen(false);
+        trigger.current?.focus();
+    }
+
+    return (
+        <div className="per">
+            <div className="pt2" role="group" aria-label="الفترة">
+                {PERIODS.map(([value, label]) => (
+                    <button type="button" key={value} aria-pressed={period === value} onClick={() => value === 'custom' ? toggle() : onChange(value)}>{label}</button>
+                ))}
+            </div>
+            <div className="range" ref={root}>
+                <button type="button" className="rbtn" ref={trigger} onClick={toggle} aria-expanded={open} aria-controls="ledger-date-range">
+                    <Icon name="calendar" /><small>الفترة</small><bdi className="num" dir="ltr">{shortDate(range.from)} — {shortDate(range.to)}</bdi>
+                </button>
+                {open && (
+                    <form id="ledger-date-range" className="rpop" onSubmit={apply} aria-labelledby="ledger-range-title">
+                        <div className="range-heading">
+                            <span className="range-heading-icon"><Icon name="calendar" /></span>
+                            <div><h3 id="ledger-range-title">فترة مخصصة</h3><p>حدّد الفترة لعرض حركات السجل المالي.</p></div>
+                            <button type="button" className="range-close" aria-label="إغلاق اختيار الفترة" onClick={() => { setOpen(false); trigger.current?.focus(); }}><Icon name="close" /></button>
+                        </div>
+                        <div className="two">
+                            <label htmlFor="ledger-from">تاريخ البداية<DateInput id="ledger-from" className="range-date-input" buttonRef={firstInput} required max={to || undefined} value={from} onChange={setFrom} /></label>
+                            <label htmlFor="ledger-to">تاريخ النهاية<DateInput id="ledger-to" className="range-date-input" required min={from || undefined} value={to} onChange={setTo} /></label>
+                        </div>
+                        <span className="range-presets-label">اختيار سريع</span>
+                        <div className="qk">
+                            <button type="button" onClick={() => quickRange('7')}>آخر 7 أيام</button>
+                            <button type="button" onClick={() => quickRange('month')}>هذا الشهر</button>
+                            <button type="button" onClick={() => quickRange('previous')}>الشهر الماضي</button>
+                        </div>
+                        {(error || errors.from || errors.to) && <p className="err" role="alert"><Icon name="info" />{error || errors.from || errors.to}</p>}
+                        <div className="ft">
+                            <button type="submit" className="btn pr"><Icon name="check" />تطبيق الفترة</button>
+                            <button type="button" className="btn" onClick={() => { setOpen(false); trigger.current?.focus(); }}>إلغاء</button>
+                        </div>
+                    </form>
+                )}
+            </div>
+        </div>
     );
 }
 
@@ -134,9 +245,9 @@ function TransactionRow({ entry, grouped, onOpen, rowClick }) {
     );
 }
 
-export default function Index({ entries, billingPeriod, billingPeriodChoices, dateBasis = 'recorded', side, summary, ledgerTotals, dayTotals, today, scopeLabel, branchScope, filters, filterOptions, statement }) {
-    const { can } = usePage().props;
-    const extraParams = { billing_period: billingPeriod, date_basis: dateBasis };
+export default function Index({ entries, period, dateBasis = 'recorded', side, summary, ledgerTotals, dateRange, dayTotals, today, scopeLabel, branchScope, filters, filterOptions, statement }) {
+    const { can, errors = {} } = usePage().props;
+    const extraParams = { period, date_basis: dateBasis, ...(period === 'custom' ? dateRange : {}) };
     const { search, setSearch, sort, setPerPage, filterValues, setFilter, setFilters, clearFilters } = useDataTable('/ledger', filters, extraParams);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const rowClick = useRowClick();
@@ -147,8 +258,8 @@ export default function Index({ entries, billingPeriod, billingPeriodChoices, da
     const activeFilters = Object.values(branchFilter.values).filter((value) => value !== '' && value !== null && value !== undefined).length;
     const clearPanelFilters = () => branchFilter.clear(setFilters, clearFilters);
 
-    function changeBillingPeriod(next) {
-        router.get('/ledger', { search, sort: filters.sort, direction: filters.direction, per_page: filters.per_page, filter: filterValues, date_basis: dateBasis, billing_period: next }, { preserveState: true, preserveScroll: true, replace: true });
+    function changePeriod(next, dates = {}) {
+        router.get('/ledger', { search, sort: filters.sort, direction: filters.direction, per_page: filters.per_page, filter: filterValues, date_basis: dateBasis, period: next, ...dates }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
     /** The subscriber's statement over the page, opened at this transaction. */
@@ -173,11 +284,11 @@ export default function Index({ entries, billingPeriod, billingPeriodChoices, da
             <Head title="السجل المالي" />
             {branchScope && <BranchFilterBanner scope={branchScope} eyebrow="يعرض السجل المالي لـ" group={branchFilter.branch} value={filterValues.branch_id} onChange={(value) => setFilter('branch_id', value)} />}
             <div className="ledger-page">
-                <div className="mb-4">
-                    {billingPeriodChoices.years.length > 0
-                        ? <PeriodCascade choices={billingPeriodChoices} onChange={changeBillingPeriod} className="ledger-period-picker" />
-                        : <p className="rounded-control border border-gray-200 bg-surface px-4 py-3 text-sm text-gray-500">لا توجد فترات مالية مسجلة بعد؛ يعرض السجل آخر 30 يومًا.</p>}
+                <div className="mb-4 flex flex-wrap items-end gap-3">
+                    <div className="w-56"><div className="mb-1.5 flex items-center gap-1"><label htmlFor="ledger-date-basis" className="block text-sm font-semibold text-gray-700">تصفية الفترة حسب</label><InfoTip label="عن تصفية الفترة">{dateBasis === 'paid' ? 'عرض حسب تاريخ الدفع الفعلي للدفعات المتأخرة، وتاريخ التسجيل لبقية الحركات. الأرصدة وترتيب الحركات يبقيان حسب التسجيل.' : 'الأرصدة والفترات تُحتسب حسب تاريخ التسجيل. تاريخ الدفع السابق محفوظ للتدقيق.'}</InfoTip></div><SearchableSelect id="ledger-date-basis" clearable={false} searchable={false} value={dateBasis} options={[{value: 'recorded', label: 'تاريخ التسجيل بالنظام'}, {value: 'paid', label: 'تاريخ الدفع الفعلي'}]} onChange={(value) => changePeriod(period, { ...(period === 'custom' ? dateRange : {}), date_basis: value })} /></div>
+                    <DateRange period={period} range={dateRange} today={today} onChange={changePeriod} errors={errors} />
                 </div>
+                {!errors.from && !errors.to ? null : <p role="alert" className="err">{errors.from || errors.to}</p>}
                 <SummaryCards totals={ledgerTotals} summary={summary} side={side} />
                 <section className="pn" aria-label="القيود المالية">
                     <div className="tb">

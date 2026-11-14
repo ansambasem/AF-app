@@ -1,1 +1,0 @@
-import{r as e}from"./app-DpbLftNK.js";import{t}from"./AuthenticatedLayout-CtPXqjDH.js";var n=e();function r({header:e,scope:r=null,children:i}){return(0,n.jsx)(t,{header:e,scope:r,children:i})}export{r as t};

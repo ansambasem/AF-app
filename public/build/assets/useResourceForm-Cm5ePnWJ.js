@@ -1,0 +1,1 @@
+import{o as e}from"./app-CYxYKSSB.js";function t(t,n,r){let i=e(r),a=!!n;function o(e={}){a?i.put(`${t}/${n.id}`,e):i.post(t,e)}return{...i,isEdit:a,save:o}}export{t};
