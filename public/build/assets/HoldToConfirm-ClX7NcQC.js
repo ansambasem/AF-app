@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-COiEfhsA.js";import{t}from"./HoldToConfirm-D9lAD2U9.js";var n=e({default:()=>t});export{n as t};

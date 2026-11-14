@@ -1,1 +1,0 @@
-import{r as e}from"./app-CYxYKSSB.js";var t=e();function n({className:e=``,...n}){return(0,t.jsx)(`input`,{...n,className:`block ${e}`})}export{n as t};

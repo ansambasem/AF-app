@@ -1,1 +1,0 @@
-import{r as e}from"./app-CYxYKSSB.js";var t=e();function n(){return(0,t.jsx)(`th`,{"data-actions":``,children:(0,t.jsx)(`span`,{className:`sr-only`,children:`الإجراءات`})})}export{n as t};

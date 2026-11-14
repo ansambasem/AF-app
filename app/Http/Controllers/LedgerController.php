@@ -5,13 +5,16 @@ namespace App\Http\Controllers;
 use App\Enums\PaymentMethod;
 use App\Http\Concerns\BuildsSubscriptionStatement;
 use App\Http\Concerns\FiltersDataTable;
+use App\Models\BillingPeriod;
 use App\Models\Branch;
 use App\Models\SubscriptionTransaction;
 use App\Models\User;
 use App\Support\BranchScope;
 use App\Support\DailySeries;
+use App\Support\PeriodPicker;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
@@ -64,11 +67,42 @@ class LedgerController extends Controller
         $actor = $request->user();
         $period = $this->period($request);
         $dateBasis = $request->validate(['date_basis' => ['sometimes', 'in:recorded,paid']])['date_basis'] ?? 'recorded';
-        [$from, $until, $days] = $this->dateWindow($request, $period);
+        $billingPeriods = $this->billingPeriods($request, $actor);
+        $billingPeriod = $this->selectedBillingPeriod($request, $billingPeriods);
+        $billingPeriodId = $billingPeriod?->id;
+        $billingPeriodChoices = PeriodPicker::choices(
+            $billingPeriods,
+            fn (BillingPeriod $item): string => (string) $item->id,
+            $billingPeriodId ? (string) $billingPeriodId : '',
+            $billingPeriod,
+        );
+        if ($billingPeriods->pluck('branch_id')->unique()->count() > 1) {
+            $branchNames = $billingPeriods->mapWithKeys(fn (BillingPeriod $item): array => [(string) $item->id => $item->branch?->name]);
+            foreach ($billingPeriodChoices['years'] as &$year) {
+                foreach ($year['months'] as &$month) {
+                    foreach ($month['periods'] as &$choice) {
+                        if ($branchName = $branchNames[$choice['value']] ?? null) {
+                            $choice['label'] = $branchName.' · '.$choice['label'];
+                        }
+                    }
+                    unset($choice);
+                }
+                unset($month);
+            }
+            unset($year);
+        }
+        [$from, $until, $days] = $billingPeriod
+            ? $this->billingPeriodWindow($billingPeriod)
+            : $this->dateWindow($request, $period);
         $side = $this->headlineSide($request);
 
         $ledger = fn (): Builder => $this->filteredLedger($request, $actor);
-        $inPeriod = fn (): Builder => $this->dateFiltered($ledger(), $from, $until, $dateBasis);
+        $inPeriod = fn (): Builder => $billingPeriod
+            ? $ledger()->where('subscription_transactions.billing_period_id', $billingPeriod->id)
+            : $this->dateFiltered($ledger(), $from, $until, $dateBasis);
+        $comparisonLedger = fn (): Builder => $billingPeriod
+            ? $ledger()->whereHas('subscription', fn (Builder $subscriptions) => $subscriptions->where('branch_id', $billingPeriod->branch_id))
+            : $ledger();
         $onSide = fn (Builder $query): Builder => $side === self::CREDIT ? $query->credits() : $query->charges();
 
         if ($request->query('format') === 'csv') {
@@ -85,6 +119,8 @@ class LedgerController extends Controller
         return Inertia::render('Ledger/Index', [
             'entries' => $entries,
             'period' => $period,
+            'billingPeriod' => $billingPeriodId ? (string) $billingPeriodId : '',
+            'billingPeriodChoices' => $billingPeriodChoices,
             'dateBasis' => $dateBasis,
             'dateRange' => [
                 'from' => $from?->setTimezone(config('app.business_timezone'))->toDateString(),
@@ -92,9 +128,9 @@ class LedgerController extends Controller
             ],
             'ledgerTotals' => $this->ledgerTotals($inPeriod()),
             'side' => $side,
-            'summary' => $this->summary($onSide($inPeriod()), $from && $days ? $onSide($ledger()) : null, $from, $days, $inPeriod(), $dateBasis),
+            'summary' => $this->summary($onSide($inPeriod()), $from && $days ? $onSide($comparisonLedger()) : null, $from, $days, $inPeriod(), $dateBasis),
             'dayTotals' => $groupedByDay ? $this->dayTotals($inPeriod(), collect($entries->items())->pluck('day')->unique()->all()) : [],
-            'dailyTotals' => $dateBasis === 'paid' || in_array($period, ['yesterday', 'month', 'custom'], true) ? [] : DailySeries::sums(
+            'dailyTotals' => $billingPeriod || $dateBasis === 'paid' || in_array($period, ['yesterday', 'month', 'custom'], true) ? [] : DailySeries::sums(
                 $onSide($ledger()),
                 'subscription_transactions.created_at',
                 'subscription_transactions.amount',
@@ -401,6 +437,65 @@ class LedgerController extends Controller
         $period = $request->query('period');
 
         return is_string($period) && array_key_exists($period, self::PERIODS) ? $period : self::DEFAULT_PERIOD;
+    }
+
+    /**
+     * The registered periods of branches the actor may see, narrowed to the
+     * selected branch when the audit banner is filtering the ledger.
+     *
+     * @return EloquentCollection<int, BillingPeriod>
+     */
+    private function billingPeriods(Request $request, User $actor): EloquentCollection
+    {
+        $branches = Branch::query()->select('branches.id');
+        if ($actor->canViewAllSubscriberAccounts() || $actor->hasFinancialAuditAccess()) {
+            $actor->scopeAuditBranches($branches, 'branches.id');
+        } else {
+            $branches->whereKey($actor->workBranchId());
+        }
+
+        if ($actor->hasFinancialAuditAccess() && $branchId = $this->filterValue($request, 'branch_id')) {
+            $branches->whereKey((int) $branchId);
+        }
+
+        return BillingPeriod::query()
+            ->whereIn('branch_id', $branches->pluck('branches.id'))
+            ->with('branch:id,name')
+            ->orderByDesc('starts_on')
+            ->get();
+    }
+
+    /**
+     * The requested period if it is visible, otherwise the current open
+     * period or newest registered period. Old date-range links keep their
+     * existing behavior until the user picks a registered period.
+     *
+     * @param  EloquentCollection<int, BillingPeriod>  $periods
+     */
+    private function selectedBillingPeriod(Request $request, EloquentCollection $periods): ?BillingPeriod
+    {
+        $requested = $request->query('billing_period');
+        if (is_scalar($requested) && preg_match('/^[1-9][0-9]*$/', (string) $requested)) {
+            return $periods->firstWhere('id', (int) $requested)
+                ?? $periods->first(fn (BillingPeriod $period): bool => $period->isOpen())
+                ?? $periods->first();
+        }
+
+        return $periods->first(fn (BillingPeriod $period): bool => $period->isOpen()) ?? $periods->first();
+    }
+
+    /**
+     * @return array{CarbonImmutable, CarbonImmutable, int}
+     */
+    private function billingPeriodWindow(BillingPeriod $period): array
+    {
+        $fromDate = $period->starts_on->toDateString();
+        $toDate = $period->ends_on->toDateString();
+        $from = CarbonImmutable::parse($fromDate, config('app.business_timezone'))->startOfDay();
+        $until = CarbonImmutable::parse($toDate, config('app.business_timezone'))->startOfDay()->addDay();
+        $days = (int) CarbonImmutable::parse($fromDate, 'UTC')->diffInDays(CarbonImmutable::parse($toDate, 'UTC')) + 1;
+
+        return [$from->utc(), $until->utc(), $days];
     }
 
     /**
